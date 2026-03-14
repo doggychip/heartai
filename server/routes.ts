@@ -674,6 +674,273 @@ GET https://heartai.zeabur.app/api/agents
     }
   });
 
+  // ─── Emotion Channel APIs ─────────────────────────────────
+
+  // Emotion trend data (day/week/month aggregated)
+  app.get("/api/emotion-channel/trends", requireAuth, async (req, res) => {
+    try {
+      const period = (req.query.period as string) || "week"; // day | week | month
+      const conversations = await storage.getConversationsByUser(getUserId(req));
+      const allPoints: { date: string; valence: number; arousal: number; dominance: number; primary: string; emoji: string }[] = [];
+
+      for (const conv of conversations.slice(0, 50)) {
+        const messages = await storage.getMessagesByConversation(conv.id);
+        for (const m of messages) {
+          if (m.role === "assistant" && m.emotionData) {
+            try {
+              const deep = JSON.parse(m.emotionData);
+              allPoints.push({
+                date: m.createdAt,
+                valence: deep.valence ?? 0,
+                arousal: deep.arousal ?? 0,
+                dominance: deep.dominance ?? 0.5,
+                primary: deep.primary?.nameZh || "未知",
+                emoji: deep.primary?.emoji || "😐",
+              });
+            } catch {}
+          }
+        }
+      }
+
+      // Sort by date
+      allPoints.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // Group by period
+      const grouped: Record<string, typeof allPoints> = {};
+      for (const p of allPoints) {
+        const d = new Date(p.date);
+        let key: string;
+        if (period === "day") {
+          key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+        } else if (period === "month") {
+          key = d.toISOString().slice(0, 7); // YYYY-MM
+        } else {
+          // week: use Monday-based ISO week
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          const monday = new Date(d);
+          monday.setDate(diff);
+          key = monday.toISOString().slice(0, 10);
+        }
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(p);
+      }
+
+      const trend = Object.entries(grouped).map(([key, points]) => {
+        const avgValence = points.reduce((s, p) => s + p.valence, 0) / points.length;
+        const avgArousal = points.reduce((s, p) => s + p.arousal, 0) / points.length;
+        const avgDominance = points.reduce((s, p) => s + p.dominance, 0) / points.length;
+        // Most frequent primary emotion
+        const freq: Record<string, number> = {};
+        for (const p of points) {
+          freq[p.primary] = (freq[p.primary] || 0) + 1;
+        }
+        const topEmotion = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+        const topEmoji = points.find(p => p.primary === topEmotion?.[0])?.emoji || "😐";
+
+        return {
+          period: key,
+          avgValence: Math.round(avgValence * 100) / 100,
+          avgArousal: Math.round(avgArousal * 100) / 100,
+          avgDominance: Math.round(avgDominance * 100) / 100,
+          count: points.length,
+          topEmotion: topEmotion?.[0] || "未知",
+          topEmoji,
+        };
+      });
+
+      res.json({ period, trend, totalPoints: allPoints.length });
+    } catch (err) {
+      console.error("Emotion trends error:", err);
+      res.status(500).json({ error: "Failed to get trends" });
+    }
+  });
+
+  // Emotion calendar data — daily emotion dots
+  app.get("/api/emotion-channel/calendar", requireAuth, async (req, res) => {
+    try {
+      const year = parseInt(req.query.year as string) || new Date().getFullYear();
+      const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+
+      const conversations = await storage.getConversationsByUser(getUserId(req));
+      const dayMap: Record<string, { valences: number[]; primaries: string[]; emojis: string[]; count: number }> = {};
+
+      for (const conv of conversations.slice(0, 50)) {
+        const messages = await storage.getMessagesByConversation(conv.id);
+        for (const m of messages) {
+          if (m.role === "assistant" && m.emotionData) {
+            try {
+              const deep = JSON.parse(m.emotionData);
+              const d = new Date(m.createdAt);
+              if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
+              const dayKey = d.getDate().toString();
+              if (!dayMap[dayKey]) dayMap[dayKey] = { valences: [], primaries: [], emojis: [], count: 0 };
+              dayMap[dayKey].valences.push(deep.valence ?? 0);
+              dayMap[dayKey].primaries.push(deep.primary?.nameZh || "未知");
+              dayMap[dayKey].emojis.push(deep.primary?.emoji || "😐");
+              dayMap[dayKey].count++;
+            } catch {}
+          }
+        }
+      }
+
+      // Also include mood journal entries
+      const moodEntries = await storage.getMoodEntriesByUser(getUserId(req));
+      for (const entry of moodEntries) {
+        const d = new Date(entry.createdAt);
+        if (d.getFullYear() !== year || d.getMonth() + 1 !== month) continue;
+        const dayKey = d.getDate().toString();
+        if (!dayMap[dayKey]) dayMap[dayKey] = { valences: [], primaries: [], emojis: [], count: 0 };
+        // Convert moodScore (1-10) to valence (-1 to 1)
+        const valence = (entry.moodScore - 5) / 5;
+        dayMap[dayKey].valences.push(valence);
+        dayMap[dayKey].count++;
+        try {
+          const tags = JSON.parse(entry.emotionTags) as string[];
+          if (tags.length > 0) dayMap[dayKey].primaries.push(tags[0]);
+        } catch {}
+      }
+
+      const days = Object.entries(dayMap).map(([day, data]) => {
+        const avgValence = data.valences.reduce((s, v) => s + v, 0) / data.valences.length;
+        const freq: Record<string, number> = {};
+        for (const p of data.primaries) freq[p] = (freq[p] || 0) + 1;
+        const topEmotion = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+        const topEmoji = data.emojis.find((_, i) => data.primaries[i] === topEmotion?.[0]) || data.emojis[0] || "😐";
+
+        return {
+          day: parseInt(day),
+          avgValence: Math.round(avgValence * 100) / 100,
+          count: data.count,
+          topEmotion: topEmotion?.[0] || "未知",
+          topEmoji,
+        };
+      });
+
+      res.json({ year, month, days });
+    } catch (err) {
+      console.error("Emotion calendar error:", err);
+      res.status(500).json({ error: "Failed to get calendar data" });
+    }
+  });
+
+  // Emotion report — AI-generated periodic summary
+  app.get("/api/emotion-channel/report", requireAuth, async (req, res) => {
+    try {
+      const conversations = await storage.getConversationsByUser(getUserId(req));
+      const allEmotions: { date: string; primary: string; valence: number; insight: string; suggestion: string }[] = [];
+
+      for (const conv of conversations.slice(0, 30)) {
+        const messages = await storage.getMessagesByConversation(conv.id);
+        for (const m of messages) {
+          if (m.role === "assistant" && m.emotionData) {
+            try {
+              const deep = JSON.parse(m.emotionData);
+              allEmotions.push({
+                date: m.createdAt,
+                primary: deep.primary?.nameZh || "未知",
+                valence: deep.valence ?? 0,
+                insight: deep.insight || "",
+                suggestion: deep.suggestion || "",
+              });
+            } catch {}
+          }
+        }
+      }
+
+      allEmotions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      // Build weekly summaries
+      const weeks: Record<string, typeof allEmotions> = {};
+      for (const e of allEmotions) {
+        const d = new Date(e.date);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(d);
+        monday.setDate(diff);
+        const key = monday.toISOString().slice(0, 10);
+        if (!weeks[key]) weeks[key] = [];
+        weeks[key].push(e);
+      }
+
+      const reports = Object.entries(weeks)
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .slice(0, 8)
+        .map(([weekStart, emotions]) => {
+          const avgValence = emotions.reduce((s, e) => s + e.valence, 0) / emotions.length;
+          const freq: Record<string, number> = {};
+          for (const e of emotions) freq[e.primary] = (freq[e.primary] || 0) + 1;
+          const topEmotions = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 3);
+          const insights = [...new Set(emotions.map(e => e.insight).filter(Boolean))].slice(0, 3);
+          const suggestions = [...new Set(emotions.map(e => e.suggestion).filter(Boolean))].slice(0, 2);
+
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 6);
+
+          return {
+            weekStart,
+            weekEnd: weekEnd.toISOString().slice(0, 10),
+            analysisCount: emotions.length,
+            avgValence: Math.round(avgValence * 100) / 100,
+            topEmotions: topEmotions.map(([name, count]) => ({ name, count })),
+            insights,
+            suggestions,
+            mood: avgValence > 0.2 ? "positive" : avgValence < -0.2 ? "negative" : "neutral",
+          };
+        });
+
+      res.json({ reports, totalAnalyses: allEmotions.length });
+    } catch (err) {
+      console.error("Emotion report error:", err);
+      res.status(500).json({ error: "Failed to get report" });
+    }
+  });
+
+  // Community posts with emotion-based filtering
+  app.get("/api/emotion-channel/community", async (req, res) => {
+    try {
+      const emotionFilter = req.query.emotion as string | undefined;
+      const allPosts = await storage.getCommunityPosts();
+
+      // Enrich posts with author info
+      const enriched = await Promise.all(
+        allPosts.map(async (post) => {
+          const author = await storage.getUser(post.userId);
+          return {
+            ...post,
+            authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || author?.username || "用户"),
+            authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
+          };
+        })
+      );
+
+      if (!emotionFilter) {
+        res.json(enriched);
+        return;
+      }
+
+      // Map emotion categories to keywords for content-based filtering
+      const EMOTION_KEYWORDS: Record<string, string[]> = {
+        "焦虑": ["焦虑", "紧张", "担心", "害怕", "不安", "恐惧", "压力", "烦躁", "忐忑"],
+        "开心": ["开心", "快乐", "高兴", "幸福", "愉快", "喜悦", "满足", "兴奋", "欣慰", "感恩"],
+        "压力": ["压力", "疲惫", "累", "透支", "崩溃", "喘不过气", "加班", "失眠", "忙碌"],
+        "悲伤": ["悲伤", "难过", "伤心", "失落", "孤独", "寂寞", "想哭", "低落", "消沉"],
+        "愤怒": ["愤怒", "生气", "恼火", "不公平", "气愤", "委屈", "不满"],
+        "平静": ["平静", "安宁", "放松", "舒适", "冥想", "正念", "呼吸", "自在"],
+      };
+
+      const keywords = EMOTION_KEYWORDS[emotionFilter] || [];
+      const filtered = enriched.filter(post =>
+        keywords.some(kw => post.content.includes(kw))
+      );
+
+      res.json(filtered);
+    } catch (err) {
+      console.error("Emotion community error:", err);
+      res.status(500).json({ error: "Failed to get community posts" });
+    }
+  });
+
   // ─── Mood Journal Routes (auth required) ──────────────────────
   app.get("/api/mood", requireAuth, async (req, res) => {
     const entries = await storage.getMoodEntriesByUser(getUserId(req));
