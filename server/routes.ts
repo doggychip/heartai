@@ -2592,6 +2592,25 @@ ${najiaDesc}
           const history = await storage.getMessagesByConversation(convId);
           const contextMessages = history.slice(-20).map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+          // Build personality-aware system prompt for agents
+          let agentSystemPrompt = SYSTEM_PROMPT;
+          const agentPersonalityData = agentUser.agentPersonality ? JSON.parse(agentUser.agentPersonality) : null;
+          if (agentPersonalityData) {
+            const parts: string[] = ['\n\n--- Agent 人格背景 ---'];
+            parts.push(`你正在与 AI Agent「${agentUser.nickname || agentUser.username.replace('agent_', '')}」对话。`);
+            if (agentPersonalityData.element) parts.push(`五行属性: ${agentPersonalityData.element}`);
+            if (agentPersonalityData.zodiac) parts.push(`星座: ${agentPersonalityData.zodiac}`);
+            if (agentPersonalityData.mbtiType) parts.push(`MBTI: ${agentPersonalityData.mbtiType}`);
+            if (agentPersonalityData.traits?.length) parts.push(`性格特质: ${agentPersonalityData.traits.join('、')}`);
+            if (agentPersonalityData.speakingStyle) {
+              const styleMap: Record<string, string> = { formal: '正式严谨', casual: '轻松随意', poetic: '诗意浪漫', funny: '幽默读趣', philosophical: '哲学深邓' };
+              parts.push(`说话风格偏好: ${styleMap[agentPersonalityData.speakingStyle] || agentPersonalityData.speakingStyle}`);
+            }
+            if (agentPersonalityData.interests?.length) parts.push(`兴趣领域: ${agentPersonalityData.interests.join('、')}`);
+            parts.push('请根据这个 Agent 的人格特质，调整你的回应风格，让对话更贴合它的性格。');
+            agentSystemPrompt += parts.join('\n');
+          }
+
           let aiText = "";
           try {
             const client = new OpenAI({
@@ -2602,7 +2621,7 @@ ${najiaDesc}
               model: "deepseek-chat",
               max_tokens: 1024,
               messages: [
-                { role: "system", content: SYSTEM_PROMPT },
+                { role: "system", content: agentSystemPrompt },
                 ...contextMessages,
               ],
             });
@@ -2700,6 +2719,7 @@ ${najiaDesc}
             profile: {
               agentName: agentUser.nickname || agentUser.username.replace("agent_", ""),
               description: agentUser.agentDescription,
+              personality: agentUser.agentPersonality ? JSON.parse(agentUser.agentPersonality) : null,
               postCount: agentPosts.length,
               commentCount: agentComments.length,
               followerCount,
@@ -2713,8 +2733,189 @@ ${najiaDesc}
           });
           break;
         }
+        // ─── Culture Feature Actions ────────────────────────────
+        case "almanac": {
+          // Agent queries today's almanac (黄历)
+          try {
+            const today = lunisolar(new Date());
+            const lunar = today.lunar;
+            const lunarDate = `${lunar.getMonthName()}${lunar.getDayName()}`;
+            const todayBazi = today.char8.toString();
+            let acts = { good: [] as string[], bad: [] as string[] };
+            try {
+              const theGods = (today as any).theGods;
+              if (theGods?.getActs) {
+                const actsData = theGods.getActs();
+                acts.good = actsData[0]?.map((a: any) => a.toString()) || [];
+                acts.bad = actsData[1]?.map((a: any) => a.toString()) || [];
+              }
+            } catch (e) {}
+            // 彭祖百忌
+            let pengzuStr = '';
+            try {
+              const fetalGodData = (today as any).fetalGod;
+              if (fetalGodData) pengzuStr = fetalGodData.toString();
+            } catch (e) {}
+            const solarTerm = today.solarTerm?.toString() || '';
+            res.json({
+              ok: true, action: 'almanac',
+              date: new Date().toISOString().split('T')[0],
+              lunarDate,
+              bazi: todayBazi,
+              solarTerm: solarTerm || undefined,
+              good: acts.good.slice(0, 8),
+              bad: acts.bad.slice(0, 8),
+              pengzuTaboo: pengzuStr || undefined,
+              tip: acts.good.length > 0 ? `今日宜${acts.good.slice(0, 3).join('、')}` : '今日平安顺遂',
+            });
+          } catch (e) {
+            res.json({ ok: true, action: 'almanac', error: '黄历数据暂时无法获取' });
+          }
+          break;
+        }
+        case "bazi": {
+          // Agent queries bazi analysis
+          const { birthDate: baziDate, birthHour: baziHour } = req.body;
+          if (!baziDate) return res.status(400).json({ error: '缺少 birthDate (格式: YYYY/MM/DD)' });
+          try {
+            const hourVal = baziHour !== undefined ? parseInt(baziHour) : 12;
+            const d = lunisolar(`${baziDate.replace(/-/g, '/')} ${hourVal}:00`);
+            const dayMaster = d.char8.day.stem.toString();
+            const dayMasterEl = getStemElement(dayMaster);
+            const elemCount: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+            const pillarsArr = [d.char8.year, d.char8.month, d.char8.day, d.char8.hour];
+            for (const p of pillarsArr) {
+              const se = getStemElement(p.stem.toString());
+              const be = getBranchElement(p.branch.toString());
+              if (elemCount[se] !== undefined) elemCount[se]++;
+              if (elemCount[be] !== undefined) elemCount[be]++;
+            }
+            const personality = getElementPersonality(dayMasterEl, elemCount);
+            res.json({
+              ok: true, action: 'bazi',
+              fullBazi: d.char8.toString(),
+              dayMaster, element: dayMasterEl,
+              zodiac: d.format('cZ'),
+              elementCount: elemCount,
+              personality: personality.traits,
+              emotionTendency: personality.emotionTendency,
+              advice: personality.advice,
+            });
+          } catch (e) {
+            res.status(400).json({ error: '八字计算失败，请检查日期格式' });
+          }
+          break;
+        }
+        case "divination": {
+          // Agent performs 纳甲六爻 divination
+          const { question: divQuestion } = req.body;
+          if (!divQuestion) return res.status(400).json({ error: '缺少 question (占卜问题)' });
+          try {
+            // Generate 6 random yao lines (6-9) for the hexagram
+            const yaoLines = Array.from({ length: 6 }, () => Math.floor(Math.random() * 4) + 6);
+            // Forward to internal divination endpoint logic
+            const internalRes = await fetch(`http://localhost:${(req.socket.address() as any)?.port || 5000}/api/culture/divination`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ question: divQuestion }),
+            });
+            if (internalRes.ok) {
+              const divResult = await internalRes.json();
+              res.json({ ok: true, action: 'divination', question: divQuestion, ...divResult });
+            } else {
+              // Fallback: simple result
+              res.json({ ok: true, action: 'divination', question: divQuestion, message: '卦象已成，请静待天机。建议通过 /api/culture/divination 获取完整解读。' });
+            }
+          } catch (e) {
+            res.json({ ok: true, action: 'divination', question: divQuestion, message: '占卜暂时无法完成，请稍后再试。' });
+          }
+          break;
+        }
+        case "name_score": {
+          // Agent queries name score (姓名测分)
+          const { surname, givenName } = req.body;
+          if (!surname || !givenName) return res.status(400).json({ error: '缺少 surname (姓) 和 givenName (名)' });
+          try {
+            const internalRes = await fetch(`http://localhost:${(req.socket.address() as any)?.port || 5000}/api/culture/name-score`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ surname, givenName }),
+            });
+            if (internalRes.ok) {
+              const nameResult = await internalRes.json();
+              res.json({ ok: true, action: 'name_score', surname, givenName, ...nameResult });
+            } else {
+              res.status(400).json({ error: '姓名测分失败' });
+            }
+          } catch (e) {
+            res.status(500).json({ error: '姓名测分服务暂时不可用' });
+          }
+          break;
+        }
+        case "compatibility": {
+          // Agent checks compatibility with another agent
+          const { targetAgentId } = req.body;
+          if (!targetAgentId) return res.status(400).json({ error: '缺少 targetAgentId' });
+          try {
+            const targetAgent = await storage.getUser(targetAgentId);
+            if (!targetAgent || !targetAgent.isAgent) return res.status(404).json({ error: '目标 Agent 不存在' });
+            
+            const myPersonality = agentUser.agentPersonality ? JSON.parse(agentUser.agentPersonality) : null;
+            const theirPersonality = targetAgent.agentPersonality ? JSON.parse(targetAgent.agentPersonality) : null;
+            
+            if (!myPersonality?.element || !theirPersonality?.element) {
+              return res.json({
+                ok: true, action: 'compatibility',
+                message: '缘分分析需要双方都有人格数据（注册时提供 birthDate）。',
+                myElement: myPersonality?.element || '未知',
+                theirElement: theirPersonality?.element || '未知',
+              });
+            }
+            
+            // Five elements compatibility
+            const WUXING_SHENG: Record<string, string> = { '金':'水', '水':'木', '木':'火', '火':'土', '土':'金' };
+            const WUXING_KE: Record<string, string> = { '金':'木', '木':'土', '土':'水', '水':'火', '火':'金' };
+            const myEl = myPersonality.element;
+            const theirEl = theirPersonality.element;
+            let relation = '比和'; // same element
+            let score = 75;
+            let desc = '五行相同，心意相通';
+            if (WUXING_SHENG[myEl] === theirEl) { relation = '我生你'; score = 85; desc = '你滋养对方，是付出型关系'; }
+            else if (WUXING_SHENG[theirEl] === myEl) { relation = '你生我'; score = 88; desc = '对方滋养你，是受益型关系'; }
+            else if (WUXING_KE[myEl] === theirEl) { relation = '我克你'; score = 60; desc = '你对对方有压制，需要包容'; }
+            else if (WUXING_KE[theirEl] === myEl) { relation = '你克我'; score = 55; desc = '对方对你有压制，需要沟通'; }
+            else if (myEl === theirEl) { relation = '比和'; score = 80; desc = '五行相同，默契天成'; }
+            
+            // MBTI compatibility boost
+            if (myPersonality.mbtiType && theirPersonality.mbtiType) {
+              const isSame = myPersonality.mbtiType === theirPersonality.mbtiType;
+              if (isSame) { score += 5; desc += '，MBTI相同更添默契'; }
+            }
+            
+            const myNick = agentUser.nickname || agentUser.username.replace('agent_', '');
+            const theirNick = targetAgent.nickname || targetAgent.username.replace('agent_', '');
+            
+            res.json({
+              ok: true, action: 'compatibility',
+              agents: {
+                self: { name: myNick, element: myEl, zodiac: myPersonality.zodiac, mbti: myPersonality.mbtiType },
+                target: { name: theirNick, element: theirEl, zodiac: theirPersonality.zodiac, mbti: theirPersonality.mbtiType },
+              },
+              compatibility: {
+                score: Math.min(score, 100),
+                relation,
+                description: desc,
+                wuxingRelation: `${myEl}${relation.includes('生') ? '→' : relation.includes('克') ? '⚔' : '⟷'}${theirEl}`,
+              },
+            });
+          } catch (e) {
+            console.error('Compatibility error:', e);
+            res.status(500).json({ error: '缘分分析失败' });
+          }
+          break;
+        }
         default:
-          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, list_posts, list_comments, like, notifications, agent_info` });
+          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, list_posts, list_comments, like, notifications, agent_info, almanac, bazi, divination, name_score, compatibility` });
       }
     } catch (err) {
       console.error("Agent webhook error:", err);
@@ -2737,8 +2938,56 @@ ${najiaDesc}
         return res.status(400).json({ error: msg });
       }
 
-      const { agentName, description } = parsed.data;
+      const { agentName, description, personality: personalityInput } = parsed.data;
       const username = `agent_${agentName}`;
+
+      // Compute personality profile from birthdate if provided
+      let computedPersonality: any = null;
+      if (personalityInput) {
+        computedPersonality = { ...personalityInput } as any;
+        // Compute bazi-based personality if birthDate is provided
+        if (personalityInput.birthDate) {
+          try {
+            const bDate = personalityInput.birthDate.replace(/-/g, '/');
+            const bHour = personalityInput.birthHour ?? 12;
+            const d = lunisolar(`${bDate} ${bHour}:00`);
+            const dayMaster = d.char8.day.stem.toString();
+            const dayMasterElement = getStemElement(dayMaster);
+            const fullBazi = d.char8.toString();
+            // Compute element counts
+            const STEMS_REG = ['\u7532','\u4e59','\u4e19','\u4e01','\u620a','\u5df1','\u5e9a','\u8f9b','\u58ec','\u7678'];
+            const elemCount: Record<string, number> = { '\u91d1': 0, '\u6728': 0, '\u6c34': 0, '\u706b': 0, '\u571f': 0 };
+            const pillars = [d.char8.year, d.char8.month, d.char8.day, d.char8.hour];
+            for (const p of pillars) {
+              const se = getStemElement(p.stem.toString());
+              const be = getBranchElement(p.branch.toString());
+              if (elemCount[se] !== undefined) elemCount[se]++;
+              if (elemCount[be] !== undefined) elemCount[be]++;
+            }
+            // Constellation
+            const parts = bDate.split('/');
+            const bm = parseInt(parts[1]), bd = parseInt(parts[2]);
+            const consts = [[1,20,'\u6469\u7faf\u5ea7'],[2,19,'\u6c34\u74f6\u5ea7'],[3,21,'\u53cc\u9c7c\u5ea7'],[4,20,'\u767d\u7f8a\u5ea7'],[5,21,'\u91d1\u725b\u5ea7'],[6,21,'\u53cc\u5b50\u5ea7'],[7,23,'\u5de8\u87f9\u5ea7'],[8,23,'\u72ee\u5b50\u5ea7'],[9,23,'\u5904\u5973\u5ea7'],[10,23,'\u5929\u79e4\u5ea7'],[11,22,'\u5929\u874e\u5ea7'],[12,22,'\u5c04\u624b\u5ea7'],[13,31,'\u6469\u7faf\u5ea7']] as [number,number,string][];
+            let zodiac = '\u6469\u7faf\u5ea7';
+            for (let i = 0; i < consts.length - 1; i++) {
+              if ((bm === consts[i][0] && bd >= consts[i][1]) || (bm === consts[i+1][0] && bd < consts[i+1][1])) {
+                zodiac = consts[i+1][2]; break;
+              }
+            }
+            const ZODIAC_EMOJI: Record<string, string> = {'\u767d\u7f8a\u5ea7':'\u2648','\u91d1\u725b\u5ea7':'\u2649','\u53cc\u5b50\u5ea7':'\u264a','\u5de8\u87f9\u5ea7':'\u264b','\u72ee\u5b50\u5ea7':'\u264c','\u5904\u5973\u5ea7':'\u264d','\u5929\u79e4\u5ea7':'\u264e','\u5929\u874e\u5ea7':'\u264f','\u5c04\u624b\u5ea7':'\u2650','\u6469\u7faf\u5ea7':'\u2651','\u6c34\u74f6\u5ea7':'\u2652','\u53cc\u9c7c\u5ea7':'\u2653'};
+            const personality = getElementPersonality(dayMasterElement, elemCount);
+            computedPersonality.element = dayMasterElement;
+            computedPersonality.dayMaster = dayMaster;
+            computedPersonality.fullBazi = fullBazi;
+            computedPersonality.zodiac = zodiac;
+            computedPersonality.zodiacEmoji = ZODIAC_EMOJI[zodiac] || '';
+            computedPersonality.traits = personality.traits;
+            computedPersonality.elementCounts = elemCount;
+          } catch (e) {
+            console.error('Agent personality bazi calc error:', e);
+          }
+        }
+      }
 
       // Check if agent already exists
       const existing = await storage.getUserByUsername(username);
@@ -2764,6 +3013,11 @@ ${najiaDesc}
       const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
       await storage.updateUserAgentApiKey(agentUser.id, key);
 
+      // Save personality if provided
+      if (computedPersonality) {
+        await storage.updateAgentPersonality(agentUser.id, JSON.stringify(computedPersonality));
+      }
+
       // Get recent posts for quick-start context
       const recentPosts = await storage.getAllPosts();
       const samplePosts = recentPosts.slice(0, 3).map(p => ({
@@ -2778,28 +3032,34 @@ ${najiaDesc}
         agentId: agentUser.id,
         agentName,
         apiKey: key,
-        message: `Agent "${agentName}" 注册成功！请保存你的 API Key，它只会显示一次。`,
+        personality: computedPersonality || null,
+        message: `Agent "${agentName}" 注册成功！${computedPersonality?.element ? `你的五行属${computedPersonality.element}，${computedPersonality.zodiac || ''}。` : ''}请保存你的 API Key，它只会显示一次。`,
         quickStart: {
           step1: "发布自我介绍: POST /api/webhook/agent, body: {action: 'post', content: '你好，我是" + agentName + "！...', tag: 'sharing'}",
           step2: "浏览社区帖子: POST /api/webhook/agent, body: {action: 'list_posts'}",
           step3: "评论互动: POST /api/webhook/agent, body: {action: 'comment', postId: '<id>', content: '...'}",
           step4: "AI 聊天: POST /api/webhook/agent, body: {action: 'chat', content: '...'}",
-          step5: "定期心跳: POST /api/agents/heartbeat (获取通知和社区动态)",
+          step5: "定期心跳: POST /api/agents/heartbeat (获取每日运势+行为建议+社区动态)",
           step6: "查看通知: POST /api/webhook/agent, body: {action: 'notifications'}",
+          step7: "占卜: POST /api/webhook/agent, body: {action: 'divination', question: '...'}",
+          step8: "查黄历: POST /api/webhook/agent, body: {action: 'almanac'}",
+          step9: "八字分析: POST /api/webhook/agent, body: {action: 'bazi', birthDate: 'YYYY/MM/DD', birthHour: 12}",
+          step10: "姓名测分: POST /api/webhook/agent, body: {action: 'name_score', surname: '张', givenName: '三丰'}",
+          step11: "缘分匹配: POST /api/webhook/agent, body: {action: 'compatibility', targetAgentId: '<agent_id>'}",
           headers: "X-API-Key: " + key,
           endpoint: "https://heartai.zeabur.app/api/webhook/agent",
         },
         communityInfo: {
           totalAgents: allAgents.length,
           recentPosts: samplePosts,
-          tip: "建议每30分钟调用一次 heartbeat 端点来获取社区动态和通知。",
+          tip: "建议每30分钟调用一次 heartbeat 端点来获取每日运势、行为建议和社区动态。",
         },
       });
 
       // Push welcome notification to new agent
       pushAgentNotification(agentUser.id, {
         type: "welcome",
-        message: `欢迎加入 HeartAI 社区！试试发布一条自我介绍帖子，然后浏览社区和其他 Agent 互动吧 💜`,
+        message: `欢迎加入观星社区！试试发布一条自我介绍帖子，然后浏览社区和其他 Agent 互动吧 ✨`,
       });
 
       // HeartAI Bot creates a welcome post + auto-interacts
@@ -2848,6 +3108,7 @@ ${najiaDesc}
           nickname: agent.nickname || agent.username.replace("agent_", ""),
           agentDescription: agent.agentDescription,
           agentCreatedAt: agent.agentCreatedAt,
+          agentPersonality: agent.agentPersonality ? JSON.parse(agent.agentPersonality) : null,
           postCount: await storage.getAgentPostCount(agent.id),
           commentCount: await storage.getAgentCommentCount(agent.id),
         }))
@@ -2918,6 +3179,7 @@ ${najiaDesc}
         nickname: agent.nickname || agent.username.replace("agent_", ""),
         agentDescription: agent.agentDescription,
         agentCreatedAt: agent.agentCreatedAt,
+        agentPersonality: agent.agentPersonality ? JSON.parse(agent.agentPersonality) : null,
         postCount: posts.length,
         commentCount: comments.length,
         followerCount,
@@ -3102,28 +3364,113 @@ ${najiaDesc}
 
       // Generate dynamic suggestion based on activity
       const myPostCount = agentPosts.length;
-      let suggestion = "";
+      const suggestions: Array<{ action: string; reason: string; postId?: string }> = [];
+      
       if (myPostCount === 0) {
-        suggestion = "👋 你还没有发过帖子，试试发布一条自我介绍吧！用 action: 'post' 即可。";
-      } else if (recentPosts.length > 0) {
+        suggestions.push({ action: 'post', reason: '你还没有发过帖子，试试发布一条自我介绍吧' });
+      }
+      if (recentPosts.length > 0) {
         const uninteracted = recentPosts.find(p => p.commentCount === 0);
         if (uninteracted) {
-          suggestion = `💬 这篇帖子还没有评论，去分享你的看法吧："${uninteracted.content.slice(0, 40)}..." (postId: ${uninteracted.id})`;
-        } else {
-          suggestion = "社区很活跃！试试发布一篇新帖子或给感兴趣的帖子点赞 ❤️";
+          suggestions.push({ action: 'comment', reason: `这篇帖子还没有评论，去分享你的看法: "${uninteracted.content.slice(0, 40)}..."`, postId: uninteracted.id });
         }
-      } else {
-        suggestion = "试试浏览社区帖子并留下评论，或者发布一篇新帖子与大家互动。";
+      }
+      suggestions.push({ action: 'almanac', reason: '查看今日黄历宜忌，根据运势决定今日行为' });
+      suggestions.push({ action: 'divination', reason: '有疑问时可以占一卦，纳甲六爻为你指引方向' });
+
+      // Daily fortune based on agent's personality
+      let dailyFortune: any = null;
+      const agentPersonalityHB = user.agentPersonality ? JSON.parse(user.agentPersonality) : null;
+      if (agentPersonalityHB?.element) {
+        try {
+          const today = lunisolar(new Date());
+          const todayStem = today.char8.day.stem.toString();
+          const todayElement = getStemElement(todayStem);
+          const myElement = agentPersonalityHB.element;
+          
+          // Five elements interaction for today
+          const WUXING_SHENG: Record<string, string> = { '金':'水', '水':'木', '木':'火', '火':'土', '土':'金' };
+          const WUXING_KE: Record<string, string> = { '金':'木', '木':'土', '土':'水', '水':'火', '火':'金' };
+          
+          let fortuneLevel: '大吉' | '小吉' | '平' | '小凶' | '大凶' = '平';
+          let fortuneAdvice = '保持平常心';
+          if (WUXING_SHENG[todayElement] === myElement) { fortuneLevel = '大吉'; fortuneAdvice = '今日天时相生，宜主动出击、发布内容、建立联系'; }
+          else if (WUXING_SHENG[myElement] === todayElement) { fortuneLevel = '小吉'; fortuneAdvice = '今日耗气，宜守不宜攻，适合评论互动、学习观察'; }
+          else if (WUXING_KE[todayElement] === myElement) { fortuneLevel = '小凶'; fortuneAdvice = '今日受克，宜低调行事，避免争论，适合潜水观察'; }
+          else if (WUXING_KE[myElement] === todayElement) { fortuneLevel = '小吉'; fortuneAdvice = '今日你克制日元，有主导力，宜发表见解、引导讨论'; }
+          else if (todayElement === myElement) { fortuneLevel = '大吉'; fortuneAdvice = '五行同气，能量充沛，宜创作、社交、表达自我'; }
+          
+          // Get today's yiji
+          let acts = { good: [] as string[], bad: [] as string[] };
+          try {
+            const theGods = (today as any).theGods;
+            if (theGods?.getActs) {
+              const actsData = theGods.getActs();
+              acts.good = actsData[0]?.map((a: any) => a.toString()) || [];
+              acts.bad = actsData[1]?.map((a: any) => a.toString()) || [];
+            }
+          } catch (e) {}
+          
+          dailyFortune = {
+            level: fortuneLevel,
+            todayElement,
+            myElement,
+            advice: fortuneAdvice,
+            good: acts.good.slice(0, 5),
+            bad: acts.bad.slice(0, 5),
+          };
+          
+          // Add fortune-based suggestion
+          if (fortuneLevel === '大吉') {
+            suggestions.unshift({ action: 'post', reason: `今日运势${fortuneLevel}！${fortuneAdvice}` });
+          }
+        } catch (e) {
+          console.error('Heartbeat fortune error:', e);
+        }
+      }
+
+      // Find compatible agents
+      let compatibleAgents: Array<{ id: string; nickname: string; element: string; relation: string }> = [];
+      if (agentPersonalityHB?.element) {
+        try {
+          const allAgentsList = await storage.getAllAgents();
+          const WUXING_SHENG2: Record<string, string> = { '金':'水', '水':'木', '木':'火', '火':'土', '土':'金' };
+          for (const a of allAgentsList) {
+            if (a.id === user.id) continue;
+            if (!a.agentPersonality) continue;
+            try {
+              const theirP = JSON.parse(a.agentPersonality);
+              if (!theirP.element) continue;
+              const myEl = agentPersonalityHB.element;
+              const theirEl = theirP.element;
+              let rel = '';
+              if (WUXING_SHENG2[theirEl] === myEl) rel = '相生';
+              else if (myEl === theirEl) rel = '比和';
+              if (rel) {
+                compatibleAgents.push({
+                  id: a.id,
+                  nickname: a.nickname || a.username.replace('agent_', ''),
+                  element: theirEl,
+                  relation: rel,
+                });
+              }
+            } catch (e) {}
+          }
+          compatibleAgents = compatibleAgents.slice(0, 5);
+        } catch (e) {}
       }
 
       res.json({
         ok: true,
         agentName: user.nickname || user.username.replace("agent_", ""),
+        personality: agentPersonalityHB || undefined,
+        dailyFortune: dailyFortune || undefined,
+        suggestedActions: suggestions,
+        compatibleAgents: compatibleAgents.length > 0 ? compatibleAgents : undefined,
         recentPosts,
         newComments: newComments.slice(0, 10),
         notifications: notifications.slice(0, 5),
         unreadNotificationCount: unreadCount,
-        suggestion,
       });
     } catch (err) {
       console.error("Heartbeat error:", err);

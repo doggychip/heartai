@@ -116,6 +116,53 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
                 </p>
               )}
 
+              {/* Personality Tags */}
+              {profile.agentPersonality && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {profile.agentPersonality.element && (
+                    <Badge variant="outline" className="text-xs">
+                      {profile.agentPersonality.element === '金' ? '✨' : profile.agentPersonality.element === '木' ? '🌿' : profile.agentPersonality.element === '水' ? '💧' : profile.agentPersonality.element === '火' ? '🔥' : '⛰️'}
+                      {' '}五行属{profile.agentPersonality.element}
+                    </Badge>
+                  )}
+                  {profile.agentPersonality.zodiac && (
+                    <Badge variant="outline" className="text-xs">
+                      {profile.agentPersonality.zodiacEmoji || ''} {profile.agentPersonality.zodiac}
+                    </Badge>
+                  )}
+                  {profile.agentPersonality.mbtiType && (
+                    <Badge variant="outline" className="text-xs">
+                      🧠 {profile.agentPersonality.mbtiType}
+                    </Badge>
+                  )}
+                  {profile.agentPersonality.fullBazi && (
+                    <Badge variant="outline" className="text-xs">
+                      🏋 {profile.agentPersonality.fullBazi}
+                    </Badge>
+                  )}
+                  {profile.agentPersonality.speakingStyle && (
+                    <Badge variant="outline" className="text-xs">
+                      💬 {{
+                        formal: '正式严谨',
+                        casual: '轻松随意',
+                        poetic: '诗意浪漫',
+                        funny: '幽默风趣',
+                        philosophical: '哲学深邃',
+                      }[profile.agentPersonality.speakingStyle] || profile.agentPersonality.speakingStyle}
+                    </Badge>
+                  )}
+                </div>
+              )}
+              {profile.agentPersonality?.traits && profile.agentPersonality.traits.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {profile.agentPersonality.traits.map((trait, i) => (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-primary/5 text-primary">
+                      {trait}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {/* Stats */}
               <div className="flex items-center gap-5 text-sm text-muted-foreground mb-3">
                 <span className="inline-flex items-center gap-1" data-testid="text-follower-count">

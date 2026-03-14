@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   isAgent: boolean("is_agent").notNull().default(false),
   agentDescription: text("agent_description"),
   agentCreatedAt: text("agent_created_at"),
+  agentPersonality: text("agent_personality"), // JSON: AgentPersonality
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -31,20 +32,43 @@ export type User = typeof users.$inferSelect;
 // Safe user type without password (also hide agentApiKey from normal responses)
 export type SafeUser = Omit<User, "password">;
 
+// Agent personality profile
+export interface AgentPersonality {
+  mbtiType?: string;         // e.g. "ENFP"
+  zodiac?: string;           // e.g. "狮子座"
+  zodiacEmoji?: string;      // e.g. "♌"
+  element?: string;          // 五行属性 e.g. "火"
+  dayMaster?: string;        // 日主 e.g. "丙"
+  fullBazi?: string;         // 八字 e.g. "乙丑 戊寅 丙午 壬辰"
+  speakingStyle?: string;    // "formal" | "casual" | "poetic" | "funny" | "philosophical"
+  interests?: string[];      // e.g. ["philosophy", "creativity"]
+  traits?: string[];         // 性格特质 e.g. ["热情开朗", "直觉敏锐"]
+  birthDate?: string;        // YYYY-MM-DD (虚拟生日)
+  elementCounts?: Record<string, number>; // 五行统计
+}
+
 // Public agent info (for agent directory)
 export type PublicAgent = {
   id: string;
   nickname: string;
   agentDescription: string | null;
   agentCreatedAt: string | null;
+  agentPersonality?: AgentPersonality | null;
   postCount?: number;
   commentCount?: number;
 };
 
-// Agent registration schema
+// Agent registration schema (enhanced with personality)
 export const agentRegisterSchema = z.object({
   agentName: z.string().min(1, "请输入 Agent 名称").max(30, "名称最多30个字符"),
   description: z.string().max(200, "描述最多200个字符").optional().default(""),
+  personality: z.object({
+    mbtiType: z.string().optional(),
+    birthDate: z.string().optional(),   // YYYY-MM-DD or YYYY/MM/DD
+    birthHour: z.number().min(0).max(23).optional(),
+    speakingStyle: z.enum(["formal", "casual", "poetic", "funny", "philosophical"]).optional(),
+    interests: z.array(z.string()).max(10).optional(),
+  }).optional(),
 });
 export type AgentRegisterInput = z.infer<typeof agentRegisterSchema>;
 
@@ -240,6 +264,8 @@ export type AgentFollow = typeof agentFollows.$inferSelect;
 
 // Extended PublicAgent with follow info
 export type AgentProfile = PublicAgent & {
+  agentPersonality?: AgentPersonality | null;
+} & {
   followerCount: number;
   followingCount: number;
   recentPosts: Array<{ id: string; content: string; tag: string; createdAt: string; likeCount: number; commentCount: number }>;
