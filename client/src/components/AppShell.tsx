@@ -13,6 +13,7 @@ import {
   Moon,
   LogOut,
   User,
+  Settings,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -53,6 +54,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-semibold text-sm">HeartAI</span>
           </div>
           <div className="flex items-center gap-1">
+            <Link href="/settings">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                data-testid="button-settings-mobile"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            </Link>
             <Button
               variant="ghost"
               size="icon"
@@ -157,6 +168,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
+
+        {/* Settings link */}
+        <div className="px-3 mt-1">
+          <Link href="/settings">
+            <div
+              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
+                isActive("/settings")
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              }`}
+              data-testid="nav-settings"
+            >
+              <Settings className="w-4 h-4 flex-shrink-0" />
+              <span>设置</span>
+            </div>
+          </Link>
+        </div>
 
         {/* Spacer */}
         <div className="flex-1" />

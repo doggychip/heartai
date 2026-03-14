@@ -57,6 +57,9 @@ export interface IStorage {
   // Post comments
   getCommentsByPost(postId: string): Promise<PostComment[]>;
   createComment(comment: InsertPostComment): Promise<PostComment>;
+
+  // OpenClaw settings
+  updateUserOpenClaw(userId: string, url: string, token: string): Promise<User | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -79,8 +82,17 @@ export class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null };
+    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null };
     this.users.set(id, user);
+    return user;
+  }
+
+  async updateUserOpenClaw(userId: string, url: string, token: string): Promise<User | undefined> {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.openclawWebhookUrl = url || null;
+    user.openclawWebhookToken = token || null;
+    this.users.set(userId, user);
     return user;
   }
 

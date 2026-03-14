@@ -1,24 +1,38 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema } from "@shared/schema";
 import type { SafeUser } from "@shared/schema";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
 
-// ─── OpenClaw Webhook Integration ─────────────────────────────
+// ─── OpenClaw Webhook Integration (per-user) ─────────────────────
+// Fallback to global env vars if user has no personal config
 const OPENCLAW_WEBHOOK_URL = process.env.OPENCLAW_WEBHOOK_URL || "";
 const OPENCLAW_WEBHOOK_TOKEN = process.env.OPENCLAW_WEBHOOK_TOKEN || "";
 
-async function notifyOpenClaw(message: string, options?: { name?: string; channel?: string; deliver?: boolean }) {
-  if (!OPENCLAW_WEBHOOK_URL || !OPENCLAW_WEBHOOK_TOKEN) return;
+async function notifyOpenClaw(userId: string, message: string, options?: { name?: string; channel?: string; deliver?: boolean }) {
+  // Look up user's personal OpenClaw config first, fall back to global env vars
+  let webhookUrl = OPENCLAW_WEBHOOK_URL;
+  let webhookToken = OPENCLAW_WEBHOOK_TOKEN;
   try {
-    await fetch(`${OPENCLAW_WEBHOOK_URL}/agent`, {
+    const user = await storage.getUser(userId);
+    if (user?.openclawWebhookUrl && user?.openclawWebhookToken) {
+      webhookUrl = user.openclawWebhookUrl;
+      webhookToken = user.openclawWebhookToken;
+    }
+  } catch (err) {
+    console.error("Failed to load user OpenClaw config:", err);
+  }
+
+  if (!webhookUrl || !webhookToken) return;
+  try {
+    await fetch(`${webhookUrl}/agent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${OPENCLAW_WEBHOOK_TOKEN}`,
+        "Authorization": `Bearer ${webhookToken}`,
       },
       body: JSON.stringify({
         message,
@@ -133,7 +147,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const token = generateToken();
       sessions.set(token, user.id);
 
-      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl };
+      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
       res.json({ user: safe, token });
     } catch (err) {
       console.error("Register error:", err);
@@ -155,7 +169,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const token = generateToken();
       sessions.set(token, user.id);
 
-      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl };
+      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
       res.json({ user: safe, token });
     } catch (err) {
       console.error("Login error:", err);
@@ -166,7 +180,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/auth/me", requireAuth, async (req, res) => {
     const user = await storage.getUser(getUserId(req));
     if (!user) return res.status(401).json({ error: "用户不存在" });
-    const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl };
+    const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
     res.json(safe);
   });
 
@@ -234,12 +248,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
       res.json({ conversationId, message: userMessage, aiMessage, emotionAnalysis: { emotion, score, suggestion } });
 
-      // Sync to OpenClaw
+      // Sync to OpenClaw (per-user)
       const emotionLabel: Record<string, string> = {
         joy: "😊 开心", sadness: "😢 难过", anger: "😤 愤怒", fear: "😰 恐惧",
         anxiety: "😟 焦虑", surprise: "😮 惊讶", calm: "😌 平静", neutral: "😐 平静",
       };
       notifyOpenClaw(
+        userId,
         `[HeartAI 聊天同步]\n用户说: ${message}\nAI回复: ${cleanText}\n情绪分析: ${emotionLabel[emotion] || emotion} (${score}/10)\n建议: ${suggestion}`,
         { name: "HeartAI-Chat" }
       );
@@ -306,8 +321,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
       res.json(result);
 
-      // Notify OpenClaw for deep analysis
+      // Notify OpenClaw for deep analysis (per-user)
       notifyOpenClaw(
+        getUserId(req),
         `[HeartAI 测评完成] 用户完成了「${assessment.name}」测评。\n总分: ${totalScore}\n结果摘要: ${resultSummary}\n详细分析: ${resultDetail}\n\n请基于以上测评结果，生成一份更详细的心理健康分析报告，包括可能的原因分析、改善建议和注意事项。用温暖专业的语气。`,
         { name: "HeartAI-Assessment" }
       );
@@ -369,9 +385,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       });
 
-      // Content moderation via OpenClaw
+      // Content moderation via OpenClaw (per-user)
       notifyOpenClaw(
-        `[HeartAI 社区内容审核] 新帖子发布:\n标题: ${parsed.data.title}\n内容: ${parsed.data.content}\n标签: ${(parsed.data.tags || []).join(", ")}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n\n请审核这篇帖子是否包含：1) 自杀/自残倾向 2) 骚扰/辱骂内容 3) 虚假医疗建议。如有问题请通知我。`,
+        getUserId(req),
+        `[HeartAI 社区内容审核] 新帖子发布:\n内容: ${parsed.data.content}\n标签: ${parsed.data.tag}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n\n请审核这篇帖子是否包含：1) 自杀/自残倾向 2) 骚扰/辱骂内容 3) 虚假医疗建议。如有问题请通知我。`,
         { name: "HeartAI-Moderation", deliver: false }
       );
     } catch (err) {
@@ -427,6 +444,70 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Create comment error:", err);
       res.status(500).json({ error: "评论失败" });
+    }
+  });
+
+  // ─── OpenClaw Settings Routes ──────────────────────────────
+  app.get("/api/settings/openclaw", requireAuth, async (req, res) => {
+    const user = await storage.getUser(getUserId(req));
+    if (!user) return res.status(401).json({ error: "用户不存在" });
+    res.json({
+      openclawWebhookUrl: user.openclawWebhookUrl || "",
+      openclawWebhookToken: user.openclawWebhookToken || "",
+    });
+  });
+
+  app.put("/api/settings/openclaw", requireAuth, async (req, res) => {
+    try {
+      const parsed = openclawSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join("; ");
+        return res.status(400).json({ error: msg });
+      }
+      const { openclawWebhookUrl, openclawWebhookToken } = parsed.data;
+      const user = await storage.updateUserOpenClaw(getUserId(req), openclawWebhookUrl, openclawWebhookToken);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      res.json({
+        openclawWebhookUrl: user.openclawWebhookUrl || "",
+        openclawWebhookToken: user.openclawWebhookToken || "",
+      });
+    } catch (err) {
+      console.error("Update OpenClaw settings error:", err);
+      res.status(500).json({ error: "保存失败" });
+    }
+  });
+
+  // Test OpenClaw connection
+  app.post("/api/settings/openclaw/test", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(getUserId(req));
+      if (!user) return res.status(401).json({ error: "用户不存在" });
+      const url = user.openclawWebhookUrl;
+      const token = user.openclawWebhookToken;
+      if (!url || !token) {
+        return res.status(400).json({ error: "请先配置 OpenClaw Webhook 地址和 Token" });
+      }
+      const response = await fetch(`${url}/agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          message: "[HeartAI] 🎉 连接测试成功！你的 HeartAI 已成功连接到 OpenClaw。",
+          name: "HeartAI-Test",
+          deliver: true,
+          channel: "last",
+        }),
+      });
+      if (response.ok) {
+        res.json({ success: true, message: "连接成功" });
+      } else {
+        res.status(400).json({ error: `连接失败 (HTTP ${response.status})` });
+      }
+    } catch (err: any) {
+      console.error("OpenClaw test error:", err);
+      res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
     }
   });
 

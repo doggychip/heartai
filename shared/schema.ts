@@ -10,6 +10,8 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   nickname: text("nickname"),
   avatarUrl: text("avatar_url"),
+  openclawWebhookUrl: text("openclaw_webhook_url"),
+  openclawWebhookToken: text("openclaw_webhook_token"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -23,6 +25,13 @@ export type User = typeof users.$inferSelect;
 
 // Safe user type without password
 export type SafeUser = Omit<User, "password">;
+
+// OpenClaw settings schema
+export const openclawSettingsSchema = z.object({
+  openclawWebhookUrl: z.string().url("请输入有效的 URL").or(z.literal("")),
+  openclawWebhookToken: z.string(),
+});
+export type OpenClawSettings = z.infer<typeof openclawSettingsSchema>;
 
 // ─── Conversations ──────────────────────────────────────────
 export const conversations = pgTable("conversations", {

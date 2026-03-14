@@ -15,6 +15,7 @@ import AssessmentHistoryPage from "@/pages/assessment-history";
 import JournalPage from "@/pages/journal";
 import CommunityPage from "@/pages/community";
 import PostDetailPage from "@/pages/post-detail";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -35,6 +36,7 @@ function AuthenticatedRoutes() {
         <Route path="/journal" component={JournalPage} />
         <Route path="/community" component={CommunityPage} />
         <Route path="/community/:id" component={PostDetailPage} />
+        <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
