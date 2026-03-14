@@ -25,17 +25,23 @@ import {
   Layers,
   Home,
   TrendingUp,
+  Lightbulb,
+  Heart,
+  Radar,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
 const NAV_ITEMS = [
   { path: "/", label: "今日运势", icon: Gauge, guestVisible: false },
+  { path: "/wisdom", label: "智慧问答", icon: Lightbulb, guestVisible: false },
   { path: "/zodiac", label: "星座解读", icon: Star, guestVisible: false },
   { path: "/horoscope", label: "星座运势", icon: TrendingUp, guestVisible: false },
   { path: "/mbti", label: "MBTI人格", icon: Compass, guestVisible: false },
-  { path: "/bazi", label: "八字命理", icon: Calendar, guestVisible: false },
   { path: "/tarot", label: "塔罗占卜", icon: Layers, guestVisible: false },
+  { path: "/bazi", label: "八字命理", icon: Calendar, guestVisible: false },
   { path: "/fengshui", label: "风水评估", icon: Home, guestVisible: false },
+  { path: "/compatibility", label: "缘分雷达", icon: Radar, guestVisible: false },
+  { path: "/soulmate", label: "灵魂伴侣", icon: Heart, guestVisible: false },
   { path: "/chat", label: "AI 对话", icon: MessageCircle, guestVisible: false },
   { path: "/emotion-insights", label: "情感频道", icon: Brain, guestVisible: false },
   { path: "/culture", label: "国粹频道", icon: Scroll, guestVisible: true },
@@ -87,10 +93,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     ? visibleNavItems.slice(0, 5)
     : [
         NAV_ITEMS[0],  // 今日运势
-        NAV_ITEMS[1],  // 星座解读
-        NAV_ITEMS[3],  // MBTI人格
+        NAV_ITEMS[1],  // 智慧问答
         NAV_ITEMS[5],  // 塔罗占卜
-        NAV_ITEMS[12], // 互助社区
+        NAV_ITEMS[8],  // 缘分雷达
+        NAV_ITEMS[15], // 互助社区
       ];
 
   // ─── Mobile Layout ──────────────────────────────────────

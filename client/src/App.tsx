@@ -27,6 +27,9 @@ import BaziPage from "@/pages/bazi";
 import TarotPage from "@/pages/tarot";
 import FengshuiPage from "@/pages/fengshui";
 import HoroscopePage from "@/pages/horoscope";
+import WisdomPage from "@/pages/wisdom";
+import CompatibilityPage from "@/pages/compatibility";
+import SoulmatePage from "@/pages/soulmate";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -56,6 +59,9 @@ function AuthenticatedRoutes() {
         <Route path="/tarot" component={TarotPage} />
         <Route path="/fengshui" component={FengshuiPage} />
         <Route path="/horoscope" component={HoroscopePage} />
+        <Route path="/wisdom" component={WisdomPage} />
+        <Route path="/compatibility" component={CompatibilityPage} />
+        <Route path="/soulmate" component={SoulmatePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />

@@ -3019,6 +3019,212 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
     }
   });
 
+  // ─── 智慧卡问答 API ─────────────────────────────────────
+  const WISDOM_HOT_QUESTIONS = [
+    { emoji: "💫", q: "我最近运势如何？有什么需要注意的？" },
+    { emoji: "❤️", q: "我的感情运势怎么样？会遇到对的人吗？" },
+    { emoji: "💼", q: "事业上我该如何突破？有什么机遇？" },
+    { emoji: "🧘", q: "如何提升自己的内在能量？" },
+    { emoji: "🍀", q: "今天适合做什么？什么颜色最旺我？" },
+    { emoji: "🌙", q: "最近总是失眠焦虑，该怎么调节？" },
+    { emoji: "🔮", q: "我的命中贵人是什么样的？" },
+    { emoji: "🎯", q: "下半年我有哪些关键转折点？" },
+  ];
+
+  app.get("/api/wisdom/hot-questions", requireAuth, (_req, res) => {
+    res.json(WISDOM_HOT_QUESTIONS);
+  });
+
+  app.post("/api/wisdom/ask", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`wisdom:${userId}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { question, zodiacSign, mbtiType } = req.body;
+      if (!question) {
+        return res.status(400).json({ error: "请输入问题" });
+      }
+
+      const contextParts: string[] = [];
+      if (zodiacSign) contextParts.push(`星座: ${zodiacSign}`);
+      if (mbtiType) contextParts.push(`MBTI: ${mbtiType}`);
+      const userContext = contextParts.length > 0 ? `\n用户信息: ${contextParts.join('，')}` : '';
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1000,
+        messages: [
+          { role: "system", content: `你是观星(GuanXing)的智慧问答大师，融合星座学、MBTI心理学、中国传统命理（八字/风水/周易）给出个性化解答。
+你的风格：温暖而有洞见，像一位值得信赖的智者朋友。
+回答要求：
+1. 如果用户提供了星座/MBTI，要结合用户的星座或MBTI特质给出针对性建议
+2. 融合东方智慧和现代心理学
+3. 给出可执行的具体建议
+4. 保持积极正向的基调
+返回严格JSON（不要markdown代码块）:
+{
+  "title": "8-12字的智慧卡标题",
+  "answer": "200-300字的详细解答",
+  "keyInsight": "一句话核心洞见（20字以内）",
+  "actionTips": ["具体建议1", "具体建议2", "具体建议3"],
+  "luckyElement": { "color": "幸运色", "number": 7, "direction": "方位" },
+  "relatedTopics": ["相关话题1", "相关话题2"]
+}` },
+          { role: "user", content: `问题: ${question}${userContext}` },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        question,
+        title: aiData.title || "智慧指引",
+        answer: aiData.answer || "保持内心的宁静，答案自会浮现。",
+        keyInsight: aiData.keyInsight || "顺其自然，一切都是最好的安排",
+        actionTips: aiData.actionTips || ["保持积极心态", "关注当下", "相信直觉"],
+        luckyElement: aiData.luckyElement || { color: "金色", number: 8, direction: "东方" },
+        relatedTopics: aiData.relatedTopics || ["运势解析", "心灵成长"],
+      });
+    } catch (err) {
+      console.error("Wisdom ask error:", err);
+      res.status(500).json({ error: "智慧问答失败" });
+    }
+  });
+
+  // ─── 缘分雷达图 (5维度升级版) ────────────────────────────
+  app.post("/api/compatibility/radar", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`compat-radar:${userId}`, 5, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { person1, person2 } = req.body;
+      if (!person1?.birthDate || !person2?.birthDate) {
+        return res.status(400).json({ error: "请输入双方出生日期" });
+      }
+
+      const d1 = lunisolar(person1.birthDate);
+      const d2 = lunisolar(person2.birthDate);
+      const bazi1 = d1.char8.toString();
+      const bazi2 = d2.char8.toString();
+      const dm1 = d1.char8.day.stem.toString();
+      const dm2 = d2.char8.day.stem.toString();
+      const elem1 = getStemElement(dm1);
+      const elem2 = getStemElement(dm2);
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1200,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)缘分分析师，精通八字合婚与心理学。返回严格JSON，不要markdown代码块。" },
+          { role: "user", content: `分析两人缘分：\n甲方: ${person1.name || '甲方'}, 出生${person1.birthDate}, 八字${bazi1}, 日主${dm1}(${elem1})\n乙方: ${person2.name || '乙方'}, 出生${person2.birthDate}, 八字${bazi2}, 日主${dm2}(${elem2})\n${person1.zodiacSign ? `甲方星座: ${person1.zodiacSign}` : ''}\n${person2.zodiacSign ? `乙方星座: ${person2.zodiacSign}` : ''}\n\n返回JSON:\n{\n  "totalScore": 85,\n  "radar": {\n    "bond": { "score": 88, "label": "羁绊", "desc": "40字描述两人的命运联结程度" },\n    "passion": { "score": 82, "label": "激情", "desc": "40字描述两人的激情与吸引力" },\n    "fun": { "score": 79, "label": "玩乐", "desc": "40字描述两人在一起的趣味度" },\n    "intimacy": { "score": 86, "label": "亲密", "desc": "40字描述两人的亲密与信任" },\n    "sync": { "score": 84, "label": "默契", "desc": "40字描述两人的心灵默契" }\n  },\n  "chemistry": "80-100字描述两人化学反应",\n  "destinyType": "缘分类型名称（如：灵魂共振型/互补成长型/命中注定型等）",\n  "strengths": ["优势1", "优势2", "优势3"],\n  "challenges": ["挑战1", "挑战2"],\n  "growthAdvice": "60-80字的关系成长建议"\n}` },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      const defaultRadar = {
+        bond: { score: 78, label: "羁绊", desc: "两人命中有一定联结" },
+        passion: { score: 75, label: "激情", desc: "吸引力适中" },
+        fun: { score: 80, label: "玩乐", desc: "相处愉快" },
+        intimacy: { score: 72, label: "亲密", desc: "需要培养信任" },
+        sync: { score: 76, label: "默契", desc: "默契度还在建立中" },
+      };
+
+      res.json({
+        person1: { name: person1.name || '甲方', element: elem1, bazi: bazi1 },
+        person2: { name: person2.name || '乙方', element: elem2, bazi: bazi2 },
+        totalScore: aiData.totalScore || 78,
+        radar: aiData.radar || defaultRadar,
+        chemistry: aiData.chemistry || "两人之间有着微妙的缘分联结。",
+        destinyType: aiData.destinyType || "互补成长型",
+        strengths: aiData.strengths || ["性格互补", "兴趣相投"],
+        challenges: aiData.challenges || ["沟通方式差异"],
+        growthAdvice: aiData.growthAdvice || "多理解包容，以心换心。",
+      });
+    } catch (err) {
+      console.error("Compatibility radar error:", err);
+      res.status(500).json({ error: "缘分分析失败" });
+    }
+  });
+
+  // ─── 灵魂伴侣画像 API ───────────────────────────────────
+  app.post("/api/soulmate/portrait", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`soulmate:${userId}`, 5, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { birthDate, zodiacSign, mbtiType, gender, concerns } = req.body;
+      if (!birthDate) {
+        return res.status(400).json({ error: "请输入出生日期" });
+      }
+
+      const d = lunisolar(birthDate);
+      const bazi = d.char8.toString();
+      const dm = d.char8.day.stem.toString();
+      const elem = getStemElement(dm);
+
+      const contextParts: string[] = [`出生: ${birthDate}`, `八字: ${bazi}`, `日主: ${dm}(${elem})`];
+      if (zodiacSign) contextParts.push(`星座: ${zodiacSign}`);
+      if (mbtiType) contextParts.push(`MBTI: ${mbtiType}`);
+      if (gender) contextParts.push(`性别: ${gender}`);
+      if (concerns) contextParts.push(`期望: ${concerns}`);
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1500,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)的灵魂伴侣分析师，融合八字命理、星座学和心理学来描绘理想伴侣画像。返回严格JSON，不要markdown代码块。内容温暖有趣，给人期待感。" },
+          { role: "user", content: `用户信息:\n${contextParts.join('\n')}\n\n请根据用户的命理和性格特质，描绘Ta的灵魂伴侣画像。返回JSON:\n{\n  "title": "伴侣画像标题（如：温柔守护者/灵魂知己/冒险搭档）",\n  "personality": {\n    "traits": ["特质1", "特质2", "特质3", "特质4"],\n    "description": "100-120字的性格描述"\n  },\n  "compatibility": {\n    "bestZodiac": ["最配星座1", "最配星座2", "最配星座3"],\n    "bestMBTI": ["MBTI1", "MBTI2", "MBTI3"],\n    "bestElement": "最配五行"\n  },\n  "interaction": {\n    "loveLanguage": "Ta主要的爱的语言",\n    "dateStyle": "理想约会方式描述（60字）",\n    "conflictStyle": "处理冲突的方式（40字）"\n  },\n  "meetingGuide": {\n    "where": ["可能相遇的场所1", "场所2", "场所3"],\n    "when": "最可能的相遇时间段",\n    "sign": "缘分来临的征兆（60字）"\n  },\n  "message": "80-100字写给用户的寄语，温暖有力量"\n}` },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        userInfo: { birthDate, element: elem, zodiacSign, mbtiType },
+        title: aiData.title || "命中知己",
+        personality: aiData.personality || {
+          traits: ["温柔体贴", "富有智慧", "善解人意", "有趣幽默"],
+          description: "你的灵魂伴侣是一个温暖而有深度的人。",
+        },
+        compatibility: aiData.compatibility || {
+          bestZodiac: ["天秤座", "双鱼座", "巨蟹座"],
+          bestMBTI: ["INFJ", "ENFP", "INTJ"],
+          bestElement: "水",
+        },
+        interaction: aiData.interaction || {
+          loveLanguage: "肯定的言辞",
+          dateStyle: "安静而有品味的约会。",
+          conflictStyle: "理性沟通，给彼此空间。",
+        },
+        meetingGuide: aiData.meetingGuide || {
+          where: ["书店", "文化活动", "朋友聚会"],
+          when: "今年下半年",
+          sign: "当你不再刻意寻找，缘分就会来到。",
+        },
+        message: aiData.message || "相信缘分，最好的总在不经意间到来。",
+      });
+    } catch (err) {
+      console.error("Soulmate portrait error:", err);
+      res.status(500).json({ error: "灵魂伴侣分析失败" });
+    }
+  });
+
   // Start GuanXing Bot auto-posting
   startBotAutoPost();
 
