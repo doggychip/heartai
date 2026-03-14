@@ -1094,6 +1094,7 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       let fetalGodDesc = '';
       let chong = '';
       let sha = '';
+      let pengzuTaboo = '';
       let hourDetails: { name: string; luck: number; gods: string[] }[] = [];
 
       try {
@@ -1132,6 +1133,27 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
           const directionMap: Record<number, string> = { 0:'北', 1:'东北', 2:'东北', 3:'东', 4:'东南', 5:'东南', 6:'南', 7:'西南', 8:'西南', 9:'西', 10:'西北', 11:'西北' };
           chong = `冲${zodiacNames[conflictBranch.value]}(${conflictBranch.toString()})`;
           sha = `煞${directionMap[conflictBranch.value] || ''}`;
+        } catch {}
+
+        // 彭祖百忌
+        try {
+          const PENGZU_TABOO = [
+            '甲不开仓 财物耗散', '乙不栽植 千株不长', '丙不修灶 必见灾殃', '丁不剃头 头必生疮',
+            '戊不受田 田主不祥', '己不破券 二比并亡', '庚不经络 织机虚张', '辛不合酱 主人不尝',
+            '壬不泱水 更难提防', '癸不词讼 理弱敌强',
+            '子不问卜 自惹祸殃', '丑不冠带 主不还乡', '寅不祭祀 神鬼不尝', '卯不穿井 水泉不香',
+            '辰不哭泣 必主重丧', '巳不远行 财物伏藏', '午不苫盖 屋主更张', '未不服药 毒气入肠',
+            '申不安床 鬼祟入房', '酉不会客 醉坐颠狂', '戌不吃犬 作怪上床', '亥不嫁娶 不利新郎',
+          ];
+          const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+          const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+          const dayStem = d.char8.day.stem.toString();
+          const dayBranchStr = d.char8.day.branch.toString();
+          const stemIdx = STEMS.indexOf(dayStem);
+          const branchIdx = BRANCHES.indexOf(dayBranchStr);
+          if (stemIdx >= 0 && branchIdx >= 0) {
+            pengzuTaboo = PENGZU_TABOO[stemIdx] + '，' + PENGZU_TABOO[branchIdx + 10];
+          }
         } catch {}
 
         // 吉神方位
@@ -1181,6 +1203,7 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         fetalGodDesc,
         chong,
         sha,
+        pengzuTaboo,
         hourDetails,
       });
     } catch (err) {
@@ -1283,40 +1306,174 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       const dateStr = `${year}/${month}/${day} ${hourVal}:00`;
       const d = lunisolar(dateStr);
 
-      // 四柱详情
-      const pillars = ['year', 'month', 'day', 'hour'] as const;
-      const pillarData = pillars.map(p => {
+      const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+      const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+
+      // 十神关系表 (以日干为基准)
+      const SHISHEN_TABLE: Record<string, string> = {};
+      const SHISHEN_NAMES = ['比肩','劫财','食神','伤官','偏财','正财','七杀','正官','偏印','正印'];
+      // 同性为偏, 异性为正; 同元素=比肩/劫财
+      function getShiShen(dayStem: string, otherStem: string): string {
+        const dayIdx = STEMS.indexOf(dayStem);
+        const otherIdx = STEMS.indexOf(otherStem);
+        if (dayIdx < 0 || otherIdx < 0) return '';
+        const diff = ((otherIdx - dayIdx) % 10 + 10) % 10;
+        return SHISHEN_NAMES[diff] || '';
+      }
+
+      // 十二长生
+      const LIFE12 = ['长生','沐浴','冠带','临官','帝旺','衰','病','死','墓','绝','胎','养'];
+      // 日干对应的长生起始地支
+      const LIFE12_START: Record<string, number> = {
+        '甲': 10, // 亥
+        '乙': 4,  // 午(逆)
+        '丙': 2,  // 寅
+        '丁': 9,  // 酉(逆)
+        '戊': 2,  // 寅
+        '己': 9,  // 酉(逆)
+        '庚': 5,  // 巳
+        '辛': 0,  // 子(逆)
+        '壬': 8,  // 申
+        '癸': 3,  // 卯(逆)
+      };
+      const YIN_STEMS = new Set(['乙','丁','己','辛','癸']); // 阴干逆行
+
+      function getLife12(dayStem: string, branch: string): string {
+        const startBranch = LIFE12_START[dayStem];
+        if (startBranch === undefined) return '';
+        const branchIdx = BRANCHES.indexOf(branch);
+        if (branchIdx < 0) return '';
+        if (YIN_STEMS.has(dayStem)) {
+          // 阴干逆行
+          const diff = ((startBranch - branchIdx) % 12 + 12) % 12;
+          return LIFE12[diff] || '';
+        } else {
+          const diff = ((branchIdx - startBranch) % 12 + 12) % 12;
+          return LIFE12[diff] || '';
+        }
+      }
+
+      // 空亡 (based on 日柱旬首)
+      function getKongWang(dayStem: string, dayBranch: string): string {
+        const sIdx = STEMS.indexOf(dayStem);
+        const bIdx = BRANCHES.indexOf(dayBranch);
+        // 旬首: 甲X, 找到该旬的起始
+        const offset = ((bIdx - sIdx) % 12 + 12) % 12;
+        // 空亡是旬中缺少的两个地支
+        const startBranch = (bIdx - sIdx + 120) % 12;
+        const kong1 = BRANCHES[(startBranch + 10) % 12];
+        const kong2 = BRANCHES[(startBranch + 11) % 12];
+        return kong1 + kong2;
+      }
+
+      // 四柱详情 (enhanced)
+      const pillarsKey = ['year', 'month', 'day', 'hour'] as const;
+      const dayMaster = d.char8.day.stem.toString();
+      const dayMasterElement = getStemElement(dayMaster);
+
+      const pillarData = pillarsKey.map(p => {
         const pillar = d.char8[p];
-        const stem = pillar.stem;
-        const branch = pillar.branch;
+        const stem = pillar.stem.toString();
+        const branch = pillar.branch.toString();
+        const hiddenStems = pillar.branch.hiddenStems?.map((s: any) => s.toString()) || [];
+        
         return {
           name: p === 'year' ? '年柱' : p === 'month' ? '月柱' : p === 'day' ? '日柱' : '时柱',
           pillar: pillar.toString(),
-          stem: stem.toString(),
-          branch: branch.toString(),
-          stemElement: getStemElement(stem.toString()),
-          branchElement: getBranchElement(branch.toString()),
+          stem,
+          branch,
+          stemElement: getStemElement(stem),
+          branchElement: getBranchElement(branch),
           nayin: pillar.takeSound?.toString() || '',
-          hiddenStems: branch.hiddenStems?.map((s: any) => s.toString()) || [],
+          hiddenStems,
+          // New fields
+          shiShen: p === 'day' ? '日主' : getShiShen(dayMaster, stem),
+          hiddenStemShiShen: hiddenStems.map((hs: string) => ({
+            stem: hs,
+            element: getStemElement(hs),
+            shiShen: getShiShen(dayMaster, hs),
+          })),
+          life12: getLife12(dayMaster, branch),
         };
       });
 
-      // 五行统计
+      // 五行统计 (count all stems including hidden)
       const elementCount: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
       for (const p of pillarData) {
         if (p.stemElement && elementCount[p.stemElement] !== undefined) elementCount[p.stemElement]++;
         if (p.branchElement && elementCount[p.branchElement] !== undefined) elementCount[p.branchElement]++;
       }
 
-      // 日主 (日柱天干)
-      const dayMaster = d.char8.day.stem.toString();
-      const dayMasterElement = getStemElement(dayMaster);
+      // 空亡
+      const kongWang = getKongWang(dayMaster, d.char8.day.branch.toString());
 
-      // 生肖
+      // Check which pillars have branches in kong wang
+      const kongWangBranches = [kongWang[0], kongWang[1]];
+      const pillarKongWang = {
+        year: kongWangBranches.includes(d.char8.year.branch.toString()),
+        month: kongWangBranches.includes(d.char8.month.branch.toString()),
+        day: false,
+        hour: kongWangBranches.includes(d.char8.hour.branch.toString()),
+      };
+
+      // 生肖 & 星座
       const zodiac = d.format('cZ');
 
-      // 性格/情绪倾向分析 (基于五行)
+      // Simple constellation calc
+      const constellations = [
+        [1,20,'摩羯座'],[2,19,'水瓶座'],[3,21,'双鱼座'],[4,20,'白羊座'],
+        [5,21,'金牛座'],[6,21,'双子座'],[7,23,'巨蟹座'],[8,23,'狮子座'],
+        [9,23,'处女座'],[10,23,'天秤座'],[11,22,'天蝎座'],[12,22,'射手座'],[13,31,'摩羯座']
+      ];
+      const m = parseInt(month), dd = parseInt(day);
+      let constellation = '摩羯座';
+      for (let i = 0; i < constellations.length - 1; i++) {
+        if ((m === constellations[i][0] && dd >= (constellations[i][1] as number)) ||
+            (m === constellations[i+1][0] && dd < (constellations[i+1][1] as number))) {
+          constellation = constellations[i+1][2] as string;
+          break;
+        }
+      }
+
+      // 性格/情绪倾向分析
       const personality = getElementPersonality(dayMasterElement, elementCount);
+
+      // 神煞 (simplified common ones based on day pillar)
+      const shenSha: Record<string, string[]> = {
+        year: [], month: [], day: [], hour: []
+      };
+      // 天乙贵人
+      const TIANYI: Record<string, string[]> = {
+        '甲':['丑','未'],'乙':['子','申'],'丙':['亥','酉'],'丁':['亥','酉'],
+        '戊':['丑','未'],'己':['子','申'],'庚':['丑','未'],'辛':['寅','午'],
+        '壬':['卯','巳'],'癸':['卯','巳'],
+      };
+      const tianyiList = TIANYI[dayMaster] || [];
+      for (const p of pillarsKey) {
+        const branch = d.char8[p].branch.toString();
+        if (tianyiList.includes(branch)) shenSha[p].push('天乙贵人');
+      }
+
+      // 驿马
+      const YIMA: Record<string, string> = {'寅':'申','申':'寅','巳':'亥','亥':'巳','子':'午','午':'子','卯':'酉','酉':'卯','辰':'戌','戌':'辰','丑':'未','未':'丑'};
+      const yearBranch = d.char8.year.branch.toString();
+      for (const p of pillarsKey) {
+        const branch = d.char8[p].branch.toString();
+        if (YIMA[yearBranch] === branch) shenSha[p].push('驿马');
+      }
+
+      // 桃花
+      const TAOHUA: Record<string, string> = {
+        '寅':'卯','午':'卯','戌':'卯',
+        '申':'酉','子':'酉','辰':'酉',
+        '巳':'午','酉':'午','丑':'午',
+        '亥':'子','卯':'子','未':'子',
+      };
+      const dayBranch = d.char8.day.branch.toString();
+      for (const p of pillarsKey) {
+        const branch = d.char8[p].branch.toString();
+        if (TAOHUA[dayBranch] === branch) shenSha[p].push('桃花');
+      }
 
       res.json({
         birthDate: `${year}-${month}-${day}`,
@@ -1326,14 +1483,19 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         dayMaster,
         dayMasterElement,
         zodiac,
+        constellation,
         elementCount,
         personality,
+        kongWang,
+        pillarKongWang,
+        shenSha,
       });
     } catch (err) {
       console.error('Bazi calculation error:', err);
       res.status(500).json({ error: 'Failed to calculate Bazi' });
     }
   });
+
 
   // 节气养生数据
   app.get("/api/culture/solar-terms", async (req, res) => {
@@ -1639,67 +1801,186 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       const { question, method } = req.body;
       if (!question) return res.status(400).json({ error: 'question is required' });
 
-      const divMethod = method || 'liuyao'; // liuyao=六爻, shichen=时辰占, meihua=梅花易数
+      const divMethod = method || 'liuyao';
       const now = lunisolar(new Date());
       const todayBazi = now.char8.toString();
       const currentHourBranch = now.char8.hour.branch.toString();
       const lunarInfo = `${now.lunar.getMonthName()}${now.lunar.getDayName()}`;
 
-      // 随机取卦 (模拟六爻摇卦)
+      // 纳甲六爻 Constants
+      const NJ_GANS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+      const NJ_ZHIS = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+      const NJ_XING5 = ['木','火','土','金','水'];
+      const NJ_ZHI5 = [4,2,0,0,2,1,1,2,3,3,2,4];
+      const NJ_SHEN6 = ['青龙','朱雀','勾陈','螣蛇','白虎','玄武'];
+      const NJ_QIN6 = ['兄弟','父母','官鬼','妻财','子孙'];
+      const NJ_GUAS = ['乾','兑','离','震','巽','坎','艮','坤'];
+      const NJ_GUA5 = [3,3,1,0,0,4,2,2];
+      const NJ_YAOS = ['111','110','101','100','011','010','001','000'];
+      const NJ_NAJIA = [
+        ['甲子寅辰','壬午申戌'],['丁巳卯丑','丁亥酉未'],['己卯丑亥','己酉未巳'],['庚子寅辰','庚午申戌'],
+        ['辛丑亥酉','辛未巳卯'],['戊寅辰午','戊申戌子'],['丙辰午申','丙戌子寅'],['乙未巳卯','癸丑亥酉'],
+      ];
+      const NJ_GUA64: Record<string, string> = {
+        '111111':'乾为天','011111':'天风姤','001111':'天山遁','000111':'天地否','000011':'风地观','000001':'山地剥',
+        '000101':'火地晋','111101':'火天大有','110110':'兑为泽','010110':'泽水困','000110':'泽地萃','001110':'泽山咸',
+        '001010':'水山蹇','001000':'地山谦','001100':'雷山小过','110100':'雷泽归妹','101101':'离为火','001101':'火山旅',
+        '011101':'火风鼎','010101':'火水未济','010001':'山水蒙','010011':'风水涣','010111':'天水讼','101111':'天火同人',
+        '100100':'震为雷','000100':'雷地豫','010100':'雷水解','011100':'雷风恒','011000':'地风升','011010':'水风井',
+        '011110':'泽风大过','100110':'泽雷随','011011':'巽为风','111011':'风天小畜','101011':'风火家人','100011':'风雷益',
+        '100111':'天雷无妄','100101':'火雷噬嗑','100001':'山雷颐','011001':'山风蛊','010010':'坎为水','110010':'水泽节',
+        '100010':'水雷屯','101010':'水火既济','101110':'泽火革','101100':'雷火丰','101000':'地火明夷','010000':'地水师',
+        '001001':'艮为山','101001':'山火贲','111001':'山天大畜','110001':'山泽损','110101':'火泽睽','110111':'天泽履',
+        '110011':'风泽中孚','001011':'风山渐','000000':'坤为地','100000':'地雷复','110000':'地泽临','111000':'地天泰',
+        '111100':'雷天大壮','111110':'泽天夬','111010':'水天需','000010':'水地比',
+      };
+
+      // 摇卦
       const hexLines = Array.from({ length: 6 }, () => {
         const r = Math.random();
-        if (r < 0.125) return { type: 'old_yang', value: 9, changing: true };
-        if (r < 0.375) return { type: 'young_yang', value: 7, changing: false };
-        if (r < 0.5) return { type: 'old_yin', value: 6, changing: true };
-        return { type: 'young_yin', value: 8, changing: false };
+        if (r < 0.125) return 9;
+        if (r < 0.375) return 7;
+        if (r < 0.5) return 6;
+        return 8;
       });
 
-      const TRIGRAM_NAMES = ['坤','震','坎','兑','艮','离','巽','乾'];
-      const lower = (hexLines[0].value % 2) + (hexLines[1].value % 2) * 2 + (hexLines[2].value % 2) * 4;
-      const upper = (hexLines[3].value % 2) + (hexLines[4].value % 2) * 2 + (hexLines[5].value % 2) * 4;
-      const lowerName = TRIGRAM_NAMES[lower] || '坤';
-      const upperName = TRIGRAM_NAMES[upper] || '乾';
+      const mark = hexLines.map(v => String(v % 2)).join('');
+      const hexName = NJ_GUA64[mark] || '未知卦';
 
-      const hasChanging = hexLines.some(l => l.changing);
-      const changingLines = hexLines.map((l, i) => l.changing ? i + 1 : 0).filter(Boolean);
+      // 世爻
+      function setShiYao(sym: string): [number, number] {
+        const w = sym.slice(3), n = sym.slice(0, 3);
+        if (w[2]===n[2] && w[1]!==n[1] && w[0]!==n[0]) return [2, 5];
+        if (w[2]!==n[2] && w[1]===n[1] && w[0]===n[0]) return [5, 2];
+        if (w[1]===n[1] && w[0]!==n[0] && w[2]!==n[2]) return [4, 1];
+        if (w[1]!==n[1] && w[0]===n[0] && w[2]===n[2]) return [3, 6];
+        if (w[0]===n[0] && w[1]!==n[1] && w[2]!==n[2]) return [4, 1];
+        if (w[0]!==n[0] && w[1]===n[1] && w[2]===n[2]) return [1, 4];
+        if (w===n) return [6, 3];
+        return [3, 6];
+      }
+      const [shiYao, yingYao] = setShiYao(mark);
 
+      // 卦宫
+      function getPalace(sym: string, shi: number): number {
+        const w = sym.slice(3), n = sym.slice(0, 3);
+        const isGuiHun = w[1]!==n[1] && w[0]===n[0] && w[2]===n[2];
+        if (isGuiHun) return NJ_YAOS.indexOf(n);
+        if ([1,2,3,6].includes(shi)) return NJ_YAOS.indexOf(w);
+        const flipped = n.split('').map(c => c==='1'?'0':'1').join('');
+        return NJ_YAOS.indexOf(flipped);
+      }
+      const gongIdx = getPalace(mark, shiYao);
+      const gongName = NJ_GUAS[gongIdx >= 0 ? gongIdx : 0];
+      const gongElement = NJ_XING5[NJ_GUA5[gongIdx >= 0 ? gongIdx : 0]];
+
+      // 纳甲配干支
+      function getNajia(sym: string): string[] {
+        const neiIdx = NJ_YAOS.indexOf(sym.slice(0,3));
+        const waiIdx = NJ_YAOS.indexOf(sym.slice(3));
+        const ni = neiIdx >= 0 ? neiIdx : 0;
+        const wi = waiIdx >= 0 ? waiIdx : 0;
+        const neiGZ = [1,2,3].map(i => NJ_NAJIA[ni][0][0] + NJ_NAJIA[ni][0][i]);
+        const waiGZ = [1,2,3].map(i => NJ_NAJIA[wi][1][0] + NJ_NAJIA[wi][1][i]);
+        return [...neiGZ, ...waiGZ];
+      }
+      const najiaGZ = getNajia(mark);
+
+      // 六亲
+      function getQin6(gongW: string, zhiW: string): string {
+        const w1 = NJ_XING5.indexOf(gongW);
+        const w2 = NJ_XING5.indexOf(zhiW);
+        let ws = w1 - w2;
+        if (ws < 0) ws += 5;
+        return NJ_QIN6[ws] || '兄弟';
+      }
+      const liuQin = najiaGZ.map(gz => {
+        const zhiIdx = NJ_ZHIS.indexOf(gz[1]);
+        return getQin6(gongElement, NJ_XING5[NJ_ZHI5[zhiIdx >= 0 ? zhiIdx : 0]]);
+      });
+
+      // 六神
+      function getGod6(dayGan: string): string[] {
+        const gIdx = NJ_GANS.indexOf(dayGan);
+        let num = Math.ceil((gIdx + 1) / 2) - 7;
+        if (gIdx === 4) num = -4;
+        if (gIdx === 5) num = -3;
+        if (gIdx > 5) num += 1;
+        const arr = [...NJ_SHEN6];
+        if (num < 0) return [...arr.slice(arr.length + num), ...arr.slice(0, arr.length + num)];
+        return [...arr.slice(num), ...arr.slice(0, num)];
+      }
+      const dayStem = now.char8.day.stem.toString();
+      const liuShen = getGod6(dayStem);
+
+      // 动爻 & 变卦
+      const dongYao = hexLines.map((v, i) => (v === 6 || v === 9) ? i + 1 : 0).filter(Boolean);
+      const hasChanging = dongYao.length > 0;
+      let bianGua: any = null;
+      if (hasChanging) {
+        const bianMark = hexLines.map(v => {
+          if (v === 9) return '0';
+          if (v === 6) return '1';
+          return String(v % 2);
+        }).join('');
+        bianGua = { mark: bianMark, name: NJ_GUA64[bianMark] || '未知卦', najia: getNajia(bianMark) };
+      }
+
+      // 组装爻详情
+      const yaoDetails = hexLines.map((v, i) => ({
+        position: i + 1,
+        value: v,
+        type: v % 2 === 1 ? '━━━' : '━ ━',
+        isChanging: v === 6 || v === 9,
+        ganZhi: najiaGZ[i],
+        element: NJ_XING5[NJ_ZHI5[NJ_ZHIS.indexOf(najiaGZ[i][1]) >= 0 ? NJ_ZHIS.indexOf(najiaGZ[i][1]) : 0]],
+        liuQin: liuQin[i],
+        liuShen: liuShen[i],
+        isShi: i + 1 === shiYao,
+        isYing: i + 1 === yingYao,
+      }));
+
+      // AI 解读
       const client = new OpenAI({
         baseURL: "https://api.deepseek.com",
         apiKey: process.env.DEEPSEEK_API_KEY,
       });
 
-      const prompt = `你是一位精通中国传统占卜的AI大师。用户求问一个问题，请根据卦象给出解读。
+      const najiaDesc = yaoDetails.map(y =>
+        `${y.position}爻: ${y.type} ${y.ganZhi}${y.element} ${y.liuQin} ${y.liuShen}${y.isShi?' 世':y.isYing?' 应':''}${y.isChanging?' 动':''}`
+      ).join('\n');
+
+      const prompt = `你是精通纳甲六爻的AI易学大师。请根据完整的六爻排盘给出专业解读。
 
 问题: ${question}
 占卜时间: ${new Date().toLocaleString('zh-CN')}
-农历: ${lunarInfo}
-时辰: ${currentHourBranch}时
-当日四柱: ${todayBazi}
+农历: ${lunarInfo}、时辰: ${currentHourBranch}时
+日干支: ${todayBazi}
 
-卦象信息:
-- 下卦: ${lowerName}
-- 上卦: ${upperName}
-- 六爻(自下而上): ${hexLines.map(l => l.value).join(', ')}
-- 变爻: ${hasChanging ? `第${changingLines.join('、')}爻` : '无变爻'}
+卦名: ${hexName} (属${gongName}宫-${gongElement})
+世爻: 第${shiYao}爻、应爻: 第${yingYao}爻
+动爻: ${hasChanging ? `第${dongYao.join('、')}爻` : '无'}
+${bianGua ? `变卦: ${bianGua.name}` : ''}
+
+六爻纳甲:
+${najiaDesc}
 
 请返回严格JSON（不要markdown代码块）:
 {
-  "hexagramName": "卦名（如：天火同人）",
-  "hexagramSymbol": "卦符号（☰☲等Unicode符号组合）",
-  "mainReading": "主卦解读（60-80字）",
-  "changingReading": "变卦解读（如有变爻则50字，无则null）",
-  "answer": "针对问题的具体回答（80-120字，温暖正向）",
-  "outlook": "吉凶判断：大吉/中吉/小吉/平/小凶/中凶",
-  "advice": "行动建议（40字以内）",
+  "mainReading": "主卦解读（基于六亲/世应/动爻关系，80-120字）",
+  "changingReading": "变卦解读（如有变爻则60字，无则null）",
+  "answer": "针对问题的具体回答（100-150字，温暖正向）",
+  "outlook": "吉凶判断：大吉/中吉/小吉/平/小凶",
+  "advice": "行动建议（50字以内）",
   "timing": "时机提示（20字以内）"
 }`;
 
       const response = await client.chat.completions.create({
         model: "deepseek-chat",
-        max_tokens: 500,
+        max_tokens: 600,
         temperature: 0.85,
         messages: [
-          { role: "system", content: "你是资深易学AI大师，精通六爻、梅花易数。解读客观温暖，不恐吓用户，引导积极行动。只返回JSON。" },
+          { role: "system", content: "你是资深纳甲六爻AI大师，精通六爻排盘、六亲生克、动变解读。解读客观温暖，不恐吓用户，引导积极行动。只返回JSON。" },
           { role: "user", content: prompt },
         ],
       });
@@ -1710,10 +1991,8 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         reading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
       } catch {
         reading = {
-          hexagramName: `${upperName}${lowerName}卦`,
-          hexagramSymbol: '☰☲',
-          mainReading: '此卦象征和谐与合作，提示当前局面利于沟通协调。',
-          changingReading: hasChanging ? '变卦暗示情况将有积极转变。' : null,
+          mainReading: `${hexName}，属${gongName}宫${gongElement}。当前局面利于沟通协调，保持耐心待时而动。`,
+          changingReading: hasChanging ? '动爻变化暗示事情将有积极转变。' : null,
           answer: '综合卦象来看，所问之事整体趋势向好，需保持耐心。',
           outlook: '中吉',
           advice: '以诚待人，顺势而为。',
@@ -1723,18 +2002,20 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
 
       res.json({
         ...reading,
+        hexagramName: hexName,
+        palace: { name: gongName, element: gongElement },
+        shiYao,
+        yingYao,
+        yaoDetails,
+        dongYao,
+        bianGua,
         meta: {
           question,
           method: divMethod,
           time: new Date().toISOString(),
           lunarTime: lunarInfo,
           hourBranch: currentHourBranch,
-          hexagram: {
-            upper: upperName,
-            lower: lowerName,
-            lines: hexLines.map(l => ({ value: l.value, changing: l.changing })),
-            changingLines,
-          }
+          mark,
         }
       });
     } catch (err) {
@@ -1742,6 +2023,217 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       res.status(500).json({ error: 'Failed to perform divination' });
     }
   });
+
+
+  // ─── 姓名测分 (五格三才 Name Scoring) ──────────────────────────────
+  app.post("/api/culture/name-score", async (req, res) => {
+    try {
+      const { surname, givenName } = req.body;
+      if (!surname || !givenName) {
+        return res.status(400).json({ error: '请提供姓氏和名字' });
+      }
+
+      // 康熙笔画数据 (常用字)
+      const KANGXI: Record<string, number> = {
+        '一':1,'丁':2,'七':1,'万':15,'三':3,'上':3,'下':3,'与':14,'丑':4,'且':5,'世':5,'东':8,'严':20,'中':4,'丽':19,'乃':2,'义':13,'之':4,
+        '乌':10,'乎':5,'乐':15,'乔':12,'九':2,'也':3,'习':11,'书':10,'乾':11,'二':2,'于':3,'云':12,'五':4,'井':4,'亥':6,'亮':9,'人':2,'亿':15,
+        '仁':4,'仇':4,'从':11,'代':5,'令':5,'以':5,'仪':15,'仰':6,'仲':6,'任':6,'伊':6,'伍':6,'伏':6,'伟':11,'似':7,'何':7,'余':7,'佳':8,'依':8,
+        '侯':9,'俊':9,'俞':9,'信':9,'倩':10,'倪':10,'傅':12,'储':18,'像':14,'儿':8,'元':4,'充':6,'兆':6,'光':6,'兑':7,'兔':8,'党':20,'全':6,
+        '八':2,'六':4,'兰':23,'兴':16,'其':8,'冀':16,'冉':5,'军':9,'农':13,'冬':5,'冯':12,'冷':7,'凌':10,'凤':14,'凯':12,'刁':2,'刘':15,'则':9,
+        '刚':10,'创':12,'利':7,'别':7,'刻':8,'前':9,'劳':12,'勇':9,'勾':4,'包':5,'北':5,'匡':6,'十':2,'千':3,'午':4,'华':14,'卓':8,'单':12,
+        '南':9,'博':12,'卜':2,'卞':4,'卢':16,'卫':15,'卯':5,'印':6,'危':6,'厉':15,'厍':6,'双':18,'古':5,'句':5,'可':5,'史':5,'右':5,'叶':15,
+        '司':5,'吉':6,'后':9,'向':6,'吕':7,'启':11,'吴':7,'周':8,'和':8,'咸':9,'哀':9,'哲':10,'唐':10,'善':12,'喜':12,'喻':12,'嘉':14,'四':5,
+        '园':13,'国':11,'土':3,'地':6,'坎':7,'坤':8,'堂':11,'堵':12,'塑':13,'壮':7,'夏':10,'夔':21,'夕':3,'大':3,'天':4,'奚':10,'女':3,'如':6,
+        '妍':7,'姚':9,'姜':9,'姬':10,'姿':9,'威':9,'娄':11,'娜':10,'娟':10,'婷':12,'媛':12,'子':3,'孔':4,'孙':10,'孝':7,'孟':8,'季':8,'学':16,
+        '宁':14,'宅':6,'宇':6,'安':6,'宋':7,'宓':8,'宗':8,'定':8,'宝':20,'宣':9,'室':9,'宦':9,'宫':10,'宰':10,'家':10,'容':10,'宿':11,'寅':11,
+        '寇':11,'富':12,'寒':12,'寿':14,'封':9,'小':3,'少':4,'尚':8,'尤':4,'尹':4,'居':8,'屈':8,'屠':12,'山':3,'岑':7,'岚':12,'峰':10,'崔':11,
+        '嵇':13,'左':5,'巩':15,'巫':7,'巳':4,'巴':4,'巽':12,'师':10,'希':7,'席':10,'常':11,'干':3,'平':5,'幸':8,'广':15,'庄':13,'应':17,
+        '庞':19,'庭':10,'康':11,'庾':11,'廉':13,'廖':14,'建':9,'开':12,'弓':3,'弘':5,'张':11,'强':11,'彤':7,'彦':9,'彩':11,'彭':12,'律':9,
+        '徐':10,'得':11,'德':15,'心':4,'志':7,'忠':8,'忧':15,'怀':20,'态':14,'怒':9,'思':9,'怡':9,'恒':10,'恩':10,'悠':11,'悦':11,'悲':12,
+        '情':12,'惠':12,'惧':13,'愁':13,'意':13,'愿':19,'慈':14,'慎':14,'慕':15,'慧':15,'戈':4,'戌':6,'戎':6,'成':7,'或':8,'戚':11,'戴':18,
+        '房':8,'所':8,'扈':11,'才':4,'扶':8,'承':8,'支':4,'政':8,'敏':11,'敖':11,'文':4,'斌':12,'新':13,'方':4,'施':9,'日':4,'旦':5,'旭':6,
+        '时':10,'昊':8,'昌':8,'明':8,'昏':8,'易':8,'昝':9,'星':9,'春':9,'晁':10,'晏':10,'晓':16,'晖':13,'晨':11,'景':12,'晴':12,'智':12,
+        '暗':13,'暨':16,'暴':15,'曲':6,'曹':11,'曼':11,'月':4,'朗':11,'望':11,'朝':12,'木':4,'未':5,'朱':6,'杉':7,'李':7,'杏':7,'杜':7,'束':7,
+        '杨':13,'杭':8,'杰':12,'松':18,'林':8,'柏':9,'柯':9,'柳':9,'柴':10,'栾':23,'桂':10,'桃':10,'桐':10,'桑':10,'桦':14,'梁':11,'梅':11,
+        '梦':14,'楠':13,'楹':13,'楼':15,'榆':13,'樊':15,'欢':22,'欣':8,'欲':11,'歌':14,'正':5,'步':7,'武':8,'殴':12,'段':9,'殷':10,'毅':15,
+        '毕':11,'毛':4,'水':4,'永':5,'求':7,'江':7,'池':7,'汤':13,'汪':8,'汲':8,'沃':8,'沈':8,'河':9,'泉':9,'法':9,'泰':10,'泽':17,'洋':10,
+        '洪':10,'洲':10,'浙':11,'浦':11,'浩':11,'海':11,'涛':18,'淑':12,'清':12,'温':13,'湖':13,'湘':13,'湛':13,'溪':14,'滑':14,'滕':14,
+        '满':15,'潘':16,'潭':16,'濮':18,'火':4,'焦':12,'然':12,'煜':13,'熊':14,'燕':16,'爱':13,'牛':4,'牧':8,'狄':8,'狐':9,'狗':9,'狼':10,
+        '猪':16,'玉':5,'王':4,'玲':10,'珊':10,'珍':10,'珠':11,'班':11,'理':12,'琢':13,'琦':13,'琪':13,'琳':13,'琴':13,'琼':20,'瑚':14,'瑞':14,
+        '瑰':15,'瑶':15,'瑾':16,'璞':17,'璧':18,'甄':14,'甘':5,'田':5,'申':5,'电':13,'画':12,'畅':14,'白':5,'皮':5,'盛':12,'真':10,'睿':14,
+        '瞿':18,'知':8,'石':5,'碧':14,'磊':15,'磨':16,'礼':18,'祁':8,'祖':10,'祝':10,'祥':11,'禄':13,'福':14,'禹':9,'离':19,'秀':7,'秋':9,
+        '秦':10,'程':12,'穆':16,'空':8,'窦':20,'立':5,'章':11,'童':12,'竹':6,'符':11,'简':18,'管':14,'籍':20,'米':6,'粤':13,'糜':17,'索':10,
+        '紫':11,'繁':17,'红':9,'纪':9,'纱':10,'终':11,'经':13,'绣':13,'继':20,'绫':14,'绮':14,'绸':14,'绿':14,'缎':15,'缪':16,'罗':20,'羊':6,
+        '美':9,'翁':10,'翔':12,'翟':14,'翠':14,'老':6,'者':10,'而':6,'耻':10,'耿':10,'聂':18,'胡':11,'胥':11,'能':10,'臧':14,'致':10,'舒':12,
+        '航':10,'艮':6,'良':7,'艾':8,'芬':10,'芮':10,'花':10,'芳':10,'苍':16,'苏':22,'苗':11,'若':11,'英':11,'茂':11,'范':15,'茅':11,'茜':12,
+        '茹':12,'荀':12,'荣':14,'荷':13,'莘':13,'莫':13,'莲':17,'莹':15,'菊':14,'菲':14,'萍':14,'萧':18,'萱':15,'葛':15,'董':15,'蒋':17,
+        '蒙':16,'蒲':16,'蓉':16,'蓝':20,'蓟':21,'蓬':17,'蔚':17,'蔡':17,'蔺':22,'蕾':19,'薄':19,'薇':19,'薛':19,'虎':8,'虞':13,'虹':9,'蜀':13,
+        '融':16,'行':6,'衡':16,'袁':10,'裘':13,'裴':14,'褚':15,'西':6,'要':9,'见':7,'觉':20,'解':13,'言':7,'訾':12,'詹':13,'计':9,'许':11,
+        '词':12,'诗':13,'诚':14,'语':14,'诸':16,'调':15,'谈':15,'谢':17,'谭':19,'谷':7,'豫':16,'豹':10,'貌':14,'贝':7,'贡':10,'财':10,'贲':12,
+        '贵':12,'费':12,'贺':12,'贾':13,'赋':15,'赖':16,'赵':14,'超':12,'越':12,'路':13,'车':7,'轩':10,'辉':15,'辛':7,'辞':13,'辰':7,'边':22,
+        '达':16,'远':17,'连':14,'适':14,'逄':14,'通':14,'逸':15,'道':16,'邓':19,'邢':11,'那':11,'邬':15,'邰':19,'邱':12,'邴':11,'邵':12,
+        '邹':17,'郁':13,'郎':14,'郏':14,'郑':19,'郗':14,'郜':14,'郝':14,'郭':15,'都':16,'鄂':17,'酆':20,'酉':7,'金':8,'鑫':24,'钟':17,'钮':12,
+        '钱':16,'铁':21,'铜':14,'铝':15,'铭':14,'银':14,'锋':15,'锡':16,'锦':16,'长':8,'闲':12,'闵':12,'闻':14,'闽':14,'阎':16,'阙':18,
+        '阚':17,'阮':12,'阳':17,'阴':12,'陆':16,'陈':16,'院':15,'陶':16,'隆':17,'隗':12,'雅':12,'雍':13,'雕':18,'雨':8,'雪':11,'雷':13,
+        '需':14,'震':15,'霍':16,'霞':17,'露':20,'青':8,'静':16,'靳':13,'韦':9,'韩':17,'韵':19,'韶':14,'项':12,'顺':12,'须':12,'顾':21,'颖':16,
+        '颜':18,'风':9,'飞':9,'饶':21,'馆':16,'马':10,'骆':16,'高':10,'魏':18,'鱼':11,'鲁':15,'鲍':16,'鸡':18,'鸭':16,'鹅':18,'鹏':19,'鹤':21,
+        '鹰':24,'鹿':11,'麟':23,'麻':11,'黄':12,'黎':15,'黑':12,'齐':14,'龙':16,'龚':22,'龟':16,
+      };
+
+      function getKangxiStrokes(char: string): number {
+        return KANGXI[char] || char.charCodeAt(0) % 20 + 1; // fallback for unknown chars
+      }
+
+      const surnameChars = [...surname];
+      const givenChars = [...givenName];
+      const surnameStrokes = surnameChars.map(getKangxiStrokes);
+      const givenStrokes = givenChars.map(getKangxiStrokes);
+
+      let tianGe: number, renGe: number, diGe: number, waiGe: number, zongGe: number;
+
+      if (surnameChars.length === 1 && givenChars.length === 2) {
+        const A = surnameStrokes[0], B = givenStrokes[0], C = givenStrokes[1];
+        tianGe = A + 1;
+        renGe = A + B;
+        diGe = B + C;
+        waiGe = C + 1;
+        zongGe = A + B + C;
+      } else if (surnameChars.length === 1 && givenChars.length === 1) {
+        const A = surnameStrokes[0], B = givenStrokes[0];
+        tianGe = A + 1;
+        renGe = A + B;
+        diGe = B + 1;
+        waiGe = 2;
+        zongGe = A + B;
+      } else if (surnameChars.length === 2 && givenChars.length === 1) {
+        const A1 = surnameStrokes[0], A2 = surnameStrokes[1], B = givenStrokes[0];
+        tianGe = A1 + A2;
+        renGe = A2 + B;
+        diGe = B + 1;
+        waiGe = A1 + 1;
+        zongGe = A1 + A2 + B;
+      } else if (surnameChars.length === 2 && givenChars.length === 2) {
+        const A1 = surnameStrokes[0], A2 = surnameStrokes[1], B = givenStrokes[0], C = givenStrokes[1];
+        tianGe = A1 + A2;
+        renGe = A2 + B;
+        diGe = B + C;
+        waiGe = A1 + C;
+        zongGe = A1 + A2 + B + C;
+      } else {
+        // General case
+        const allStrokes = [...surnameStrokes, ...givenStrokes];
+        const totalS = surnameStrokes.reduce((a, b) => a + b, 0);
+        const totalG = givenStrokes.reduce((a, b) => a + b, 0);
+        tianGe = totalS + 1;
+        renGe = surnameStrokes[surnameStrokes.length - 1] + givenStrokes[0];
+        diGe = totalG + (givenChars.length === 1 ? 1 : 0);
+        waiGe = totalS + (givenStrokes[givenStrokes.length - 1] || 1);
+        zongGe = totalS + totalG;
+      }
+
+      // 数理吉凶 (1-81 cycle)
+      const LUCKY = new Set([1,3,5,6,7,8,11,13,15,16,17,18,21,23,24,25,29,31,32,33,35,37,39,41,45,47,48,52,57,61,63,65,67,68,73,75,81]);
+      const SEMI = new Set([26,27,28,30,34,36,38,40,42,43,44,49,50,51,53,55,58,71,77,78]);
+
+      function getLuck(n: number): { level: string; label: string } {
+        const mod = ((n - 1) % 81) + 1;
+        if (LUCKY.has(mod)) return { level: 'lucky', label: '吉' };
+        if (SEMI.has(mod)) return { level: 'semi', label: '半吉' };
+        return { level: 'unlucky', label: '凶' };
+      }
+
+      // 数理含义
+      const SHULI_MEANING: Record<number, string> = {
+        1: '太极之数，万物开泰，生发无穷，利禄亨通',
+        3: '进取如意，智谋奇略，名利双收，万事如意',
+        5: '福禄长寿，阴阳和合，完整壮大，名利双收',
+        6: '安稳余庆，天德地祥，家门昌隆，富贵荣华',
+        7: '精悍刚毅，果断勇敢，专注如一，吉祥如意',
+        8: '意志坚固，勤勉发展，富于进取，平安吉祥',
+        11: '旱苗逢雨，挽回家运，万物更新，调顺发达',
+        13: '才艺多能，智谋奇略，忍柔当事，鸣奏大功',
+        15: '福寿圆满，富贵荣誉，涵养雅量，德高望重',
+        16: '贵人得助，天乙贵人，为人之表，大事成就',
+        17: '刚柔兼备，突破万难，独立权威，功成名就',
+        18: '有志有谋，自立自强，内外和顺，大博名利',
+        21: '光风霁月，万象更新，独立权威，首领之运',
+        23: '旭日升天，名显四方，渐次进展，终成大业',
+        24: '锦绣前程，须靠自力，多用智谋，能奏大功',
+        25: '资性英敏，才能奇特，克服傲慢，尚可成功',
+      };
+
+      function getShuliMeaning(n: number): string {
+        const mod = ((n - 1) % 81) + 1;
+        return SHULI_MEANING[mod] || (LUCKY.has(mod) ? '吉祥顺遂，前途光明' : SEMI.has(mod) ? '起伏不定，需谨慎行事' : '困难重重，宜另寻他路');
+      }
+
+      // 三才配置 (天人地五行)
+      function numToElement(n: number): string {
+        const d = n % 10;
+        if (d === 1 || d === 2) return '木';
+        if (d === 3 || d === 4) return '火';
+        if (d === 5 || d === 6) return '土';
+        if (d === 7 || d === 8) return '金';
+        return '水'; // 9, 0
+      }
+
+      const tianElement = numToElement(tianGe);
+      const renElement = numToElement(renGe);
+      const diElement = numToElement(diGe);
+      const sanCai = tianElement + renElement + diElement;
+
+      // 三才吉凶 (simplified — 相生为吉, 相克为凶)
+      function isGenerating(a: string, b: string): boolean {
+        const cycle = ['木','火','土','金','水'];
+        const ia = cycle.indexOf(a), ib = cycle.indexOf(b);
+        return (ia + 1) % 5 === ib;
+      }
+      function isSame(a: string, b: string): boolean { return a === b; }
+
+      let sanCaiScore = 60;
+      if (isSame(tianElement, renElement) || isGenerating(tianElement, renElement)) sanCaiScore += 15;
+      if (isSame(renElement, diElement) || isGenerating(renElement, diElement)) sanCaiScore += 15;
+      if (isSame(tianElement, diElement) || isGenerating(tianElement, diElement)) sanCaiScore += 10;
+      // 相克减分
+      if (isGenerating(renElement, tianElement)) sanCaiScore -= 5;
+      if (isGenerating(diElement, renElement)) sanCaiScore -= 5;
+
+      const sanCaiLevel = sanCaiScore >= 85 ? '大吉' : sanCaiScore >= 70 ? '吉' : sanCaiScore >= 55 ? '半吉' : '凶';
+
+      // Total score
+      const geScores = [tianGe, renGe, diGe, waiGe, zongGe].map(g => getLuck(g).level === 'lucky' ? 90 : getLuck(g).level === 'semi' ? 70 : 40);
+      const totalScore = Math.round((geScores.reduce((a, b) => a + b, 0) / 5) * 0.6 + sanCaiScore * 0.4);
+
+      res.json({
+        name: surname + givenName,
+        surname,
+        givenName,
+        surnameStrokes,
+        givenStrokes,
+        wuGe: {
+          tianGe: { value: tianGe, luck: getLuck(tianGe), meaning: getShuliMeaning(tianGe), element: numToElement(tianGe) },
+          renGe: { value: renGe, luck: getLuck(renGe), meaning: getShuliMeaning(renGe), element: numToElement(renGe) },
+          diGe: { value: diGe, luck: getLuck(diGe), meaning: getShuliMeaning(diGe), element: numToElement(diGe) },
+          waiGe: { value: waiGe, luck: getLuck(waiGe), meaning: getShuliMeaning(waiGe), element: numToElement(waiGe) },
+          zongGe: { value: zongGe, luck: getLuck(zongGe), meaning: getShuliMeaning(zongGe), element: numToElement(zongGe) },
+        },
+        sanCai: {
+          elements: sanCai,
+          tianCai: tianElement,
+          renCai: renElement,
+          diCai: diElement,
+          score: sanCaiScore,
+          level: sanCaiLevel,
+        },
+        totalScore,
+        rating: totalScore >= 90 ? '极佳' : totalScore >= 80 ? '优秀' : totalScore >= 70 ? '良好' : totalScore >= 60 ? '一般' : '较差',
+      });
+    } catch (err) {
+      console.error('Name score error:', err);
+      res.status(500).json({ error: 'Failed to calculate name score' });
+    }
+  });
+
 
   // ─── Mood Journal Routes (auth required) ──────────────────────────
   app.get("/api/mood", requireAuth, async (req, res) => {

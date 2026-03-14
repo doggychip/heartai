@@ -22,6 +22,7 @@ import {
   Scroll,
   ArrowLeft,
   Swords,
+  BookOpen,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -54,6 +55,7 @@ interface AlmanacData {
   fetalGodDesc: string;
   chong: string;
   sha: string;
+  pengzuTaboo: string;
   hourDetails: { name: string; luck: number; gods: string[] }[];
 }
 
@@ -210,6 +212,11 @@ export default function AlmanacPage() {
                 {almanac.fetalGodDesc && (
                   <Badge variant="outline" className="border-pink-200 text-pink-600 dark:text-pink-400">
                     <Baby className="w-3 h-3 mr-1" /> 胎神·{almanac.fetalGodDesc}
+                  </Badge>
+                )}
+                {almanac.pengzuTaboo && (
+                  <Badge variant="outline" className="border-orange-200 text-orange-600 dark:text-orange-400">
+                    <BookOpen className="w-3 h-3 mr-1" /> 彭祖百忌·{almanac.pengzuTaboo}
                   </Badge>
                 )}
               </div>

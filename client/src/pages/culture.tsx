@@ -40,6 +40,7 @@ import {
   Dice5,
   Send,
   Globe,
+  Type,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -139,16 +140,22 @@ interface CompatibilityData {
 
 interface DivinationData {
   hexagramName: string;
-  hexagramSymbol: string;
   mainReading: string;
   changingReading: string | null;
   answer: string;
   outlook: string;
   advice: string;
   timing: string;
+  palace?: { name: string; element: string };
+  shiYao?: number;
+  yingYao?: number;
+  yaoDetails?: { position: number; value: number; type: string; isChanging: boolean; ganZhi: string; element: string; liuQin: string; liuShen: string; isShi: boolean; isYing: boolean }[];
+  dongYao?: number[];
+  bianGua?: { mark: string; name: string } | null;
   meta: {
     question: string;
-    hexagram: { upper: string; lower: string; lines: { value: number; changing: boolean }[] };
+    mark?: string;
+    hexagram?: { upper: string; lower: string; lines: { value: number; changing: boolean }[] };
   };
 }
 
@@ -281,8 +288,9 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
           { view: "divination" as CultureView, icon: Dice5, label: "AI占卜", desc: "六爻问卦", color: "text-indigo-500", bg: "bg-indigo-500/10" },
           { view: "compatibility" as CultureView, icon: Users, label: "缘分合盘", desc: "双人五行", color: "text-pink-500", bg: "bg-pink-500/10" },
           { view: "almanac" as CultureView, icon: Scroll, label: "万年黄历", desc: "宜忌·神煞·吉时", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", linkTo: "/almanac" },
-          { view: "bazi" as CultureView, icon: Compass, label: "八字排盘", desc: "五行分析", color: "text-teal-600 dark:text-teal-400", bg: "bg-teal-500/10" },
+          { view: "bazi" as CultureView, icon: Compass, label: "八字排盘", desc: "十神·藏干·神煞", color: "text-teal-600 dark:text-teal-400", bg: "bg-teal-500/10", linkTo: "/bazi" },
           { view: "solar" as CultureView, icon: Leaf, label: "节气养生", desc: "食物·运动", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
+          { view: "name-score" as CultureView, icon: Type, label: "姓名测分", desc: "五格三才", color: "text-rose-500", bg: "bg-rose-500/10", linkTo: "/name-score" },
         ].map((item) => {
           const cardContent = (
             <Card
@@ -1010,34 +1018,47 @@ function DivinationView() {
         <>
           {/* Hexagram */}
           <Card className="p-5 bg-gradient-to-br from-indigo-500/5 to-violet-500/10 border-indigo-500/20 text-center">
-            <div className="text-3xl font-mono mb-2">{data.hexagramSymbol || "☰☲"}</div>
             <h3 className="text-base font-bold">{data.hexagramName}</h3>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <Badge variant="outline" className="text-[10px]">
-                上{data.meta.hexagram.upper} 下{data.meta.hexagram.lower}
-              </Badge>
+            <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
+              {data.palace && (
+                <Badge variant="outline" className="text-[10px]">
+                  {data.palace.name}宫·{data.palace.element}
+                </Badge>
+              )}
+              {data.shiYao && (
+                <Badge variant="outline" className="text-[10px]">
+                  世{data.shiYao}爵 应{data.yingYao}爵
+                </Badge>
+              )}
               <Badge className={`text-[10px] border-0 ${outlookColor(data.outlook)}`}>
                 {data.outlook}
               </Badge>
+              {data.bianGua && (
+                <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-600">
+                  变→{data.bianGua.name}
+                </Badge>
+              )}
             </div>
           </Card>
 
-          {/* Hexagram Lines Visualization */}
+          {/* 纳甲六爵 Visualization */}
           <Card className="p-4">
-            <h4 className="text-[10px] text-muted-foreground mb-2">卦象</h4>
-            <div className="flex flex-col-reverse items-center gap-1">
-              {data.meta.hexagram.lines.map((line, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-[9px] text-muted-foreground w-4 text-right">{i + 1}</span>
-                  {line.value % 2 === 1 ? (
-                    <div className={`w-24 h-2 rounded-sm ${line.changing ? "bg-red-500" : "bg-foreground/70"}`} />
-                  ) : (
-                    <div className="flex gap-2">
-                      <div className={`w-10 h-2 rounded-sm ${line.changing ? "bg-red-500" : "bg-foreground/70"}`} />
-                      <div className={`w-10 h-2 rounded-sm ${line.changing ? "bg-red-500" : "bg-foreground/70"}`} />
-                    </div>
-                  )}
-                  {line.changing && <span className="text-[9px] text-red-500">变</span>}
+            <h4 className="text-[10px] text-muted-foreground mb-2">纳甲排盘</h4>
+            <div className="flex flex-col-reverse gap-1">
+              {(data.yaoDetails || []).map((yao, i) => (
+                <div key={i} className="flex items-center gap-1.5 text-[10px]">
+                  <span className="text-muted-foreground w-3 text-right">{yao.position}</span>
+                  <span className="font-mono w-8 text-center">{yao.type}</span>
+                  <span className={`w-6 text-center font-bold ${
+                    yao.element === '木' ? 'text-green-600' : yao.element === '火' ? 'text-red-500' :
+                    yao.element === '土' ? 'text-amber-700' : yao.element === '金' ? 'text-yellow-500' : 'text-blue-500'
+                  }`}>{yao.ganZhi}</span>
+                  <span className="w-5 text-center">{yao.element}</span>
+                  <Badge variant="outline" className="text-[9px] h-4 px-1">{yao.liuQin}</Badge>
+                  <Badge variant="secondary" className="text-[9px] h-4 px-1">{yao.liuShen}</Badge>
+                  {yao.isShi && <Badge className="text-[9px] h-4 px-1 bg-blue-500 border-0">世</Badge>}
+                  {yao.isYing && <Badge className="text-[9px] h-4 px-1 bg-green-500 border-0">应</Badge>}
+                  {yao.isChanging && <Badge className="text-[9px] h-4 px-1 bg-red-500 border-0">动</Badge>}
                 </div>
               ))}
             </div>

@@ -31,6 +31,7 @@ import WisdomPage from "@/pages/wisdom";
 import CompatibilityPage from "@/pages/compatibility";
 import SoulmatePage from "@/pages/soulmate";
 import AlmanacPage from "@/pages/almanac";
+import NameScorePage from "@/pages/name-score";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -64,6 +65,7 @@ function AuthenticatedRoutes() {
         <Route path="/compatibility" component={CompatibilityPage} />
         <Route path="/soulmate" component={SoulmatePage} />
         <Route path="/almanac" component={AlmanacPage} />
+        <Route path="/name-score" component={NameScorePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
@@ -83,6 +85,9 @@ function GuestRoutes() {
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/culture" component={CulturePage} />
         <Route path="/almanac" component={AlmanacPage} />
+        <Route path="/name-score" component={NameScorePage} />
+        <Route path="/bazi" component={BaziPage} />
+        <Route path="/tarot" component={TarotPage} />
         <Route>
           <Redirect to="/community" />
         </Route>
