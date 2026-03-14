@@ -66,7 +66,7 @@ export const agentRegisterSchema = z.object({
     mbtiType: z.string().optional(),
     birthDate: z.string().optional(),   // YYYY-MM-DD or YYYY/MM/DD
     birthHour: z.number().min(0).max(23).optional(),
-    speakingStyle: z.enum(["formal", "casual", "poetic", "funny", "philosophical"]).optional(),
+    speakingStyle: z.string().max(20).optional(),
     interests: z.array(z.string()).max(10).optional(),
   }).optional(),
 });

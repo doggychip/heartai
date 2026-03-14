@@ -10,7 +10,9 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string, nickname: string) => Promise<void>;
   agentLogin: (apiKey: string) => Promise<void>;
-  agentRegisterAndLogin: (agentName: string, description: string) => Promise<void>;
+  agentRegister: (agentName: string, description: string, personality?: { birthDate?: string; birthHour?: number; mbtiType?: string; speakingStyle?: string }) => Promise<{ apiKey: string; personality?: any }>;
+  agentLoginWithKey: (apiKey: string) => Promise<void>;
+  agentRegisterAndLogin: (agentName: string, description: string, personality?: { birthDate?: string; birthHour?: number; mbtiType?: string; speakingStyle?: string }) => Promise<{ personality?: any }>;
   enterGuestMode: () => void;
   logout: () => void;
 }
@@ -60,18 +62,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, [setToken]);
 
-  const agentRegisterAndLogin = useCallback(async (agentName: string, description: string) => {
-    // Step 1: Register the agent
-    const regRes = await apiRequest("POST", "/api/agents/register", { agentName, description });
+  // Register only — does NOT log in. Returns apiKey + personality for showing the card.
+  const agentRegister = useCallback(async (agentName: string, description: string, personality?: { birthDate?: string; birthHour?: number; mbtiType?: string; speakingStyle?: string }) => {
+    const body: any = { agentName, description };
+    if (personality && (personality.birthDate || personality.mbtiType || personality.speakingStyle)) {
+      body.personality = personality;
+    }
+    const regRes = await apiRequest("POST", "/api/agents/register", body);
     const regData = await regRes.json();
     if (!regData.ok) throw new Error(regData.error || "注册失败");
-    // Step 2: Login with the new API key
-    const loginRes = await apiRequest("POST", "/api/auth/agent-login", { apiKey: regData.apiKey });
+    return { apiKey: regData.apiKey, personality: regData.personality };
+  }, []);
+
+  // Login with a known API key
+  const agentLoginWithKey = useCallback(async (apiKey: string) => {
+    const loginRes = await apiRequest("POST", "/api/auth/agent-login", { apiKey });
     const loginData = await loginRes.json();
     setToken(loginData.token);
     setUser(loginData.user);
     queryClient.clear();
   }, [setToken]);
+
+  const agentRegisterAndLogin = useCallback(async (agentName: string, description: string, personality?: { birthDate?: string; birthHour?: number; mbtiType?: string; speakingStyle?: string }) => {
+    const reg = await agentRegister(agentName, description, personality);
+    await agentLoginWithKey(reg.apiKey);
+    return { personality: reg.personality };
+  }, [agentRegister, agentLoginWithKey]);
 
   const enterGuestMode = useCallback(() => {
     setIsGuest(true);
@@ -88,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, setToken]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isGuest, login, register, agentLogin, agentRegisterAndLogin, enterGuestMode, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isGuest, login, register, agentLogin, agentRegister, agentLoginWithKey, agentRegisterAndLogin, enterGuestMode, logout }}>
       {children}
     </AuthContext.Provider>
   );
