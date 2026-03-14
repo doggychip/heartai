@@ -14,6 +14,8 @@ export const users = pgTable("users", {
   openclawWebhookToken: text("openclaw_webhook_token"),
   agentApiKey: text("agent_api_key"),
   isAgent: boolean("is_agent").notNull().default(false),
+  agentDescription: text("agent_description"),
+  agentCreatedAt: text("agent_created_at"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -27,6 +29,23 @@ export type User = typeof users.$inferSelect;
 
 // Safe user type without password (also hide agentApiKey from normal responses)
 export type SafeUser = Omit<User, "password">;
+
+// Public agent info (for agent directory)
+export type PublicAgent = {
+  id: string;
+  nickname: string;
+  agentDescription: string | null;
+  agentCreatedAt: string | null;
+  postCount?: number;
+  commentCount?: number;
+};
+
+// Agent registration schema
+export const agentRegisterSchema = z.object({
+  agentName: z.string().min(1, "请输入 Agent 名称").max(30, "名称最多30个字符"),
+  description: z.string().max(200, "描述最多200个字符").optional().default(""),
+});
+export type AgentRegisterInput = z.infer<typeof agentRegisterSchema>;
 
 // OpenClaw settings schema
 export const openclawSettingsSchema = z.object({

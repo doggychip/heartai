@@ -1,8 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema } from "@shared/schema";
-import type { SafeUser } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema } from "@shared/schema";
+import type { SafeUser, PublicAgent } from "@shared/schema";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
@@ -91,6 +91,21 @@ function getEmotionSuggestion(emotion: string, _score: number): string {
   };
   const options = suggestions[emotion] || suggestions.neutral;
   return options[Math.floor(Math.random() * options.length)];
+}
+
+// ─── Simple Rate Limiter ─────────────────────────────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(key: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (entry.count >= maxRequests) return false;
+  entry.count++;
+  return true;
 }
 
 // Simple in-memory session store (userId keyed by token)
@@ -496,6 +511,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // This allows OpenClaw agents to interact with HeartAI by posting to this webhook
   app.post("/api/webhook/agent", async (req, res) => {
     try {
+      // Rate limit: 30 requests per agent per minute
+      const rateLimitKey = `agent-api:${req.headers["x-api-key"] || req.headers.authorization || req.ip}`;
+      if (!checkRateLimit(rateLimitKey, 30, 60 * 1000)) {
+        return res.status(429).json({ error: "请求过于频繁，请稍后再试" });
+      }
+
       const authHeader = req.headers.authorization;
       const apiKey = req.headers["x-api-key"] as string;
 
@@ -631,6 +652,82 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Agent webhook error:", err);
       res.status(500).json({ error: "内部错误" });
+    }
+  });
+
+  // ─── Public Agent Registration (Moltbook-style) ─────────────
+  app.post("/api/agents/register", async (req, res) => {
+    try {
+      // Rate limit: 10 registrations per IP per hour
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      if (!checkRateLimit(`agent-reg:${ip}`, 10, 60 * 60 * 1000)) {
+        return res.status(429).json({ error: "注册过于频繁，请稍后再试" });
+      }
+
+      const parsed = agentRegisterSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join("; ");
+        return res.status(400).json({ error: msg });
+      }
+
+      const { agentName, description } = parsed.data;
+      const username = `agent_${agentName}`;
+
+      // Check if agent already exists
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
+        // If agent exists and has an API key, return error (already registered)
+        if (existing.agentApiKey) {
+          return res.status(409).json({ error: `Agent "${agentName}" 已经注册过了` });
+        }
+        // If agent exists but was auto-created (no API key), generate one
+        const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
+        await storage.updateUserAgentApiKey(existing.id, key);
+        return res.json({
+          ok: true,
+          agentId: existing.id,
+          agentName,
+          apiKey: key,
+          message: `Agent "${agentName}" 已激活，请保存你的 API Key`,
+        });
+      }
+
+      // Create new agent user
+      const agentUser = await storage.createAgentUser(username, agentName, description || "");
+      const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
+      await storage.updateUserAgentApiKey(agentUser.id, key);
+
+      res.json({
+        ok: true,
+        agentId: agentUser.id,
+        agentName,
+        apiKey: key,
+        message: `Agent "${agentName}" 注册成功！请保存你的 API Key，它只会显示一次。`,
+      });
+    } catch (err) {
+      console.error("Agent register error:", err);
+      res.status(500).json({ error: "注册失败" });
+    }
+  });
+
+  // ─── Agent Directory (public) ────────────────────────────────
+  app.get("/api/agents", async (_req, res) => {
+    try {
+      const agents = await storage.getAllAgents();
+      const directory: PublicAgent[] = await Promise.all(
+        agents.map(async (agent) => ({
+          id: agent.id,
+          nickname: agent.nickname || agent.username.replace("agent_", ""),
+          agentDescription: agent.agentDescription,
+          agentCreatedAt: agent.agentCreatedAt,
+          postCount: await storage.getAgentPostCount(agent.id),
+          commentCount: await storage.getAgentCommentCount(agent.id),
+        }))
+      );
+      res.json(directory);
+    } catch (err) {
+      console.error("Agent directory error:", err);
+      res.status(500).json({ error: "获取失败" });
     }
   });
 

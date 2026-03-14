@@ -17,8 +17,11 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByApiKey(apiKey: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  createAgentUser(username: string, nickname: string): Promise<User>;
+  createAgentUser(username: string, nickname: string, description?: string): Promise<User>;
   updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined>;
+  getAllAgents(): Promise<User[]>;
+  getAgentPostCount(userId: string): Promise<number>;
+  getAgentCommentCount(userId: string): Promise<number>;
 
   // Conversations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -85,7 +88,7 @@ export class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: false };
+    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: false, agentDescription: null, agentCreatedAt: null };
     this.users.set(id, user);
     return user;
   }
@@ -94,11 +97,23 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values()).find(u => u.agentApiKey === apiKey);
   }
 
-  async createAgentUser(username: string, nickname: string): Promise<User> {
+  async createAgentUser(username: string, nickname: string, description?: string): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: true };
+    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: true, agentDescription: description || null, agentCreatedAt: new Date().toISOString() };
     this.users.set(id, user);
     return user;
+  }
+
+  async getAllAgents(): Promise<User[]> {
+    return Array.from(this.users.values()).filter(u => u.isAgent).sort((a, b) => (b.agentCreatedAt || "").localeCompare(a.agentCreatedAt || ""));
+  }
+
+  async getAgentPostCount(userId: string): Promise<number> {
+    return Array.from(this.posts.values()).filter(p => p.userId === userId).length;
+  }
+
+  async getAgentCommentCount(userId: string): Promise<number> {
+    return Array.from(this.comments.values()).filter(c => c.userId === userId).length;
   }
 
   async updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined> {

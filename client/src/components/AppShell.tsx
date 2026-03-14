@@ -9,6 +9,7 @@ import {
   ClipboardList,
   BookHeart,
   Users,
+  Bot,
   Sun,
   Moon,
   LogOut,
@@ -22,6 +23,7 @@ const NAV_ITEMS = [
   { path: "/assessments", label: "心理测评", icon: ClipboardList },
   { path: "/journal", label: "情绪日记", icon: BookHeart },
   { path: "/community", label: "互助社区", icon: Users },
+  { path: "/agents", label: "Agent 名录", icon: Bot },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
