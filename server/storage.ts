@@ -9,7 +9,11 @@ import {
   type PostLike,
   type PostComment, type InsertPostComment,
   type AgentFollow,
+  users, conversations, messages, moodEntries, assessments, assessmentResults,
+  communityPosts, postLikes, postComments, agentFollows,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, asc, sql, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -84,231 +88,348 @@ export interface IStorage {
   getCommentsByUser(userId: string): Promise<PostComment[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private conversations: Map<string, Conversation> = new Map();
-  private messages: Map<string, Message> = new Map();
-  private moodEntries: Map<string, MoodEntry> = new Map();
-  private assessments: Map<string, Assessment> = new Map();
-  private assessmentResults: Map<string, AssessmentResult> = new Map();
-  private posts: Map<string, CommunityPost> = new Map();
-  private likes: Map<string, PostLike> = new Map();
-  private comments: Map<string, PostComment> = new Map();
+export class DatabaseStorage implements IStorage {
+  // ─── Users ──────────────────────────────────────────────────
 
-  // Users
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user;
   }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.username === username);
-  }
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, feishuWebhookUrl: null, agentApiKey: null, isAgent: false, agentDescription: null, agentCreatedAt: null };
-    this.users.set(id, user);
+    const [user] = await db.select().from(users).where(eq(users.username, username)).limit(1);
     return user;
   }
 
   async getUserByApiKey(apiKey: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.agentApiKey === apiKey);
+    const [user] = await db.select().from(users).where(eq(users.agentApiKey, apiKey)).limit(1);
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values({
+      username: insertUser.username,
+      password: insertUser.password,
+      nickname: insertUser.nickname ?? null,
+    }).returning();
+    return user;
   }
 
   async createAgentUser(username: string, nickname: string, description?: string): Promise<User> {
-    const id = randomUUID();
-    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, feishuWebhookUrl: null, agentApiKey: null, isAgent: true, agentDescription: description || null, agentCreatedAt: new Date().toISOString() };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values({
+      username,
+      password: randomUUID(),
+      nickname,
+      isAgent: true,
+      agentDescription: description || null,
+      agentCreatedAt: new Date().toISOString(),
+    }).returning();
+    return user;
+  }
+
+  async updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({ agentApiKey: apiKey })
+      .where(eq(users.id, userId))
+      .returning();
     return user;
   }
 
   async getAllAgents(): Promise<User[]> {
-    return Array.from(this.users.values()).filter(u => u.isAgent).sort((a, b) => (b.agentCreatedAt || "").localeCompare(a.agentCreatedAt || ""));
+    return db.select().from(users)
+      .where(eq(users.isAgent, true))
+      .orderBy(desc(users.agentCreatedAt));
   }
 
   async getAgentPostCount(userId: string): Promise<number> {
-    return Array.from(this.posts.values()).filter(p => p.userId === userId).length;
+    const [result] = await db.select({ count: count() })
+      .from(communityPosts)
+      .where(eq(communityPosts.userId, userId));
+    return result?.count ?? 0;
   }
 
   async getAgentCommentCount(userId: string): Promise<number> {
-    return Array.from(this.comments.values()).filter(c => c.userId === userId).length;
+    const [result] = await db.select({ count: count() })
+      .from(postComments)
+      .where(eq(postComments.userId, userId));
+    return result?.count ?? 0;
   }
 
-  async updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined> {
-    const user = this.users.get(userId);
-    if (!user) return undefined;
-    user.agentApiKey = apiKey;
-    this.users.set(userId, user);
-    return user;
-  }
+  // ─── Conversations ──────────────────────────────────────────
 
-  async updateUserOpenClaw(userId: string, url: string, token: string): Promise<User | undefined> {
-    const user = this.users.get(userId);
-    if (!user) return undefined;
-    user.openclawWebhookUrl = url || null;
-    user.openclawWebhookToken = token || null;
-    this.users.set(userId, user);
-    return user;
-  }
-
-  // Conversations
   async getConversation(id: string): Promise<Conversation | undefined> {
-    return this.conversations.get(id);
+    const [conv] = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return conv;
   }
+
   async getConversationsByUser(userId: string): Promise<Conversation[]> {
-    return Array.from(this.conversations.values()).filter(c => c.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.select().from(conversations)
+      .where(eq(conversations.userId, userId))
+      .orderBy(desc(conversations.createdAt));
   }
+
   async createConversation(conv: InsertConversation): Promise<Conversation> {
-    const id = randomUUID();
-    const conversation: Conversation = { id, userId: conv.userId, title: conv.title ?? "新对话", createdAt: new Date().toISOString() };
-    this.conversations.set(id, conversation);
+    const [conversation] = await db.insert(conversations).values({
+      userId: conv.userId,
+      title: conv.title ?? "新对话",
+      createdAt: new Date().toISOString(),
+    }).returning();
     return conversation;
   }
 
-  // Messages
+  // ─── Messages ───────────────────────────────────────────────
+
   async getMessagesByConversation(conversationId: string): Promise<Message[]> {
-    return Array.from(this.messages.values()).filter(m => m.conversationId === conversationId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return db.select().from(messages)
+      .where(eq(messages.conversationId, conversationId))
+      .orderBy(asc(messages.createdAt));
   }
+
   async createMessage(msg: InsertMessage): Promise<Message> {
-    const id = randomUUID();
-    const message: Message = { id, conversationId: msg.conversationId, role: msg.role, content: msg.content, emotionTag: msg.emotionTag ?? null, emotionScore: msg.emotionScore ?? null, createdAt: new Date().toISOString() };
-    this.messages.set(id, message);
+    const [message] = await db.insert(messages).values({
+      conversationId: msg.conversationId,
+      role: msg.role,
+      content: msg.content,
+      emotionTag: msg.emotionTag ?? null,
+      emotionScore: msg.emotionScore ?? null,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return message;
   }
 
-  // Mood entries
+  // ─── Mood Entries ─────────────────────────────────────────────
+
   async getMoodEntriesByUser(userId: string): Promise<MoodEntry[]> {
-    return Array.from(this.moodEntries.values()).filter(e => e.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.select().from(moodEntries)
+      .where(eq(moodEntries.userId, userId))
+      .orderBy(desc(moodEntries.createdAt));
   }
+
   async createMoodEntry(entry: InsertMoodEntry): Promise<MoodEntry> {
-    const id = randomUUID();
-    const moodEntry: MoodEntry = { id, userId: entry.userId, moodScore: entry.moodScore, emotionTags: entry.emotionTags, note: entry.note ?? null, createdAt: new Date().toISOString() };
-    this.moodEntries.set(id, moodEntry);
+    const [moodEntry] = await db.insert(moodEntries).values({
+      userId: entry.userId,
+      moodScore: entry.moodScore,
+      emotionTags: entry.emotionTags,
+      note: entry.note ?? null,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return moodEntry;
   }
 
-  // Assessments
+  // ─── Assessments ──────────────────────────────────────────────
+
   async getAllAssessments(): Promise<Assessment[]> {
-    return Array.from(this.assessments.values()).filter(a => a.isActive);
+    return db.select().from(assessments)
+      .where(eq(assessments.isActive, true));
   }
+
   async getAssessment(id: string): Promise<Assessment | undefined> {
-    return this.assessments.get(id);
-  }
-  async getAssessmentBySlug(slug: string): Promise<Assessment | undefined> {
-    return Array.from(this.assessments.values()).find(a => a.slug === slug);
-  }
-  async createAssessment(a: Assessment): Promise<Assessment> {
-    this.assessments.set(a.id, a);
+    const [a] = await db.select().from(assessments).where(eq(assessments.id, id)).limit(1);
     return a;
   }
 
-  // Assessment results
+  async getAssessmentBySlug(slug: string): Promise<Assessment | undefined> {
+    const [a] = await db.select().from(assessments).where(eq(assessments.slug, slug)).limit(1);
+    return a;
+  }
+
+  async createAssessment(a: Assessment): Promise<Assessment> {
+    const [assessment] = await db.insert(assessments).values(a).returning();
+    return assessment;
+  }
+
+  // ─── Assessment Results ───────────────────────────────────────
+
   async getAssessmentResultsByUser(userId: string): Promise<AssessmentResult[]> {
-    return Array.from(this.assessmentResults.values()).filter(r => r.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.select().from(assessmentResults)
+      .where(eq(assessmentResults.userId, userId))
+      .orderBy(desc(assessmentResults.createdAt));
   }
+
   async getAssessmentResult(id: string): Promise<AssessmentResult | undefined> {
-    return this.assessmentResults.get(id);
+    const [r] = await db.select().from(assessmentResults).where(eq(assessmentResults.id, id)).limit(1);
+    return r;
   }
+
   async createAssessmentResult(r: InsertAssessmentResult): Promise<AssessmentResult> {
-    const id = randomUUID();
-    const result: AssessmentResult = { id, userId: r.userId, assessmentId: r.assessmentId, answers: r.answers, totalScore: r.totalScore, resultSummary: r.resultSummary, resultDetail: r.resultDetail, createdAt: new Date().toISOString() };
-    this.assessmentResults.set(id, result);
+    const [result] = await db.insert(assessmentResults).values({
+      userId: r.userId,
+      assessmentId: r.assessmentId,
+      answers: r.answers,
+      totalScore: r.totalScore,
+      resultSummary: r.resultSummary,
+      resultDetail: r.resultDetail,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return result;
   }
 
-  // Community posts
+  // ─── Community Posts ──────────────────────────────────────────
+
   async getAllPosts(): Promise<CommunityPost[]> {
-    return Array.from(this.posts.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.select().from(communityPosts)
+      .orderBy(desc(communityPosts.createdAt));
   }
+
   async getPost(id: string): Promise<CommunityPost | undefined> {
-    return this.posts.get(id);
+    const [post] = await db.select().from(communityPosts).where(eq(communityPosts.id, id)).limit(1);
+    return post;
   }
+
   async createPost(post: InsertCommunityPost): Promise<CommunityPost> {
-    const id = randomUUID();
-    const p: CommunityPost = { id, userId: post.userId, content: post.content, tag: post.tag, isAnonymous: post.isAnonymous ?? false, likeCount: 0, commentCount: 0, createdAt: new Date().toISOString() };
-    this.posts.set(id, p);
+    const [p] = await db.insert(communityPosts).values({
+      userId: post.userId,
+      content: post.content,
+      tag: post.tag,
+      isAnonymous: post.isAnonymous ?? false,
+      likeCount: 0,
+      commentCount: 0,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return p;
   }
+
   async incrementPostLikeCount(postId: string, delta: number): Promise<void> {
-    const post = this.posts.get(postId);
-    if (post) { post.likeCount += delta; this.posts.set(postId, post); }
-  }
-  async incrementPostCommentCount(postId: string): Promise<void> {
-    const post = this.posts.get(postId);
-    if (post) { post.commentCount += 1; this.posts.set(postId, post); }
+    await db.update(communityPosts)
+      .set({ likeCount: sql`${communityPosts.likeCount} + ${delta}` })
+      .where(eq(communityPosts.id, postId));
   }
 
-  // Post likes
-  async getPostLike(postId: string, userId: string): Promise<PostLike | undefined> {
-    return Array.from(this.likes.values()).find(l => l.postId === postId && l.userId === userId);
+  async incrementPostCommentCount(postId: string): Promise<void> {
+    await db.update(communityPosts)
+      .set({ commentCount: sql`${communityPosts.commentCount} + 1` })
+      .where(eq(communityPosts.id, postId));
   }
-  async createPostLike(postId: string, userId: string): Promise<PostLike> {
-    const id = randomUUID();
-    const like: PostLike = { id, postId, userId, createdAt: new Date().toISOString() };
-    this.likes.set(id, like);
+
+  // ─── Post Likes ───────────────────────────────────────────────
+
+  async getPostLike(postId: string, userId: string): Promise<PostLike | undefined> {
+    const [like] = await db.select().from(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)))
+      .limit(1);
     return like;
   }
-  async deletePostLike(postId: string, userId: string): Promise<void> {
-    for (const [key, like] of this.likes) {
-      if (like.postId === postId && like.userId === userId) { this.likes.delete(key); break; }
-    }
-  }
-  async getUserLikedPostIds(userId: string): Promise<string[]> {
-    return Array.from(this.likes.values()).filter(l => l.userId === userId).map(l => l.postId);
+
+  async createPostLike(postId: string, userId: string): Promise<PostLike> {
+    const [like] = await db.insert(postLikes).values({
+      postId,
+      userId,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return like;
   }
 
-  // Post comments
-  async getCommentsByPost(postId: string): Promise<PostComment[]> {
-    return Array.from(this.comments.values()).filter(c => c.postId === postId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  async deletePostLike(postId: string, userId: string): Promise<void> {
+    await db.delete(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
   }
+
+  async getUserLikedPostIds(userId: string): Promise<string[]> {
+    const rows = await db.select({ postId: postLikes.postId })
+      .from(postLikes)
+      .where(eq(postLikes.userId, userId));
+    return rows.map(r => r.postId);
+  }
+
+  // ─── Post Comments ────────────────────────────────────────────
+
+  async getCommentsByPost(postId: string): Promise<PostComment[]> {
+    return db.select().from(postComments)
+      .where(eq(postComments.postId, postId))
+      .orderBy(asc(postComments.createdAt));
+  }
+
   async createComment(comment: InsertPostComment): Promise<PostComment> {
-    const id = randomUUID();
-    const c: PostComment = { id, postId: comment.postId, userId: comment.userId, content: comment.content, isAnonymous: comment.isAnonymous ?? false, createdAt: new Date().toISOString() };
-    this.comments.set(id, c);
+    const [c] = await db.insert(postComments).values({
+      postId: comment.postId,
+      userId: comment.userId,
+      content: comment.content,
+      isAnonymous: comment.isAnonymous ?? false,
+      createdAt: new Date().toISOString(),
+    }).returning();
     return c;
   }
 
-  // Feishu settings
-  async updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined> {
-    const user = this.users.get(userId);
-    if (!user) return undefined;
-    user.feishuWebhookUrl = webhookUrl || null;
-    this.users.set(userId, user);
+  // ─── OpenClaw Settings ────────────────────────────────────────
+
+  async updateUserOpenClaw(userId: string, url: string, token: string): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({
+        openclawWebhookUrl: url || null,
+        openclawWebhookToken: token || null,
+      })
+      .where(eq(users.id, userId))
+      .returning();
     return user;
   }
 
-  // Agent follows
-  private follows: Map<string, AgentFollow> = new Map();
+  // ─── Feishu Settings ──────────────────────────────────────────
+
+  async updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({ feishuWebhookUrl: webhookUrl || null })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  // ─── Agent Follows ────────────────────────────────────────────
 
   async getFollow(followerId: string, followeeId: string): Promise<AgentFollow | undefined> {
-    return Array.from(this.follows.values()).find(f => f.followerId === followerId && f.followeeId === followeeId);
-  }
-  async createFollow(followerId: string, followeeId: string): Promise<AgentFollow> {
-    const id = randomUUID();
-    const follow: AgentFollow = { id, followerId, followeeId, createdAt: new Date().toISOString() };
-    this.follows.set(id, follow);
+    const [follow] = await db.select().from(agentFollows)
+      .where(and(eq(agentFollows.followerId, followerId), eq(agentFollows.followeeId, followeeId)))
+      .limit(1);
     return follow;
   }
-  async deleteFollow(followerId: string, followeeId: string): Promise<void> {
-    for (const [key, f] of this.follows) {
-      if (f.followerId === followerId && f.followeeId === followeeId) { this.follows.delete(key); break; }
-    }
-  }
-  async getFollowerCount(userId: string): Promise<number> {
-    return Array.from(this.follows.values()).filter(f => f.followeeId === userId).length;
-  }
-  async getFollowingCount(userId: string): Promise<number> {
-    return Array.from(this.follows.values()).filter(f => f.followerId === userId).length;
-  }
-  async getFollowerIds(userId: string): Promise<string[]> {
-    return Array.from(this.follows.values()).filter(f => f.followeeId === userId).map(f => f.followerId);
+
+  async createFollow(followerId: string, followeeId: string): Promise<AgentFollow> {
+    const [follow] = await db.insert(agentFollows).values({
+      followerId,
+      followeeId,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return follow;
   }
 
-  // Posts/comments by user
-  async getPostsByUser(userId: string): Promise<CommunityPost[]> {
-    return Array.from(this.posts.values()).filter(p => p.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  async deleteFollow(followerId: string, followeeId: string): Promise<void> {
+    await db.delete(agentFollows)
+      .where(and(eq(agentFollows.followerId, followerId), eq(agentFollows.followeeId, followeeId)));
   }
+
+  async getFollowerCount(userId: string): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(agentFollows)
+      .where(eq(agentFollows.followeeId, userId));
+    return result?.count ?? 0;
+  }
+
+  async getFollowingCount(userId: string): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(agentFollows)
+      .where(eq(agentFollows.followerId, userId));
+    return result?.count ?? 0;
+  }
+
+  async getFollowerIds(userId: string): Promise<string[]> {
+    const rows = await db.select({ followerId: agentFollows.followerId })
+      .from(agentFollows)
+      .where(eq(agentFollows.followeeId, userId));
+    return rows.map(r => r.followerId);
+  }
+
+  // ─── Posts/Comments by User ───────────────────────────────────
+
+  async getPostsByUser(userId: string): Promise<CommunityPost[]> {
+    return db.select().from(communityPosts)
+      .where(eq(communityPosts.userId, userId))
+      .orderBy(desc(communityPosts.createdAt));
+  }
+
   async getCommentsByUser(userId: string): Promise<PostComment[]> {
-    return Array.from(this.comments.values()).filter(c => c.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return db.select().from(postComments)
+      .where(eq(postComments.userId, userId))
+      .orderBy(desc(postComments.createdAt));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
