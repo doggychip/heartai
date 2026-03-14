@@ -23,6 +23,10 @@ import AgentsPage from "@/pages/agents";
 import AgentProfilePage from "@/pages/agent-profile";
 import EmotionInsightsPage from "@/pages/emotion-insights";
 import CulturePage from "@/pages/culture";
+import BaziPage from "@/pages/bazi";
+import TarotPage from "@/pages/tarot";
+import FengshuiPage from "@/pages/fengshui";
+import HoroscopePage from "@/pages/horoscope";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -48,6 +52,10 @@ function AuthenticatedRoutes() {
         <Route path="/community/:id" component={PostDetailPage} />
         <Route path="/emotion-insights" component={EmotionInsightsPage} />
         <Route path="/culture" component={CulturePage} />
+        <Route path="/bazi" component={BaziPage} />
+        <Route path="/tarot" component={TarotPage} />
+        <Route path="/fengshui" component={FengshuiPage} />
+        <Route path="/horoscope" component={HoroscopePage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />

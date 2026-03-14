@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -17,30 +18,87 @@ import {
   Users,
   Briefcase,
   RotateCcw,
+  Star,
+  Shield,
+  AlertTriangle,
+  BookOpen,
+  Lightbulb,
+  Target,
+  Zap,
 } from "lucide-react";
 
-// ─── MBTI Question Bank (16 questions, 4 per dimension) ─────
+// ─── 70-Question MBTI Bank from vsme/mbti ─────
 const MBTI_QUESTIONS = [
-  // E/I: Extraversion vs Introversion
-  { dimension: "EI", text: "参加社交活动后，你通常感到...", optionA: "精力充沛，想继续交流", optionB: "需要独处来恢复能量" },
-  { dimension: "EI", text: "你更喜欢哪种工作方式？", optionA: "团队协作，头脑风暴", optionB: "独立思考，安静工作" },
-  { dimension: "EI", text: "认识新朋友时，你通常...", optionA: "主动搭话，享受认识新人", optionB: "等对方先开口，慢热型" },
-  { dimension: "EI", text: "周末理想的度过方式是...", optionA: "和朋友聚会或外出活动", optionB: "在家看书、追剧或独处" },
-  // S/N: Sensing vs Intuition
-  { dimension: "SN", text: "解决问题时，你更倾向于...", optionA: "关注具体的事实和细节", optionB: "关注整体的模式和可能性" },
-  { dimension: "SN", text: "你更相信...", optionA: "亲身经历和实际观察", optionB: "直觉和第六感" },
-  { dimension: "SN", text: "学习新东西时，你偏好...", optionA: "按步骤一步步来", optionB: "先理解大框架再深入" },
-  { dimension: "SN", text: "描述一件事时，你更注重...", optionA: "具体的细节和发生了什么", optionB: "背后的含义和象征" },
-  // T/F: Thinking vs Feeling
-  { dimension: "TF", text: "做重要决定时，你更依赖...", optionA: "逻辑分析和客观事实", optionB: "个人价值观和他人感受" },
-  { dimension: "TF", text: "朋友向你倾诉烦恼，你会...", optionA: "帮他分析问题，提供解决方案", optionB: "先倾听共情，给予情感支持" },
-  { dimension: "TF", text: "面对冲突时，你更看重...", optionA: "公平合理的解决方案", optionB: "维护和谐的人际关系" },
-  { dimension: "TF", text: "评价他人时，你更关注...", optionA: "能力和效率", optionB: "品格和动机" },
-  // J/P: Judging vs Perceiving
-  { dimension: "JP", text: "对于日程安排，你更喜欢...", optionA: "提前计划，按时完成", optionB: "灵活随性，见机行事" },
-  { dimension: "JP", text: "旅行时你偏好...", optionA: "详细规划好每天的行程", optionB: "大致方向即可，随走随看" },
-  { dimension: "JP", text: "关于工作截止日期...", optionA: "通常提前完成", optionB: "倾向于最后冲刺" },
-  { dimension: "JP", text: "你更欣赏哪种生活方式？", optionA: "有序、有规律、可预测", optionB: "自由、多变、充满惊喜" },
+  { no: 1, question: "在派对上，你通常会：", optionA: "与许多人交流，包括陌生人", scoreA: "E", optionB: "与几个你认识的人交流", scoreB: "I" },
+  { no: 2, question: "你更倾向于：", optionA: "现实一些，而不是爱幻想", scoreA: "S", optionB: "爱幻想，而不是过于现实", scoreB: "N" },
+  { no: 3, question: "以下哪种情况更糟：", optionA: "总是异想天开", scoreA: "S", optionB: "墨守成规", scoreB: "N" },
+  { no: 4, question: "你更欣赏：", optionA: "原则", scoreA: "T", optionB: "情感", scoreB: "F" },
+  { no: 5, question: "你更倾向于：", optionA: "有说服力的", scoreA: "T", optionB: "感人的", scoreB: "F" },
+  { no: 6, question: "你更喜欢哪种工作方式：", optionA: "按截止日期完成任务", scoreA: "J", optionB: "随意什么时候都行", scoreB: "P" },
+  { no: 7, question: "你做选择时更倾向于：", optionA: "比较谨慎", scoreA: "J", optionB: "有点冲动", scoreB: "P" },
+  { no: 8, question: "在聚会上你通常：", optionA: "待到很晚，越来越有活力", scoreA: "E", optionB: "早早离开，感觉越来越疲倦", scoreB: "I" },
+  { no: 9, question: "你更被哪种人吸引：", optionA: "理智的人", scoreA: "S", optionB: "富有想象力的人", scoreB: "N" },
+  { no: 10, question: "你对以下哪个更感兴趣：", optionA: "现实存在的事物", scoreA: "S", optionB: "可能存在的事物", scoreB: "N" },
+  { no: 11, question: "当评判他人时，你更容易被哪种因素影响：", optionA: "法律比具体情况更重要", scoreA: "T", optionB: "具体情况比法律更重要", scoreB: "F" },
+  { no: 12, question: "在与他人交往时，你倾向于：", optionA: "比较客观", scoreA: "T", optionB: "更带有个人感情", scoreB: "F" },
+  { no: 13, question: "你更倾向于：", optionA: "守时", scoreA: "J", optionB: "从容", scoreB: "P" },
+  { no: 14, question: "什么情况更让你烦恼：", optionA: "事情未完成", scoreA: "J", optionB: "事情已完成", scoreB: "P" },
+  { no: 15, question: "在你的社交圈中你是：", optionA: "了解他人动态", scoreA: "E", optionB: "对新闻消息不太了解", scoreB: "I" },
+  { no: 16, question: "在做日常事务时你更倾向于：", optionA: "按常规方式做", scoreA: "S", optionB: "用你自己的方式做", scoreB: "N" },
+  { no: 17, question: "作家应该：", optionA: "直接说自己想表达的意思", scoreA: "S", optionB: "多用比喻来表达想法", scoreB: "N" },
+  { no: 18, question: "你更喜欢哪一种：", optionA: "坚持统一的原则或方法", scoreA: "T", optionB: "因情境改变想法或立场", scoreB: "F" },
+  { no: 19, question: "你在做哪种判断时更舒服：", optionA: "逻辑判断", scoreA: "T", optionB: "价值判断", scoreB: "F" },
+  { no: 20, question: "你更希望事情是：", optionA: "尘埃落定，已经决定的", scoreA: "J", optionB: "尚未确定，充满变数的", scoreB: "P" },
+  { no: 21, question: "你会说你更：", optionA: "严肃和坚定", scoreA: "J", optionB: "随和", scoreB: "P" },
+  { no: 22, question: "打电话时你：", optionA: "很少担心不知道说什么", scoreA: "E", optionB: "提前准备你要说的话", scoreB: "I" },
+  { no: 23, question: "事实应该是：", optionA: "不言自明", scoreA: "S", optionB: "用来说明原理", scoreB: "N" },
+  { no: 24, question: "你觉得有远见的人是：", optionA: "有点让人烦", scoreA: "S", optionB: "非常吸引人", scoreB: "N" },
+  { no: 25, question: "你更常是：", optionA: "一个冷静的人", scoreA: "T", optionB: "一个热心的人", scoreB: "F" },
+  { no: 26, question: "更糟糕的是：", optionA: "不公正", scoreA: "T", optionB: "无情", scoreB: "F" },
+  { no: 27, question: "一般来说，应该让事情怎么发展：", optionA: "经过仔细选择和决定", scoreA: "J", optionB: "顺其自然，听天由命", scoreB: "P" },
+  { no: 28, question: "你对以下哪种情况感觉更满意：", optionA: "已经购买了", scoreA: "J", optionB: "拥有购买的机会", scoreB: "P" },
+  { no: 29, question: "在公司中你会：", optionA: "发起对话", scoreA: "E", optionB: "等待别人接近", scoreB: "I" },
+  { no: 30, question: "常识是：", optionA: "很少被质疑", scoreA: "S", optionB: "经常被质疑", scoreB: "N" },
+  { no: 31, question: "孩子们通常没有做到：", optionA: "让自己变得更有用", scoreA: "S", optionB: "充分发挥他们的想象力", scoreB: "N" },
+  { no: 32, question: "在做决定时你感觉更舒服的是：", optionA: "标准", scoreA: "T", optionB: "感觉", scoreB: "F" },
+  { no: 33, question: "你更倾向于：", optionA: "坚定而不是温柔", scoreA: "T", optionB: "温柔而不是坚定", scoreB: "F" },
+  { no: 34, question: "更值得钦佩的是：", optionA: "有组织并且有条理的能力", scoreA: "J", optionB: "适应和权宜之计的能力", scoreB: "P" },
+  { no: 35, question: "你更重视：", optionA: "无限", scoreA: "J", optionB: "思想开放", scoreB: "P" },
+  { no: 36, question: "与他人的新的非日常互动：", optionA: "刺激你并使你精力充沛", scoreA: "E", optionB: "消耗你的精力", scoreB: "I" },
+  { no: 37, question: "你更常是：", optionA: "一个实际的人", scoreA: "S", optionB: "一个异想天开的人", scoreB: "N" },
+  { no: 38, question: "你更可能：", optionA: "看出别人的用处", scoreA: "S", optionB: "看出别人的视角", scoreB: "N" },
+  { no: 39, question: "更令人满意的是：", optionA: "彻底讨论一个问题", scoreA: "T", optionB: "就一个问题达成协议", scoreB: "F" },
+  { no: 40, question: "更多支配你的是：", optionA: "你的头脑", scoreA: "T", optionB: "你的心", scoreB: "F" },
+  { no: 41, question: "你对哪种工作更感到舒适：", optionA: "合同工", scoreA: "J", optionB: "临时性工作", scoreB: "P" },
+  { no: 42, question: "你倾向于寻找：", optionA: "有序的", scoreA: "J", optionB: "任何出现的", scoreB: "P" },
+  { no: 43, question: "你更喜欢：", optionA: "许多朋友但联系短暂", scoreA: "E", optionB: "少数朋友但联系时间更长", scoreB: "I" },
+  { no: 44, question: "你更依赖：", optionA: "事实", scoreA: "S", optionB: "原则", scoreB: "N" },
+  { no: 45, question: "你更感兴趣的是：", optionA: "生产和分配", scoreA: "S", optionB: "设计和研究", scoreB: "N" },
+  { no: 46, question: "更大的赞美是：", optionA: "\u201c那是一个非常逻辑的人\u201d", scoreA: "T", optionB: "\u201c那是一个非常感性的人\u201d", scoreB: "F" },
+  { no: 47, question: "你更看重自己的是：", optionA: "坚定不移", scoreA: "T", optionB: "忠诚奉献", scoreB: "F" },
+  { no: 48, question: "你更常喜欢哪种表达方式：", optionA: "确定的、不可更改的说法", scoreA: "J", optionB: "暂时的、还在讨论中的说法", scoreB: "P" },
+  { no: 49, question: "你在什么时候感觉更舒服：", optionA: "做出决定之后", scoreA: "J", optionB: "做决定之前", scoreB: "P" },
+  { no: 50, question: "你：", optionA: "与陌生人轻松并详细地交谈", scoreA: "E", optionB: "与陌生人没什么可说的", scoreB: "I" },
+  { no: 51, question: "你更倾向于信任你的：", optionA: "经验", scoreA: "S", optionB: "直觉", scoreB: "N" },
+  { no: 52, question: "你觉得自己：", optionA: "注重实际多于有创造力", scoreA: "S", optionB: "有创造力多于注重实际", scoreB: "N" },
+  { no: 53, question: "以下哪个人更值得赞扬：", optionA: "理智清晰的人", scoreA: "T", optionB: "情感强烈的人", scoreB: "F" },
+  { no: 54, question: "你更倾向于是：", optionA: "公正的", scoreA: "T", optionB: "有同情心的", scoreB: "F" },
+  { no: 55, question: "通常更偏好：", optionA: "确保事情有条不紊", scoreA: "J", optionB: "随遇而安", scoreB: "P" },
+  { no: 56, question: "在关系中大多数事情应该是：", optionA: "可重新协商的", scoreA: "J", optionB: "随机和依情境而变的", scoreB: "P" },
+  { no: 57, question: "电话铃响时你是否：", optionA: "急忙去第一个接电话", scoreA: "E", optionB: "希望别人会接", scoreB: "I" },
+  { no: 58, question: "你更欣赏自己：", optionA: "很强的现实感", scoreA: "S", optionB: "丰富的想象力", scoreB: "N" },
+  { no: 59, question: "你更倾向于关注：", optionA: "基础原理", scoreA: "S", optionB: "深层含义", scoreB: "N" },
+  { no: 60, question: "你觉得哪种问题更大：", optionA: "太过感情用事", scoreA: "T", optionB: "太过理性", scoreB: "F" },
+  { no: 61, question: "你认为自己基本上是：", optionA: "头脑硬", scoreA: "T", optionB: "心肠软", scoreB: "F" },
+  { no: 62, question: "哪种情境更吸引你：", optionA: "有结构和计划的", scoreA: "J", optionB: "无结构和未计划的", scoreB: "P" },
+  { no: 63, question: "你是一个更倾向于：", optionA: "有规律的而不是异想天开的", scoreA: "J", optionB: "异想天开的而不是有规律的", scoreB: "P" },
+  { no: 64, question: "你更倾向于是：", optionA: "容易接近", scoreA: "E", optionB: "有些保留", scoreB: "I" },
+  { no: 65, question: "在写作中，你更喜欢哪种表达方式：", optionA: "更直接明了的", scoreA: "S", optionB: "更富有比喻性的", scoreB: "N" },
+  { no: 66, question: "对你来说更难的是：", optionA: "理解他人", scoreA: "S", optionB: "利用他人", scoreB: "N" },
+  { no: 67, question: "你更希望自己拥有：", optionA: "清晰的理性", scoreA: "T", optionB: "强大的同情心", scoreB: "F" },
+  { no: 68, question: "哪种问题更大：", optionA: "没有分辨力", scoreA: "T", optionB: "过于挑剔", scoreB: "F" },
+  { no: 69, question: "你更喜欢：", optionA: "有计划的活动", scoreA: "J", optionB: "无计划的活动", scoreB: "P" },
+  { no: 70, question: "你倾向于更多地是：", optionA: "深思熟虑的", scoreA: "J", optionB: "随性所至的", scoreB: "P" },
 ];
 
 // MBTI Animal personalities (16 types)
@@ -69,6 +127,7 @@ interface MBTIResult {
   animalEmoji: string;
   title: string;
   traits: string[];
+  epithet: string;
   dimensions: {
     E: number; I: number;
     S: number; N: number;
@@ -76,55 +135,88 @@ interface MBTIResult {
     J: number; P: number;
   };
   description: string;
+  generalTraits: string[];
+  relationshipStrengths: string[];
+  relationshipWeaknesses: string[];
+  strengths: string[];
+  gifts: string[];
+  tenRulesToLive: string[];
   careerAdvice: string;
   relationshipAdvice: string;
   socialAdvice: string;
 }
 
+// Questions per page
+const QUESTIONS_PER_PAGE = 7;
+const TOTAL_PAGES = Math.ceil(MBTI_QUESTIONS.length / QUESTIONS_PER_PAGE);
+
 export default function MBTIPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [currentQ, setCurrentQ] = useState(-1); // -1 = intro screen
-  const [answers, setAnswers] = useState<number[]>([]); // 0=A, 1=B for each question
+  const [phase, setPhase] = useState<"intro" | "test" | "loading" | "result">("intro");
+  const [currentPage, setCurrentPage] = useState(0);
+  // answers: keyed by question index, value is "A" or "B"
+  const [answers, setAnswers] = useState<Record<number, "A" | "B">>({});
   const [result, setResult] = useState<MBTIResult | null>(null);
+  const topRef = useRef<HTMLDivElement>(null);
 
   const submitMutation = useMutation({
-    mutationFn: async (ans: number[]) => {
-      const res = await apiRequest("POST", "/api/mbti/submit", { answers: ans });
+    mutationFn: async (ans: Record<number, "A" | "B">) => {
+      // Convert to array of "A"|"B" for the 70 questions
+      const ansArray = MBTI_QUESTIONS.map((_, i) => ans[i] || "A");
+      const res = await apiRequest("POST", "/api/mbti/submit", { answers: ansArray });
       return res.json();
     },
-    onSuccess: (data) => setResult(data),
-    onError: (err: Error) => toast({ title: "提交失败", description: err.message, variant: "destructive" }),
+    onSuccess: (data) => {
+      setResult(data);
+      setPhase("result");
+    },
+    onError: (err: Error) => {
+      setPhase("test");
+      toast({ title: "提交失败", description: err.message, variant: "destructive" });
+    },
   });
 
-  const handleAnswer = (choice: number) => {
-    const newAnswers = [...answers, choice];
-    setAnswers(newAnswers);
-    if (currentQ < MBTI_QUESTIONS.length - 1) {
-      setCurrentQ(currentQ + 1);
-    } else {
-      // Submit
-      submitMutation.mutate(newAnswers);
+  const pageQuestions = MBTI_QUESTIONS.slice(
+    currentPage * QUESTIONS_PER_PAGE,
+    (currentPage + 1) * QUESTIONS_PER_PAGE
+  );
+
+  const answeredOnPage = pageQuestions.filter((_, i) => answers[currentPage * QUESTIONS_PER_PAGE + i] !== undefined).length;
+  const allPageAnswered = answeredOnPage === pageQuestions.length;
+  const totalAnswered = Object.keys(answers).length;
+  const progress = (totalAnswered / MBTI_QUESTIONS.length) * 100;
+
+  const handleAnswer = (qIndex: number, choice: "A" | "B") => {
+    setAnswers(prev => ({ ...prev, [qIndex]: choice }));
+  };
+
+  const nextPage = () => {
+    if (currentPage < TOTAL_PAGES - 1) {
+      setCurrentPage(currentPage + 1);
+      topRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else if (totalAnswered === MBTI_QUESTIONS.length) {
+      setPhase("loading");
+      submitMutation.mutate(answers);
     }
   };
 
-  const handleBack = () => {
-    if (currentQ > 0) {
-      setCurrentQ(currentQ - 1);
-      setAnswers(answers.slice(0, -1));
+  const prevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+      topRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
 
   const restart = () => {
-    setCurrentQ(-1);
-    setAnswers([]);
+    setPhase("intro");
+    setCurrentPage(0);
+    setAnswers({});
     setResult(null);
   };
 
-  const progress = currentQ >= 0 ? ((currentQ + 1) / MBTI_QUESTIONS.length) * 100 : 0;
-
   // ─── Result View ─────────────────────
-  if (result) {
+  if (phase === "result" && result) {
     const dimPairs = [
       { left: "E", right: "I", leftLabel: "外向", rightLabel: "内向", leftVal: result.dimensions.E, rightVal: result.dimensions.I },
       { left: "S", right: "N", leftLabel: "实感", rightLabel: "直觉", leftVal: result.dimensions.S, rightVal: result.dimensions.N },
@@ -151,8 +243,8 @@ export default function MBTIPage() {
                 {result.type}
               </Badge>
               <h2 className="text-lg font-bold">{result.title}</h2>
-              <p className="text-sm text-muted-foreground">{result.animal}人格</p>
-              <div className="flex gap-2 mt-3">
+              <p className="text-sm text-muted-foreground">{result.epithet} · {result.animal}人格</p>
+              <div className="flex gap-2 mt-3 flex-wrap justify-center">
                 {result.traits.map((t, i) => (
                   <Badge key={i} variant="secondary" className="text-xs">
                     {t}
@@ -173,9 +265,8 @@ export default function MBTIPage() {
             <CardContent className="space-y-4">
               {dimPairs.map(({ left, right, leftLabel, rightLabel, leftVal, rightVal }) => {
                 const total = leftVal + rightVal;
-                const leftPct = Math.round((leftVal / total) * 100);
+                const leftPct = total > 0 ? Math.round((leftVal / total) * 100) : 50;
                 const rightPct = 100 - leftPct;
-                const dominant = leftPct >= rightPct ? left : right;
                 return (
                   <div key={left + right} className="space-y-1">
                     <div className="flex justify-between text-sm">
@@ -202,59 +293,213 @@ export default function MBTIPage() {
             </CardContent>
           </Card>
 
-          {/* Description */}
-          <Card data-testid="card-mbti-description">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">人格描述</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed text-foreground/80">{result.description}</p>
-            </CardContent>
-          </Card>
+          {/* Tabbed detailed results */}
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview" className="text-xs">概述</TabsTrigger>
+              <TabsTrigger value="traits" className="text-xs">特质</TabsTrigger>
+              <TabsTrigger value="relationship" className="text-xs">关系</TabsTrigger>
+              <TabsTrigger value="growth" className="text-xs">成长</TabsTrigger>
+            </TabsList>
 
-          {/* Advice Cards */}
-          <div className="space-y-3">
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex items-start gap-3">
-                  <Briefcase className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium mb-1">职业发展</p>
-                    <p className="text-sm text-muted-foreground">{result.careerAdvice}</p>
+            <TabsContent value="overview" className="space-y-4 mt-4">
+              {/* AI Description */}
+              <Card data-testid="card-mbti-description">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    AI 人格解读
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-relaxed text-foreground/80">{result.description}</p>
+                </CardContent>
+              </Card>
+
+              {/* Career & Social Advice */}
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <Briefcase className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">职业发展</p>
+                      <p className="text-sm text-muted-foreground">{result.careerAdvice}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex items-start gap-3">
-                  <Heart className="w-4 h-4 text-pink-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium mb-1">亲密关系</p>
-                    <p className="text-sm text-muted-foreground">{result.relationshipAdvice}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <Users className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">人际交往</p>
+                      <p className="text-sm text-muted-foreground">{result.socialAdvice}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="py-4">
-                <div className="flex items-start gap-3">
-                  <Users className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium mb-1">人际交往</p>
-                    <p className="text-sm text-muted-foreground">{result.socialAdvice}</p>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="traits" className="space-y-4 mt-4">
+              {/* General Traits */}
+              {result.generalTraits && result.generalTraits.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Star className="w-4 h-4 text-amber-500" />
+                      核心特质
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {result.generalTraits.map((t, i) => (
+                        <Badge key={i} variant="outline" className="text-xs py-1">
+                          {t}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Strengths */}
+              {result.strengths && result.strengths.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-green-500" />
+                      核心优势
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.strengths.map((s, i) => (
+                        <li key={i} className="text-sm text-foreground/80 flex items-start gap-2">
+                          <span className="text-green-500 mt-0.5 flex-shrink-0">✓</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Gifts */}
+              {result.gifts && result.gifts.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4 text-amber-500" />
+                      天赋潜能
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.gifts.map((g, i) => (
+                        <li key={i} className="text-sm text-foreground/80 flex items-start gap-2">
+                          <span className="text-amber-500 mt-0.5 flex-shrink-0">★</span>
+                          {g}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="relationship" className="space-y-4 mt-4">
+              {/* Relationship Strengths */}
+              {result.relationshipStrengths && result.relationshipStrengths.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Heart className="w-4 h-4 text-pink-500" />
+                      关系优势
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.relationshipStrengths.map((s, i) => (
+                        <li key={i} className="text-sm text-foreground/80 flex items-start gap-2">
+                          <span className="text-pink-500 mt-0.5 flex-shrink-0">♥</span>
+                          {s}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Relationship Weaknesses */}
+              {result.relationshipWeaknesses && result.relationshipWeaknesses.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-orange-500" />
+                      需要注意
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {result.relationshipWeaknesses.map((w, i) => (
+                        <li key={i} className="text-sm text-foreground/80 flex items-start gap-2">
+                          <span className="text-orange-500 mt-0.5 flex-shrink-0">!</span>
+                          {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* AI Relationship Advice */}
+              <Card>
+                <CardContent className="py-4">
+                  <div className="flex items-start gap-3">
+                    <Heart className="w-4 h-4 text-pink-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">AI 亲密关系建议</p>
+                      <p className="text-sm text-muted-foreground">{result.relationshipAdvice}</p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="growth" className="space-y-4 mt-4">
+              {/* Ten Rules to Live */}
+              {result.tenRulesToLive && result.tenRulesToLive.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Target className="w-4 h-4 text-primary" />
+                      成长法则
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ol className="space-y-3">
+                      {result.tenRulesToLive.map((rule, i) => (
+                        <li key={i} className="text-sm text-foreground/80 flex items-start gap-3">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                            {i + 1}
+                          </span>
+                          <span className="leading-relaxed">{rule}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     );
   }
 
   // ─── Intro View ─────────────────────
-  if (currentQ < 0) {
+  if (phase === "intro") {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="mbti-page">
         <div className="max-w-2xl mx-auto p-6 space-y-6">
@@ -264,7 +509,7 @@ export default function MBTIPage() {
               MBTI 人格测试
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              16道题，发现你的人格动物
+              完整版70题，精准定位你的人格类型
             </p>
           </div>
 
@@ -273,16 +518,16 @@ export default function MBTIPage() {
               <div className="text-5xl">🧠</div>
               <h2 className="text-lg font-bold">准备好了吗？</h2>
               <p className="text-sm text-muted-foreground text-center max-w-sm">
-                回答16道简单的选择题，AI将分析你的MBTI人格类型，
-                并为你匹配一个可爱的动物人格。
+                回答70道选择题，AI将基于标准MBTI理论精确分析你的人格类型，
+                并提供详尽的特质解读、关系分析和成长建议。
               </p>
-              <div className="flex gap-4 text-center text-xs text-muted-foreground">
+              <div className="flex gap-6 text-center text-xs text-muted-foreground">
                 <div>
-                  <p className="font-bold text-lg text-foreground">16</p>
+                  <p className="font-bold text-lg text-foreground">70</p>
                   <p>道题目</p>
                 </div>
                 <div>
-                  <p className="font-bold text-lg text-foreground">3</p>
+                  <p className="font-bold text-lg text-foreground">10</p>
                   <p>分钟</p>
                 </div>
                 <div>
@@ -293,7 +538,7 @@ export default function MBTIPage() {
               <Button
                 size="lg"
                 className="mt-4"
-                onClick={() => setCurrentQ(0)}
+                onClick={() => { setPhase("test"); setCurrentPage(0); }}
                 data-testid="button-start-mbti"
               >
                 开始测试
@@ -323,65 +568,121 @@ export default function MBTIPage() {
     );
   }
 
-  // ─── Question View ─────────────────────
-  if (submitMutation.isPending) {
+  // ─── Loading View ─────────────────────
+  if (phase === "loading" || submitMutation.isPending) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-4">
           <Sparkles className="w-8 h-8 text-primary animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">AI 正在分析你的人格...</p>
+          <p className="text-sm text-muted-foreground">AI 正在深度分析你的人格...</p>
+          <p className="text-xs text-muted-foreground">基于70道题的完整评估</p>
         </div>
       </div>
     );
   }
 
-  const q = MBTI_QUESTIONS[currentQ];
+  // ─── Test View (Paginated) ─────────────────────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="mbti-question-page">
-      <div className="max-w-xl mx-auto p-6 space-y-6">
-        {/* Progress */}
+      <div className="max-w-xl mx-auto p-6 space-y-5" ref={topRef}>
+        {/* Progress Header */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>第 {currentQ + 1} / {MBTI_QUESTIONS.length} 题</span>
-            <span>{Math.round(progress)}%</span>
+            <span>第 {currentPage + 1} / {TOTAL_PAGES} 页</span>
+            <span>已答 {totalAnswered} / {MBTI_QUESTIONS.length} 题 ({Math.round(progress)}%)</span>
           </div>
           <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Question */}
-        <Card data-testid={`card-mbti-q-${currentQ}`}>
-          <CardContent className="pt-6 space-y-4">
-            <h2 className="text-base font-semibold text-center">{q.text}</h2>
-            <div className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full h-auto py-4 text-left justify-start text-sm font-normal whitespace-normal"
-                onClick={() => handleAnswer(0)}
-                data-testid="button-option-a"
+        {/* Questions on this page */}
+        <div className="space-y-4">
+          {pageQuestions.map((q, i) => {
+            const qIndex = currentPage * QUESTIONS_PER_PAGE + i;
+            const selected = answers[qIndex];
+            return (
+              <Card
+                key={q.no}
+                className={selected ? "border-primary/30 bg-primary/[0.02]" : ""}
+                data-testid={`card-mbti-q-${qIndex}`}
               >
-                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center mr-3 flex-shrink-0">A</span>
-                {q.optionA}
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full h-auto py-4 text-left justify-start text-sm font-normal whitespace-normal"
-                onClick={() => handleAnswer(1)}
-                data-testid="button-option-b"
-              >
-                <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 text-xs font-bold flex items-center justify-center mr-3 flex-shrink-0">B</span>
-                {q.optionB}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <CardContent className="pt-5 pb-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {q.no}
+                    </span>
+                    <h3 className="text-sm font-medium leading-relaxed">{q.question}</h3>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 pl-8">
+                    <Button
+                      variant={selected === "A" ? "default" : "outline"}
+                      className={`w-full h-auto py-3 text-left justify-start text-sm font-normal whitespace-normal ${
+                        selected === "A" ? "" : "hover:border-primary/50"
+                      }`}
+                      onClick={() => handleAnswer(qIndex, "A")}
+                      data-testid={`button-q${qIndex}-a`}
+                    >
+                      <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center mr-2 flex-shrink-0 ${
+                        selected === "A" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/10 text-primary"
+                      }`}>A</span>
+                      {q.optionA}
+                    </Button>
+                    <Button
+                      variant={selected === "B" ? "default" : "outline"}
+                      className={`w-full h-auto py-3 text-left justify-start text-sm font-normal whitespace-normal ${
+                        selected === "B" ? "" : "hover:border-primary/50"
+                      }`}
+                      onClick={() => handleAnswer(qIndex, "B")}
+                      data-testid={`button-q${qIndex}-b`}
+                    >
+                      <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center mr-2 flex-shrink-0 ${
+                        selected === "B" ? "bg-primary-foreground/20 text-primary-foreground" : "bg-amber-500/10 text-amber-600"
+                      }`}>B</span>
+                      {q.optionB}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
 
-        {/* Back button */}
-        {currentQ > 0 && (
-          <Button variant="ghost" size="sm" onClick={handleBack} data-testid="button-mbti-back">
+        {/* Navigation */}
+        <div className="flex items-center justify-between pt-2 pb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={prevPage}
+            disabled={currentPage === 0}
+            data-testid="button-mbti-prev"
+          >
             <ChevronLeft className="w-4 h-4 mr-1" />
-            上一题
+            上一页
           </Button>
-        )}
+          <span className="text-xs text-muted-foreground">
+            {answeredOnPage}/{pageQuestions.length} 已答
+          </span>
+          {currentPage < TOTAL_PAGES - 1 ? (
+            <Button
+              size="sm"
+              onClick={nextPage}
+              disabled={!allPageAnswered}
+              data-testid="button-mbti-next"
+            >
+              下一页
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={nextPage}
+              disabled={totalAnswered < MBTI_QUESTIONS.length}
+              data-testid="button-mbti-submit"
+            >
+              <Sparkles className="w-4 h-4 mr-1" />
+              提交分析
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

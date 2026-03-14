@@ -2602,7 +2602,38 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
     }
   });
 
-  // ─── MBTI 测试 API ─────────────────────────────────────────────
+  // ─── MBTI 测试 API (完整版70题) ────────────────────────────────
+  // Question score mapping: each question maps answer A/B to a dimension letter
+  const MBTI_Q_SCORES: Array<{ scoreA: string; scoreB: string }> = [
+    {scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},
+    {scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},
+    {scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},
+    {scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},
+    {scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},
+    {scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},
+    {scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},{scoreA:"E",scoreB:"I"},{scoreA:"S",scoreB:"N"},{scoreA:"S",scoreB:"N"},{scoreA:"T",scoreB:"F"},{scoreA:"T",scoreB:"F"},{scoreA:"J",scoreB:"P"},{scoreA:"J",scoreB:"P"},
+  ];
+
+  // 16 personality type data from vsme/mbti
+  const MBTI_PERSONALITY_DATA: Record<string, { epithet: string; generalTraits: string[]; relationshipStrengths: string[]; relationshipWeaknesses: string[]; strengths: string[]; gifts: string[]; tenRulesToLive: string[] }> = {
+    "ENFJ": { epithet: "施予者", generalTraits: ["真诚热情地关心他人","重视人们的感受","重视和谐，善于创造和谐","出色的人际交往能力","强大的组织能力","忠诚和诚实","富有创造力和想象力","从帮助他人中获得个人满足感"], relationshipStrengths: ["良好的语言沟通能力","对人们的想法和动机非常敏锐","激励、鼓舞人心","热情洋溢的亲切和肯定","忠诚和承诺","满足他人需求的动力"], relationshipWeaknesses: ["有窒息和过度保护的倾向","对自身需求关注不够","对冲突极为敏感","鲜明的价值体系使他们在某些领域不屈不挠"], strengths: ["让他人感受到自己的价值和重要性","快速洞察人的正反两面","清楚地表达自己的感受","鼓励他人的幽默和自我表达"], gifts: ["理解和体谅他人的感受","具有创造性表达的天赋","能够看到问题的多个方面"], tenRulesToLive: ["发挥你的优势，给自己每一个机会展示你的才能","面对自己的弱点，了解自己也有极限","花时间了解他人的真实想法","当你心烦意乱时请记住保持冷静","对自己负责，不要把问题归咎于他人"] },
+    "ENTJ": { epithet: "执行者", generalTraits: ["将理论转化为计划的动力","高度重视知识","面向未来","自然领导","对低效和无能不耐烦","出色的语言沟通能力","自信","果断"], relationshipStrengths: ["对人们的想法和思想真正感兴趣","充满热情和活力","认真履行承诺","有正义感","极其直接了当"], relationshipWeaknesses: ["倾向于挑战和对抗","难以倾听他人","不能自然地与人的感受保持一致","可能对他人具有压倒性的威慑力"], strengths: ["在任何情况下都能直奔主题","具有领导力和管理能力","不带偏见的事实分析才能","对生活采取积极态度"], gifts: ["通过解决社会公正问题创造巨大效益的才能","懂得适时停下脚步审视生活","具有向他人展示如何克服困难的才能"], tenRulesToLive: ["发挥你的优势，在你能做到的地方负责起来","面对自己的弱点，了解自己也有极限","花时间了解他人的真实想法","尊重你对智力兼容性的需求","谦虚，评判自己至少要像评判他人一样严厉"] },
+    "ENFP": { epithet: "启发者", generalTraits: ["关注外部环境的变化","热情洋溢","创造力丰富","理想主义","良好的人际交往能力","不喜欢做例行公事","需要别人的肯定","合作性强"], relationshipStrengths: ["良好的沟通技巧","对人们的想法和动机非常敏锐","激励、鼓舞人心","灵活和多样","忠诚和奉献"], relationshipWeaknesses: ["倾向于窒息和过度保护","轻信容易被利用","思想一发不可收拾","难以批评或惩罚他人"], strengths: ["极具创造力的观察力和解决问题的能力","善于激励他人","乐于助人","灵活多变"], gifts: ["理解和体谅他人的感受","能够从多个角度审视问题","能够创造性地利用独处时间"], tenRulesToLive: ["发挥你的优势，给自己机会展示才能","面对弱点，了解自己的极限","尝试表达全部的感受","做决定时兼顾逻辑和感受","对自己负责"] },
+    "ENTP": { epithet: "远见者", generalTraits: ["关注外部环境的变化和可能性","在逻辑推理中找到乐趣","宽容和灵活","机智和擅长辩论","出色的沟通能力","讨厌固定的日程和环境","不喜欢常规和细节","优秀的变通能力"], relationshipStrengths: ["热情","乐观","足智多谋","直觉敏锐","思维敏捷"], relationshipWeaknesses: ["缺乏关注细节的耐心","有时过于争强好胜","对例行公事不耐烦","难以专注于一个项目"], strengths: ["出色的辩论和分析能力","善于把握新机会","具有远见卓识","充满能量和创造力"], gifts: ["将复杂系统概念化的能力","善于发现新的可能性","激发他人创造力的天赋"], tenRulesToLive: ["发挥你在辩论和分析方面的优势","面对弱点，学会关注细节","花时间真正倾听他人","享受独处的时光","尝试完成你开始的事情"] },
+    "ESFJ": { epithet: "照顾者", generalTraits: ["有条不紊","忠诚","能够从他人的境遇中感受到喜悦或悲伤","对他人关系的渴望","乐于助人","有责任感","善于人际和解","渴望被人喜欢"], relationshipStrengths: ["对他人的感受友好而有同理心","渴望取悦他人","重视安全和稳定","忠诚有耐心"], relationshipWeaknesses: ["对他人意见过于关注","难以接受否定性评价","控制欲有时较强","过于传统保守"], strengths: ["提供实际帮助和情感支持","善于组织和维持秩序","对他人的需求敏感","营造和谐的环境"], gifts: ["创造温馨环境的天赋","理解他人需求的直觉","将传统与爱心结合的能力"], tenRulesToLive: ["尝试不要那么在乎别人的看法","给自己留出独处时间","学会说不，保护自己的精力","不要害怕冲突，健康的辩论有益","对新想法保持开放"] },
+    "ESFP": { epithet: "表演者", generalTraits: ["生活在当下","内心驱动善良","喜欢乐趣和新奇的人和事","务实","享受生活中的物质舒适","喜欢成为众人瞩目的焦点","善于人际交往","富有同情心"], relationshipStrengths: ["热情","有趣和乐观","慷慨和善解人意","善于创造快乐的氛围"], relationshipWeaknesses: ["不善于长期规划","容易被新鲜事物分心","回避冲突","对批评敏感"], strengths: ["活跃和充满能量","善于激励他人","务实且善于即兴发挥","善于观察"], gifts: ["与人连接的天赋","让生活充满乐趣的能力","活在当下的智慧"], tenRulesToLive: ["尝试长期规划而不只是关注眼前","学会从深层面理解他人","不要回避严肃的对话","给自己时间去反思","培养耐心和自律"] },
+    "ESTJ": { epithet: "守护者", generalTraits: ["天生的领导者","忠诚守信","自律和可靠","喜欢安全感和稳定性","辛勤工作","重视传统","享受组织他人","直言不讳"], relationshipStrengths: ["值得信赖和可依靠","承诺和忠诚","模范公民","善于组织和管理"], relationshipWeaknesses: ["有时过于刻板","可能不关注他人情感","有时过于专横","难以接受变化"], strengths: ["强大的组织和管理能力","坚定的原则和价值观","可靠和负责","有条不紊"], gifts: ["创建和维护秩序的能力","保护和维护传统的使命感","帮助他人建立结构的天赋"], tenRulesToLive: ["尝试理解他人的感受","对新方法保持开放","学会放松和享受生活","不要害怕展示柔软的一面","倾听不同的观点"] },
+    "ESTP": { epithet: "实干者", generalTraits: ["行动导向","活在当下","直觉灵敏","喜欢冒险和刺激","务实且灵活","擅长解决紧急问题","说服力强","享受生活"], relationshipStrengths: ["充满魅力和活力","机智幽默","慷慨大方","善于观察"], relationshipWeaknesses: ["承诺恐惧症","不善于处理情感","缺乏耐心","容易感到无聊"], strengths: ["出色的问题解决能力","善于把握机会","灵活应变","强大的说服力"], gifts: ["在危机中保持冷静的能力","善于即兴发挥的天赋","让事情发生的行动力"], tenRulesToLive: ["学会考虑长远后果","培养对他人感受的耐心","不要回避承诺","尝试深度思考","关注自己的情感需求"] },
+    "INFJ": { epithet: "保护者", generalTraits: ["善于独处","直觉极其灵敏","敏感而有爱心","关注他人感受","安静而有力量","以个人价值观为导向","高度原则性","不断自我反省"], relationshipStrengths: ["温暖和关怀","忠诚和奉献","深度而有意义的连接","直觉洞察力强"], relationshipWeaknesses: ["设立不切实际的期望","可能过于封闭","对批评敏感","完美主义倾向"], strengths: ["深刻的洞察力","为他人提供指导","坚定的价值观","创造性的问题解决"], gifts: ["看穿表象的直觉","帮助他人成长的天赋","将理想转化为现实的能力"], tenRulesToLive: ["学会照顾自己的需求","不要把世界的重担扛在肩上","与信任的人分享你的感受","允许自己不完美","享受当下而不只是担忧未来"] },
+    "INFP": { epithet: "理想主义者", generalTraits: ["安静观察者","理想主义","忠于自己的价值观","灵活适应","通常对人很宽容","除非价值观受到威胁","强烈的感受力","关注内心世界"], relationshipStrengths: ["温暖而关怀","敏感和体贴","忠诚和奉献","深度连接","灵活开放"], relationshipWeaknesses: ["过于理想化","回避冲突","容易受伤","难以做出实际决定","可能过于自我封闭"], strengths: ["强大的同理心","创造力丰富","忠于内心","善于倾听"], gifts: ["理解人类情感深度的天赋","将感受转化为创造性表达的能力","治愈他人心灵的力量"], tenRulesToLive: ["学会实际行动而不只是梦想","不要害怕冲突","接受世界并不完美","表达你的需求","培养实际的生活技能"] },
+    "INTJ": { epithet: "科学家", generalTraits: ["独立和果断","雄心勃勃","勤奋工作","天生的领导者","对自己和他人要求高","讨厌低效率","在所有性格类型中最独立","高度重视能力","在战略层面思考"], relationshipStrengths: ["对关系认真和忠诚","智慧和洞察力","持续自我提升","有趣和深度的对话"], relationshipWeaknesses: ["表达情感困难","可能对他人过于挑剔","有时过于独立","完美主义"], strengths: ["战略思维","分析复杂系统","长期规划能力","专注和决心"], gifts: ["将理论转化为行动的能力","长远的远见","独立解决问题的天赋"], tenRulesToLive: ["学会表达你的感受","理解他人的情感需求","保持谦虚和开放","不要把一切都当作效率问题","享受人际连接的温暖"] },
+    "INTP": { epithet: "思想家", generalTraits: ["安静和内向","灵活和适应性强","对自己感兴趣的事物有强烈的专注力","对理论和抽象思考感兴趣","重视能力","安静和含蓄","与少数亲密的人非常忠诚"], relationshipStrengths: ["诚实和直接","独立","创造力强","对知识充满热情"], relationshipWeaknesses: ["难以理解情感","不善于表达感情","可能显得冷漠","不喜欢日常事务"], strengths: ["强大的分析思维","创新能力","客观判断","独立思考"], gifts: ["发现真理的执着","将抽象概念具象化的能力","解决复杂问题的天赋"], tenRulesToLive: ["学会关注并表达你的感受","不要把一切都分析到底","走出去与人交流","完成你开始的事情","照顾好自己的身体"] },
+    "ISFJ": { epithet: "培育者", generalTraits: ["大量储存关于他人的信息","极其关注人的感受","内向","不喜欢冲突","责任心强","重视安全感和传统","服务导向","善良和体贴"], relationshipStrengths: ["温暖和善良","可靠和忠诚","善于倾听","尽心尽力"], relationshipWeaknesses: ["过度为他人牺牲","难以说不","回避冲突","不善于表达自己的需求"], strengths: ["可靠和负责","对他人敏感","善于照顾","注重细节"], gifts: ["创造安全环境的天赋","记住他人需求的能力","默默奉献的力量"], tenRulesToLive: ["学会照顾自己的需求","敢于表达自己的感受","不要害怕改变","给自己允许不完美","接受帮助并不是软弱"] },
+    "ISFP": { epithet: "艺术家", generalTraits: ["安静和友好","敏感和善良","享受当下","喜欢拥有自己的空间","不喜欢争论和冲突","忠诚和承诺","重视个人自由","审美独到"], relationshipStrengths: ["温暖和同情心","忠诚和奉献","善于关注当下","灵活和开放"], relationshipWeaknesses: ["难以长期规划","回避冲突","过于敏感","不善于表达情感"], strengths: ["审美天赋","同理心强","灵活适应","忠于内心"], gifts: ["感受和创造美的天赋","与自然和谐共处的能力","治愈他人的温柔力量"], tenRulesToLive: ["表达你的感受而不是压抑它们","学会长期规划","不要回避必要的冲突","给自己设定目标","相信自己的价值"] },
+    "ISTJ": { epithet: "尽责者", generalTraits: ["安静和严肃","以专注和细致著称","负责和可靠","逻辑思维","实际和有条理","重视传统和忠诚","注重细节","有条不紊"], relationshipStrengths: ["忠诚和可靠","信守承诺","负责和稳定","诚实和直接"], relationshipWeaknesses: ["表达情感困难","有时过于固执","不善于处理变化","可能过于注重规则"], strengths: ["可靠和负责","注重细节","逻辑思维清晰","坚定的原则"], gifts: ["建立和维护系统的能力","坚持原则的力量","为他人提供稳定的天赋"], tenRulesToLive: ["尝试理解他人的感受","对新方法保持开放","偶尔打破常规","学会表达你的感情","接受变化是生活的一部分"] },
+    "ISTP": { epithet: "机械师", generalTraits: ["安静的观察者","善于分析","有逻辑","好奇心强","灵活和自适应","崇尚效率","独立自主","善于使用工具和机械"], relationshipStrengths: ["冷静和理智","独立","善于解决问题","灵活适应"], relationshipWeaknesses: ["表达情感困难","承诺恐惧","过于独立","不善于处理情感冲突"], strengths: ["冷静分析","动手能力强","善于观察","独立解决问题"], gifts: ["在危机中保持冷静的能力","理解系统运作的天赋","精通工具的直觉"], tenRulesToLive: ["学会表达你的感受","建立稳定的人际关系","不要害怕承诺","培养耐心","关注他人的情感需求"] },
+  };
+
   app.post("/api/mbti/submit", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -2611,17 +2642,17 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       }
 
       const { answers } = req.body;
-      if (!Array.isArray(answers) || answers.length !== 16) {
-        return res.status(400).json({ error: "请完成所有16道题目" });
+      if (!Array.isArray(answers) || answers.length !== 70) {
+        return res.status(400).json({ error: "请完成所有70道题目" });
       }
 
-      // Calculate dimensions: questions 0-3 = EI, 4-7 = SN, 8-11 = TF, 12-15 = JP
-      // 0 = A (first letter), 1 = B (second letter)
-      const dims = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-      for (let i = 0; i < 4; i++) { answers[i] === 0 ? dims.E++ : dims.I++; }
-      for (let i = 4; i < 8; i++) { answers[i] === 0 ? dims.S++ : dims.N++; }
-      for (let i = 8; i < 12; i++) { answers[i] === 0 ? dims.T++ : dims.F++; }
-      for (let i = 12; i < 16; i++) { answers[i] === 0 ? dims.J++ : dims.P++; }
+      // Calculate dimensions using score mapping from vsme/mbti
+      const dims: Record<string, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
+      for (let i = 0; i < 70; i++) {
+        const q = MBTI_Q_SCORES[i];
+        if (answers[i] === "A") dims[q.scoreA]++;
+        else dims[q.scoreB]++;
+      }
 
       const type = `${dims.E >= dims.I ? 'E' : 'I'}${dims.S >= dims.N ? 'S' : 'N'}${dims.T >= dims.F ? 'T' : 'F'}${dims.J >= dims.P ? 'J' : 'P'}`;
 
@@ -2645,6 +2676,7 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       };
 
       const info = animalMap[type] || { animal: "猫", emoji: "🐱", title: "神秘猫咪", traits: ["独立", "神秘", "灵活"] };
+      const personality = MBTI_PERSONALITY_DATA[type];
 
       // Get AI description
       const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
@@ -2653,7 +2685,7 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         max_tokens: 800,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的MBTI人格分析AI。返回严格的JSON，不要包含markdown代码块标记。" },
-          { role: "user", content: `MBTI类型: ${type} (${info.title})\n维度得分: E${dims.E}/I${dims.I}, S${dims.S}/N${dims.N}, T${dims.T}/F${dims.F}, J${dims.J}/P${dims.P}\n\n返回JSON：\n{\n  "description": "150-200字的人格描述，生动有趣",\n  "careerAdvice": "80-100字的职业发展建议",\n  "relationshipAdvice": "80-100字的亲密关系建议",\n  "socialAdvice": "80-100字的人际交往建议"\n}` },
+          { role: "user", content: `MBTI类型: ${type} (${personality?.epithet || info.title})\n维度得分: E${dims.E}/I${dims.I}, S${dims.S}/N${dims.N}, T${dims.T}/F${dims.F}, J${dims.J}/P${dims.P}\n\n返回JSON：\n{\n  "description": "150-200字的人格描述，生动有趣",\n  "careerAdvice": "80-100字的职业发展建议",\n  "relationshipAdvice": "80-100字的亲密关系建议",\n  "socialAdvice": "80-100字的人际交往建议"\n}` },
         ],
       });
 
@@ -2668,8 +2700,15 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         animalEmoji: info.emoji,
         title: info.title,
         traits: info.traits,
+        epithet: personality?.epithet || "",
         dimensions: dims,
         description: aiData.description || `作为${type}型人格(${info.title})，你天生具有独特的魅力和才能。`,
+        generalTraits: personality?.generalTraits || [],
+        relationshipStrengths: personality?.relationshipStrengths || [],
+        relationshipWeaknesses: personality?.relationshipWeaknesses || [],
+        strengths: personality?.strengths || [],
+        gifts: personality?.gifts || [],
+        tenRulesToLive: personality?.tenRulesToLive || [],
         careerAdvice: aiData.careerAdvice || "发挥你的天赋优势，在适合的领域中会有出色表现。",
         relationshipAdvice: aiData.relationshipAdvice || "在关系中保持真诚和沟通，你会找到理解你的人。",
         socialAdvice: aiData.socialAdvice || "善用你的社交特点，建立真诚而有深度的人际关系。",
@@ -2743,6 +2782,240 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
     } catch (err) {
       console.error("Fortune today error:", err);
       res.status(500).json({ error: "运势获取失败" });
+    }
+  });
+
+  // ─── 八字命理分析 API ───────────────────────────────────
+  app.post("/api/bazi/analyze", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`bazi:${userId}`, 5, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { year, month, day, hour, gender } = req.body;
+      if (!year || !month || !day) {
+        return res.status(400).json({ error: "请提供完整的出生日期" });
+      }
+
+      // Use lunisolar to get the Chinese calendar info
+      const birthDate = new Date(year, month - 1, day, hour || 0);
+      const lsr = lunisolar(birthDate);
+      const lunarYear = lsr.lunar.year;
+      const lunarMonth = lsr.lunar.month;
+      const lunarDay = lsr.lunar.day;
+      const char8 = lsr.char8; // 四柱八字
+      const yearPillar = char8.year.toString();
+      const monthPillar = char8.month.toString();
+      const dayPillar = char8.day.toString();
+      const hourPillar = hour !== undefined ? char8.hour.toString() : "未知";
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1500,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)的八字命理大师，精通中国传统命理学。返回严格的JSON，不要包含markdown代码块标记。注意：以娱乐和文化探索为目的，结果仅供参考。" },
+          { role: "user", content: `出生信息: ${year}年${month}月${day}日 ${hour !== undefined ? hour + '时' : '时辰未知'}, ${gender === 'male' ? '男' : gender === 'female' ? '女' : '未知'}\n农历: ${lunarYear}年${lunarMonth}月${lunarDay}日\n四柱: 年柱${yearPillar} 月柱${monthPillar} 日柱${dayPillar} 时柱${hourPillar}\n\n请返回JSON:\n{\n  "summary": "80-120字的命理总述",\n  "wuxing": "五行分析（80-100字）",\n  "personality": "性格特点分析（80-100字）",\n  "career": "事业运势分析（80-100字）",\n  "relationship": "感情婚姻分析（80-100字）",\n  "health": "健康建议（60-80字）",\n  "luckyElements": {“色彩”: ["红", "紫"], "方位": "南方", "数字": [3, 8]},\n  "yearFortune": "今年运势分析（80-100字）"\n}` },
+        ],
+      });
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        fourPillars: { year: yearPillar, month: monthPillar, day: dayPillar, hour: hourPillar },
+        lunar: { year: lunarYear, month: lunarMonth, day: lunarDay },
+        summary: aiData.summary || "您的命盘显示出独特的人生格局。",
+        wuxing: aiData.wuxing || "五行之气流转，缘分自有安排。",
+        personality: aiData.personality || "您具有独特的个性特质和潜能。",
+        career: aiData.career || "事业发展前景光明，需把握时机。",
+        relationship: aiData.relationship || "感情之路将会精彩。",
+        health: aiData.health || "注意身体保养，顺应自然节律。",
+        luckyElements: aiData.luckyElements || { "色彩": ["红", "金"], "方位": "南方", "数字": [3, 8] },
+        yearFortune: aiData.yearFortune || "今年运势平稳，适合稳步前进。",
+      });
+    } catch (err) {
+      console.error("Bazi analyze error:", err);
+      res.status(500).json({ error: "八字分析失败" });
+    }
+  });
+
+  // ─── 塔罗占卜 API ───────────────────────────────────────
+  const TAROT_MAJOR_ARCANA = [
+    { id: 0, name: "愚人", nameEn: "The Fool", emoji: "🎭" },
+    { id: 1, name: "魔术师", nameEn: "The Magician", emoji: "🪄" },
+    { id: 2, name: "女祖司", nameEn: "The High Priestess", emoji: "🌙" },
+    { id: 3, name: "女皇", nameEn: "The Empress", emoji: "👑" },
+    { id: 4, name: "皇帝", nameEn: "The Emperor", emoji: "👑" },
+    { id: 5, name: "教皇", nameEn: "The Hierophant", emoji: "⛪" },
+    { id: 6, name: "恋人", nameEn: "The Lovers", emoji: "❤️" },
+    { id: 7, name: "战车", nameEn: "The Chariot", emoji: "🚗" },
+    { id: 8, name: "力量", nameEn: "Strength", emoji: "🦁" },
+    { id: 9, name: "隐士", nameEn: "The Hermit", emoji: "🏮" },
+    { id: 10, name: "命运之轮", nameEn: "Wheel of Fortune", emoji: "☸️" },
+    { id: 11, name: "正义", nameEn: "Justice", emoji: "⚖️" },
+    { id: 12, name: "倒吊人", nameEn: "The Hanged Man", emoji: "🙈" },
+    { id: 13, name: "死神", nameEn: "Death", emoji: "💀" },
+    { id: 14, name: "节制", nameEn: "Temperance", emoji: "✨" },
+    { id: 15, name: "恶魔", nameEn: "The Devil", emoji: "😈" },
+    { id: 16, name: "塔", nameEn: "The Tower", emoji: "🏚️" },
+    { id: 17, name: "星星", nameEn: "The Star", emoji: "⭐" },
+    { id: 18, name: "月亮", nameEn: "The Moon", emoji: "🌝" },
+    { id: 19, name: "太阳", nameEn: "The Sun", emoji: "☀️" },
+    { id: 20, name: "审判", nameEn: "Judgement", emoji: "📯" },
+    { id: 21, name: "世界", nameEn: "The World", emoji: "🌍" },
+  ];
+
+  app.post("/api/tarot/draw", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`tarot:${userId}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { question, spread } = req.body; // spread: "single", "three", "cross"
+      const numCards = spread === "three" ? 3 : spread === "cross" ? 5 : 1;
+
+      // Draw random cards (no duplicates)
+      const shuffled = [...TAROT_MAJOR_ARCANA].sort(() => Math.random() - 0.5);
+      const drawn = shuffled.slice(0, numCards).map(card => ({
+        ...card,
+        reversed: Math.random() > 0.5,
+      }));
+
+      const positions = spread === "three" ? ["过去", "现在", "未来"] :
+                        spread === "cross" ? ["现状", "挑战", "过去", "未来", "结果"] :
+                        ["指引"];
+
+      const cardDesc = drawn.map((c, i) => `${positions[i]}: ${c.name}(${c.nameEn}) ${c.reversed ? '逆位' : '正位'}`).join('\n');
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1200,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)的塔罗解读大师，精通塔罗牌的象征意义。返回严格的JSON，不要包含markdown代码块标记。注意：以娱乐和文化探索为目的，结果仅供参考。" },
+          { role: "user", content: `问题: ${question || '今日运势如何？'}\n牌阵: ${spread || 'single'}\n抽到的牌:\n${cardDesc}\n\n返回JSON:\n{\n  "cards": [${drawn.map((_, i) => `{"interpretation": "80-100字该张牌在${positions[i]}位置的解读"}`).join(',')}],\n  "overall": "120-150字的整体解读和建议",\n  "advice": "60-80字的行动建议"\n}` },
+        ],
+      });
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = { cards: [], overall: "", advice: "" };
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        question: question || "今日运势如何？",
+        spread: spread || "single",
+        cards: drawn.map((card, i) => ({
+          ...card,
+          position: positions[i],
+          interpretation: aiData.cards?.[i]?.interpretation || `${card.name}${card.reversed ? '(逆位)' : '(正位)'}在${positions[i]}位置提示你关注内心的声音。`,
+        })),
+        overall: aiData.overall || "塔罗牌显示你正处于人生的重要时刻，请倾听内心的声音。",
+        advice: aiData.advice || "保持开放的心态，相信自己的直觉。",
+      });
+    } catch (err) {
+      console.error("Tarot draw error:", err);
+      res.status(500).json({ error: "塔罗占卜失败" });
+    }
+  });
+
+  // ─── 风水环境评估 API ───────────────────────────────────
+  app.post("/api/fengshui/analyze", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`fengshui:${userId}`, 5, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { spaceType, facing, floor, concerns } = req.body;
+      if (!spaceType) {
+        return res.status(400).json({ error: "请选择空间类型" });
+      }
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1500,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)的风水顾问，精通中国传统风水学。返回严格的JSON，不要包含markdown代码块标记。注意：以文化探索和塢舆为目的，结果仅供参考。" },
+          { role: "user", content: `空间类型: ${spaceType}\n朝向: ${facing || '未知'}\n楼层: ${floor || '未知'}\n关注的问题: ${concerns || '整体风水'}\n\n请返回JSON:\n{\n  "overallScore": 85,\n  "summary": "100-150字的风水总述",\n  "areas": [\n    {"name": "入口/玄关", "score": 80, "analysis": "60-80字分析", "tips": ["建议1", "建议2"]},\n    {"name": "客厅", "score": 75, "analysis": "60-80字分析", "tips": ["建议1", "建议2"]},\n    {"name": "卧室", "score": 70, "analysis": "60-80字分析", "tips": ["建议1", "建议2"]},\n    {"name": "厨房/卧床", "score": 65, "analysis": "60-80字分析", "tips": ["建议1", "建议2"]}\n  ],\n  "luckyItems": ["绿植1", "元素1", "装风1"],\n  "taboos": ["禁忌1", "禁忌2", "禁忌3"],\n  "seasonalAdvice": "60-80字的当季风水调整建议"\n}` },
+        ],
+      });
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        spaceType,
+        facing: facing || "未知",
+        overallScore: aiData.overallScore || 75,
+        summary: aiData.summary || "您的空间风水整体良好，有些调整可以让能量更加顺畅。",
+        areas: aiData.areas || [],
+        luckyItems: aiData.luckyItems || ["富贵竹", "水晶球", "风铃"],
+        taboos: aiData.taboos || ["避免镜子对床", "不宜横梁压顶"],
+        seasonalAdvice: aiData.seasonalAdvice || "根据当前季节调整家居布置，顺应自然节律。",
+      });
+    } catch (err) {
+      console.error("Fengshui analyze error:", err);
+      res.status(500).json({ error: "风水分析失败" });
+    }
+  });
+
+  // ─── 星座运势预测 (增强版) ──────────────────────────────
+  app.post("/api/horoscope/weekly", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`horoscope:${userId}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+      const { sign } = req.body;
+      if (!sign) {
+        return res.status(400).json({ error: "请选择星座" });
+      }
+
+      const today = new Date();
+      const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6);
+      const dateRange = `${today.getMonth()+1}/${today.getDate()} - ${weekEnd.getMonth()+1}/${weekEnd.getDate()}`;
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 1200,
+        messages: [
+          { role: "system", content: "你是观星(GuanXing)的星座运势分析师。返回严格的JSON，不要包含markdown代码块标记。" },
+          { role: "user", content: `星座: ${sign}\n日期范围: ${dateRange}\n\n返回JSON:\n{\n  "overall": 85,\n  "love": 80,\n  "career": 90,\n  "wealth": 75,\n  "health": 88,\n  "luckyDay": "周三",\n  "luckyColor": "蓝色",\n  "luckyNumber": 7,\n  "overallAdvice": "100-120字的本周总运势",\n  "loveAdvice": "80-100字的感情运势",\n  "careerAdvice": "80-100字的事业运势",\n  "wealthAdvice": "60-80字的财运",\n  "healthAdvice": "60-80字的健康运势"\n}` },
+        ],
+      });
+      const raw = response.choices[0]?.message?.content?.trim() || "";
+      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      let aiData: any = {};
+      try { aiData = JSON.parse(cleaned); } catch {}
+
+      res.json({
+        sign,
+        dateRange,
+        scores: {
+          overall: aiData.overall || 80,
+          love: aiData.love || 75,
+          career: aiData.career || 80,
+          wealth: aiData.wealth || 70,
+          health: aiData.health || 85,
+        },
+        lucky: {
+          day: aiData.luckyDay || "周三",
+          color: aiData.luckyColor || "蓝色",
+          number: aiData.luckyNumber || 7,
+        },
+        overallAdvice: aiData.overallAdvice || "本周运势整体平稳，适合稳步前进。",
+        loveAdvice: aiData.loveAdvice || "感情运势温和，保持真诚沟通。",
+        careerAdvice: aiData.careerAdvice || "事业运势良好，把握机会展现自己。",
+        wealthAdvice: aiData.wealthAdvice || "财运平稳，适合稳健理财。",
+        healthAdvice: aiData.healthAdvice || "注意休息，保持运动习惯。",
+      });
+    } catch (err) {
+      console.error("Horoscope weekly error:", err);
+      res.status(500).json({ error: "星座运势获取失败" });
     }
   });
 
