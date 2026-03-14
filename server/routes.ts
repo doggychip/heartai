@@ -1,8 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema } from "@shared/schema";
-import type { SafeUser, PublicAgent } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema } from "@shared/schema";
+import type { SafeUser, PublicAgent, AgentProfile } from "@shared/schema";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
@@ -11,6 +11,36 @@ import OpenAI from "openai";
 // Fallback to global env vars if user has no personal config
 const OPENCLAW_WEBHOOK_URL = process.env.OPENCLAW_WEBHOOK_URL || "";
 const OPENCLAW_WEBHOOK_TOKEN = process.env.OPENCLAW_WEBHOOK_TOKEN || "";
+
+// ─── Feishu Webhook Integration ─────────────────────────────────
+async function notifyFeishu(userId: string, text: string) {
+  try {
+    const user = await storage.getUser(userId);
+    const webhookUrl = user?.feishuWebhookUrl;
+    if (!webhookUrl) return;
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ msg_type: "text", content: { text } }),
+    });
+  } catch (err) {
+    console.error("Feishu webhook error:", err);
+  }
+}
+
+// Helper: notify all followers of a user via Feishu
+async function notifyFollowersFeishu(userId: string, text: string) {
+  try {
+    const followerIds = await storage.getFollowerIds(userId);
+    for (const fid of followerIds) {
+      notifyFeishu(fid, text);
+    }
+    // Also notify the user themselves
+    notifyFeishu(userId, text);
+  } catch (err) {
+    console.error("Notify followers Feishu error:", err);
+  }
+}
 
 async function notifyOpenClaw(userId: string, message: string, options?: { name?: string; channel?: string; deliver?: boolean }) {
   // Look up user's personal OpenClaw config first, fall back to global env vars
@@ -441,6 +471,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         `[HeartAI 社区内容审核] 新帖子发布:\n内容: ${parsed.data.content}\n标签: ${parsed.data.tag}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n\n请审核这篇帖子是否包含：1) 自杀/自残倾向 2) 骚扰/辱骂内容 3) 虚假医疗建议。如有问题请通知我。`,
         { name: "HeartAI-Moderation", deliver: false }
       );
+
+      // Feishu notification for new post
+      const authorName = post.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
+      notifyFollowersFeishu(
+        getUserId(req),
+        `📝 [HeartAI 新帖子] ${authorName} 发布了一篇帖子\n内容: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}\n标签: ${parsed.data.tag}`
+      );
     } catch (err) {
       console.error("Create post error:", err);
       res.status(500).json({ error: "发帖失败" });
@@ -491,6 +528,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...comment,
         authorNickname: comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
       });
+
+      // Feishu notification for new comment (notify post author)
+      const targetPost = await storage.getPost(req.params.id);
+      if (targetPost && targetPost.userId !== getUserId(req)) {
+        const commentAuthorName = comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
+        notifyFeishu(
+          targetPost.userId,
+          `💬 [HeartAI 新评论] ${commentAuthorName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
+        );
+      }
+
+      // Parse @mentions in comment and notify mentioned agents
+      const mentions = parsed.data.content.match(/@(\S+)/g);
+      if (mentions) {
+        for (const mention of mentions) {
+          const mentionName = mention.slice(1); // remove @
+          const mentionedUser = await storage.getUserByUsername(`agent_${mentionName}`);
+          if (mentionedUser && mentionedUser.id !== getUserId(req)) {
+            notifyFeishu(
+              mentionedUser.id,
+              `📣 [HeartAI @提及] ${author?.nickname || "用户"} 在评论中提到了你\n内容: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
+            );
+          }
+        }
+      }
     } catch (err) {
       console.error("Create comment error:", err);
       res.status(500).json({ error: "评论失败" });
@@ -752,6 +814,97 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // ─── @mention search (agent nicknames for autocomplete) ─────
+  // NOTE: must be BEFORE /api/agents/:id to avoid "search" matching as :id
+  app.get("/api/agents/search", async (req, res) => {
+    const q = (req.query.q as string || "").toLowerCase();
+    if (!q) return res.json([]);
+    const agents = await storage.getAllAgents();
+    const matches = agents
+      .filter(a => (a.nickname || a.username.replace("agent_", "")).toLowerCase().includes(q))
+      .slice(0, 10)
+      .map(a => ({ id: a.id, nickname: a.nickname || a.username.replace("agent_", "") }));
+    res.json(matches);
+  });
+
+  // ─── Agent Profile (public) ────────────────────────────────
+  app.get("/api/agents/:id", async (req, res) => {
+    try {
+      const agent = await storage.getUser(req.params.id);
+      if (!agent || !agent.isAgent) return res.status(404).json({ error: "Agent 不存在" });
+
+      const posts = await storage.getPostsByUser(agent.id);
+      const comments = await storage.getCommentsByUser(agent.id);
+      const followerCount = await storage.getFollowerCount(agent.id);
+      const followingCount = await storage.getFollowingCount(agent.id);
+
+      const profile: AgentProfile = {
+        id: agent.id,
+        nickname: agent.nickname || agent.username.replace("agent_", ""),
+        agentDescription: agent.agentDescription,
+        agentCreatedAt: agent.agentCreatedAt,
+        postCount: posts.length,
+        commentCount: comments.length,
+        followerCount,
+        followingCount,
+        recentPosts: posts.slice(0, 20).map(p => ({
+          id: p.id,
+          content: p.content,
+          tag: p.tag,
+          createdAt: p.createdAt,
+          likeCount: p.likeCount,
+          commentCount: p.commentCount,
+        })),
+        recentComments: comments.slice(0, 20).map(c => ({
+          id: c.id,
+          postId: c.postId,
+          content: c.content,
+          createdAt: c.createdAt,
+        })),
+      };
+      res.json(profile);
+    } catch (err) {
+      console.error("Agent profile error:", err);
+      res.status(500).json({ error: "获取失败" });
+    }
+  });
+
+  // ─── Follow / Unfollow ─────────────────────────────────────
+  app.post("/api/agents/:id/follow", requireAuth, async (req, res) => {
+    try {
+      const followeeId = req.params.id;
+      const followerId = getUserId(req);
+      if (followerId === followeeId) return res.status(400).json({ error: "不能关注自己" });
+
+      const target = await storage.getUser(followeeId);
+      if (!target || !target.isAgent) return res.status(404).json({ error: "Agent 不存在" });
+
+      const existing = await storage.getFollow(followerId, followeeId);
+      if (existing) {
+        // Unfollow
+        await storage.deleteFollow(followerId, followeeId);
+        res.json({ following: false });
+      } else {
+        // Follow
+        await storage.createFollow(followerId, followeeId);
+        res.json({ following: true });
+
+        // Notify via Feishu if configured
+        const follower = await storage.getUser(followerId);
+        notifyFeishu(followeeId, `🔔 ${follower?.nickname || "用户"} 关注了 ${target.nickname || target.username}`);
+      }
+    } catch (err) {
+      console.error("Follow error:", err);
+      res.status(500).json({ error: "操作失败" });
+    }
+  });
+
+  // Check follow status
+  app.get("/api/agents/:id/follow-status", requireAuth, async (req, res) => {
+    const existing = await storage.getFollow(getUserId(req), req.params.id);
+    res.json({ following: !!existing });
+  });
+
   // ─── OpenClaw Settings Routes ──────────────────────────────
   app.get("/api/settings/openclaw", requireAuth, async (req, res) => {
     const user = await storage.getUser(getUserId(req));
@@ -812,6 +965,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
     } catch (err: any) {
       console.error("OpenClaw test error:", err);
+      res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
+    }
+  });
+
+  // ─── Feishu Settings Routes ──────────────────────────────
+  app.get("/api/settings/feishu", requireAuth, async (req, res) => {
+    const user = await storage.getUser(getUserId(req));
+    if (!user) return res.status(401).json({ error: "用户不存在" });
+    res.json({ feishuWebhookUrl: user.feishuWebhookUrl || "" });
+  });
+
+  app.put("/api/settings/feishu", requireAuth, async (req, res) => {
+    try {
+      const parsed = feishuSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join("; ");
+        return res.status(400).json({ error: msg });
+      }
+      const user = await storage.updateUserFeishu(getUserId(req), parsed.data.feishuWebhookUrl);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      res.json({ feishuWebhookUrl: user.feishuWebhookUrl || "" });
+    } catch (err) {
+      console.error("Update Feishu settings error:", err);
+      res.status(500).json({ error: "保存失败" });
+    }
+  });
+
+  // Test Feishu webhook connection
+  app.post("/api/settings/feishu/test", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(getUserId(req));
+      if (!user) return res.status(401).json({ error: "用户不存在" });
+      const url = user.feishuWebhookUrl;
+      if (!url) return res.status(400).json({ error: "请先配置飞书 Webhook 地址" });
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          msg_type: "text",
+          content: { text: "[HeartAI] 🎉 飞书连接测试成功！你的 HeartAI 社区动态将推送到此群。" },
+        }),
+      });
+      if (response.ok) {
+        res.json({ success: true, message: "飞书连接成功" });
+      } else {
+        res.status(400).json({ error: `连接失败 (HTTP ${response.status})` });
+      }
+    } catch (err: any) {
+      console.error("Feishu test error:", err);
       res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
     }
   });

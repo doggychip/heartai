@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2 } from "lucide-react";
+import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, MessageSquare as FeishuIcon } from "lucide-react";
 import { Link } from "wouter";
 
 interface OpenClawSettings {
@@ -351,6 +351,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Feishu Integration */}
+        <FeishuSettingsCard />
+
         {/* What gets synced */}
         <Card data-testid="card-openclaw-info">
           <CardHeader>
@@ -385,10 +388,147 @@ export default function SettingsPage() {
                   <p className="text-muted-foreground">社区发帖时，OpenClaw 会审核内容安全性</p>
                 </div>
               </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-indigo-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-xs">📨</span>
+                </div>
+                <div>
+                  <p className="font-medium">飞书通知</p>
+                  <p className="text-muted-foreground">新帖子、评论、@提及、新关注等社区动态实时推送到飞书群</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+// ─── Feishu Settings Card Component ───────────────────────────────
+function FeishuSettingsCard() {
+  const { toast } = useToast();
+  const [feishuUrl, setFeishuUrl] = useState("");
+  const [feishuInitialized, setFeishuInitialized] = useState(false);
+
+  useQuery<{ feishuWebhookUrl: string }>({
+    queryKey: ["/api/settings/feishu"],
+    select: (data) => {
+      if (!feishuInitialized) {
+        setFeishuUrl(data.feishuWebhookUrl);
+        setFeishuInitialized(true);
+      }
+      return data;
+    },
+  });
+
+  const saveFeishuMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PUT", "/api/settings/feishu", { feishuWebhookUrl: feishuUrl });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/feishu"] });
+      toast({ title: "保存成功", description: "飞书配置已更新" });
+    },
+    onError: (err: any) => {
+      toast({ title: "保存失败", description: err.message || "请检查输入", variant: "destructive" });
+    },
+  });
+
+  const testFeishuMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/settings/feishu/test");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      toast({ title: "连接成功", description: "测试消息已发送到飞书群" });
+    },
+    onError: (err: any) => {
+      toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" });
+    },
+  });
+
+  return (
+    <Card data-testid="card-feishu-settings">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${feishuUrl ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+            <CardTitle className="text-base">飞书/Lark 集成</CardTitle>
+          </div>
+          {feishuUrl && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testFeishuMutation.mutate()}
+              disabled={testFeishuMutation.isPending}
+              data-testid="button-test-feishu"
+            >
+              {testFeishuMutation.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Wifi className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              测试连接
+            </Button>
+          )}
+        </div>
+        <CardDescription>
+          将 HeartAI 社区动态（新帖子、评论、@提及、关注）实时推送到飞书群。
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border border-border bg-accent/30 p-3 text-sm text-muted-foreground space-y-1.5">
+          <p className="font-medium text-foreground">如何获取飞书 Webhook？</p>
+          <p>1. 打开飞书群聊 → 设置 → 群机器人</p>
+          <p>2. 添加「自定义机器人」，获取 Webhook URL</p>
+          <p>3. 复制完整的 Webhook URL 粘贴到下方</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="feishu-webhook-url">飞书 Webhook URL</Label>
+          <Input
+            id="feishu-webhook-url"
+            placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+            value={feishuUrl}
+            onChange={(e) => setFeishuUrl(e.target.value)}
+            data-testid="input-feishu-webhook-url"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            onClick={() => saveFeishuMutation.mutate()}
+            disabled={saveFeishuMutation.isPending}
+            data-testid="button-save-feishu"
+          >
+            {saveFeishuMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+            ) : (
+              <Save className="w-4 h-4 mr-1.5" />
+            )}
+            保存配置
+          </Button>
+          {feishuUrl && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                setFeishuUrl("");
+                saveFeishuMutation.mutate();
+              }}
+              data-testid="button-clear-feishu"
+            >
+              <WifiOff className="w-3.5 h-3.5 mr-1.5" />
+              断开连接
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

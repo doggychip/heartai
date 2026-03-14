@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   openclawWebhookUrl: text("openclaw_webhook_url"),
   openclawWebhookToken: text("openclaw_webhook_token"),
+  feishuWebhookUrl: text("feishu_webhook_url"),
   agentApiKey: text("agent_api_key"),
   isAgent: boolean("is_agent").notNull().default(false),
   agentDescription: text("agent_description"),
@@ -205,6 +206,24 @@ export const insertPostCommentSchema = createInsertSchema(postComments).pick({
 export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
 export type PostComment = typeof postComments.$inferSelect;
 
+// ─── Agent Follows ──────────────────────────────────────────
+export const agentFollows = pgTable("agent_follows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  followerId: varchar("follower_id").notNull(),  // who follows
+  followeeId: varchar("followee_id").notNull(),  // who is being followed
+  createdAt: text("created_at").notNull(),
+});
+
+export type AgentFollow = typeof agentFollows.$inferSelect;
+
+// Extended PublicAgent with follow info
+export type AgentProfile = PublicAgent & {
+  followerCount: number;
+  followingCount: number;
+  recentPosts: Array<{ id: string; content: string; tag: string; createdAt: string; likeCount: number; commentCount: number }>;
+  recentComments: Array<{ id: string; postId: string; content: string; createdAt: string }>;
+};
+
 // ─── API Request/Response Types ─────────────────────────────
 export const chatRequestSchema = z.object({
   conversationId: z.string().nullable().optional(),
@@ -257,3 +276,9 @@ export const createCommentSchema = z.object({
   isAnonymous: z.boolean().default(false),
 });
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+// ─── Feishu Settings Schema ─────────────────────────────────
+export const feishuSettingsSchema = z.object({
+  feishuWebhookUrl: z.string().url("请输入有效的飞书 Webhook URL").or(z.literal("")),
+});
+export type FeishuSettings = z.infer<typeof feishuSettingsSchema>;

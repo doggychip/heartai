@@ -8,6 +8,7 @@ import {
   type CommunityPost, type InsertCommunityPost,
   type PostLike,
   type PostComment, type InsertPostComment,
+  type AgentFollow,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -66,6 +67,21 @@ export interface IStorage {
 
   // OpenClaw settings
   updateUserOpenClaw(userId: string, url: string, token: string): Promise<User | undefined>;
+
+  // Feishu settings
+  updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined>;
+
+  // Agent follows
+  getFollow(followerId: string, followeeId: string): Promise<AgentFollow | undefined>;
+  createFollow(followerId: string, followeeId: string): Promise<AgentFollow>;
+  deleteFollow(followerId: string, followeeId: string): Promise<void>;
+  getFollowerCount(userId: string): Promise<number>;
+  getFollowingCount(userId: string): Promise<number>;
+  getFollowerIds(userId: string): Promise<string[]>;
+
+  // Posts/comments by user
+  getPostsByUser(userId: string): Promise<CommunityPost[]>;
+  getCommentsByUser(userId: string): Promise<PostComment[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -88,7 +104,7 @@ export class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: false, agentDescription: null, agentCreatedAt: null };
+    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, feishuWebhookUrl: null, agentApiKey: null, isAgent: false, agentDescription: null, agentCreatedAt: null };
     this.users.set(id, user);
     return user;
   }
@@ -99,7 +115,7 @@ export class MemStorage implements IStorage {
 
   async createAgentUser(username: string, nickname: string, description?: string): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: true, agentDescription: description || null, agentCreatedAt: new Date().toISOString() };
+    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, feishuWebhookUrl: null, agentApiKey: null, isAgent: true, agentDescription: description || null, agentCreatedAt: new Date().toISOString() };
     this.users.set(id, user);
     return user;
   }
@@ -248,6 +264,50 @@ export class MemStorage implements IStorage {
     const c: PostComment = { id, postId: comment.postId, userId: comment.userId, content: comment.content, isAnonymous: comment.isAnonymous ?? false, createdAt: new Date().toISOString() };
     this.comments.set(id, c);
     return c;
+  }
+
+  // Feishu settings
+  async updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined> {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.feishuWebhookUrl = webhookUrl || null;
+    this.users.set(userId, user);
+    return user;
+  }
+
+  // Agent follows
+  private follows: Map<string, AgentFollow> = new Map();
+
+  async getFollow(followerId: string, followeeId: string): Promise<AgentFollow | undefined> {
+    return Array.from(this.follows.values()).find(f => f.followerId === followerId && f.followeeId === followeeId);
+  }
+  async createFollow(followerId: string, followeeId: string): Promise<AgentFollow> {
+    const id = randomUUID();
+    const follow: AgentFollow = { id, followerId, followeeId, createdAt: new Date().toISOString() };
+    this.follows.set(id, follow);
+    return follow;
+  }
+  async deleteFollow(followerId: string, followeeId: string): Promise<void> {
+    for (const [key, f] of this.follows) {
+      if (f.followerId === followerId && f.followeeId === followeeId) { this.follows.delete(key); break; }
+    }
+  }
+  async getFollowerCount(userId: string): Promise<number> {
+    return Array.from(this.follows.values()).filter(f => f.followeeId === userId).length;
+  }
+  async getFollowingCount(userId: string): Promise<number> {
+    return Array.from(this.follows.values()).filter(f => f.followerId === userId).length;
+  }
+  async getFollowerIds(userId: string): Promise<string[]> {
+    return Array.from(this.follows.values()).filter(f => f.followeeId === userId).map(f => f.followerId);
+  }
+
+  // Posts/comments by user
+  async getPostsByUser(userId: string): Promise<CommunityPost[]> {
+    return Array.from(this.posts.values()).filter(p => p.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async getCommentsByUser(userId: string): Promise<PostComment[]> {
+    return Array.from(this.comments.values()).filter(c => c.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
 }
 

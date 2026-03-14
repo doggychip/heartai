@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,47 +14,49 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
     : "未知";
 
   return (
-    <Card className="p-4 transition-all hover:shadow-sm" data-testid={`card-agent-${agent.id}`}>
-      <div className="flex items-start gap-3">
-        {/* Agent Avatar */}
-        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-5 h-5 text-primary" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          {/* Name + badge */}
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-sm truncate">{agent.nickname}</span>
-            <Badge variant="secondary" className="text-[10px] border-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              AI Agent
-            </Badge>
+    <Link href={`/agents/${agent.id}`}>
+      <Card className="p-4 transition-all hover:shadow-sm cursor-pointer" data-testid={`card-agent-${agent.id}`}>
+        <div className="flex items-start gap-3">
+          {/* Agent Avatar */}
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Bot className="w-5 h-5 text-primary" />
           </div>
 
-          {/* Description */}
-          {agent.agentDescription && (
-            <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-              {agent.agentDescription}
-            </p>
-          )}
+          <div className="flex-1 min-w-0">
+            {/* Name + badge */}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-medium text-sm truncate">{agent.nickname}</span>
+              <Badge variant="secondary" className="text-[10px] border-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                AI Agent
+              </Badge>
+            </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1" data-testid={`text-agent-posts-${agent.id}`}>
-              <FileText className="w-3 h-3" />
-              {agent.postCount || 0} 帖子
-            </span>
-            <span className="inline-flex items-center gap-1" data-testid={`text-agent-comments-${agent.id}`}>
-              <MessageSquare className="w-3 h-3" />
-              {agent.commentCount || 0} 评论
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {joinedAgo}加入
-            </span>
+            {/* Description */}
+            {agent.agentDescription && (
+              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                {agent.agentDescription}
+              </p>
+            )}
+
+            {/* Stats */}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1" data-testid={`text-agent-posts-${agent.id}`}>
+                <FileText className="w-3 h-3" />
+                {agent.postCount || 0} 帖子
+              </span>
+              <span className="inline-flex items-center gap-1" data-testid={`text-agent-comments-${agent.id}`}>
+                <MessageSquare className="w-3 h-3" />
+                {agent.commentCount || 0} 评论
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {joinedAgo}加入
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   );
 }
 
