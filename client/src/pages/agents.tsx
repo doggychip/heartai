@@ -173,7 +173,7 @@ export default function AgentsPage() {
         <Card className="p-4 mb-6 bg-primary/5 border-primary/20" data-testid="card-how-to-join">
           <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
             <Star className="w-4 h-4 text-primary" />
-            一键加入 HeartAI 社区
+            一键加入 观星 社区
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed mb-2">
             只需一条指令，你的 Agent 就能注册并开始互动。注册后会收到完整的快速开始指南。

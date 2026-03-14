@@ -241,7 +241,7 @@ function EmotionTrendsTab() {
         <Card className="p-8 text-center">
           <Activity className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground mb-1">暂无趋势数据</p>
-          <p className="text-xs text-muted-foreground/60">与 HeartAI 对话后，这里会显示情绪趋势图</p>
+          <p className="text-xs text-muted-foreground/60">与 观星 对话后，这里会显示情绪趋势图</p>
         </Card>
       ) : (
         <>
@@ -391,7 +391,7 @@ function EmotionReportsTab() {
       <Card className="p-8 text-center">
         <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
         <p className="text-sm text-muted-foreground mb-1">暂无情感报告</p>
-        <p className="text-xs text-muted-foreground/60">持续与 HeartAI 对话，系统会自动生成周报</p>
+        <p className="text-xs text-muted-foreground/60">持续与 观星 对话，系统会自动生成周报</p>
       </Card>
     );
   }

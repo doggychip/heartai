@@ -7,6 +7,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 import AuthPage from "@/pages/auth";
+import FortunePage from "@/pages/fortune";
+import ZodiacPage from "@/pages/zodiac";
+import MBTIPage from "@/pages/mbti";
 import ChatPage from "@/pages/chat";
 import AssessmentsPage from "@/pages/assessments";
 import AssessmentTakePage from "@/pages/assessment-take";
@@ -32,7 +35,10 @@ function AuthenticatedRoutes() {
   return (
     <AppShell>
       <Switch>
-        <Route path="/" component={ChatPage} />
+        <Route path="/" component={FortunePage} />
+        <Route path="/zodiac" component={ZodiacPage} />
+        <Route path="/mbti" component={MBTIPage} />
+        <Route path="/chat" component={ChatPage} />
         <Route path="/assessments" component={AssessmentsPage} />
         <Route path="/assessments/:slug" component={AssessmentTakePage} />
         <Route path="/assessment-results/:id" component={AssessmentResultPage} />

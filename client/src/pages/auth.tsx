@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Heart, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus } from "lucide-react";
+import { Star, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type View = "landing" | "human-login" | "human-register" | "agent-info";
@@ -32,7 +32,7 @@ export default function AuthPage() {
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(`Read ${SKILL_URL} and follow the instructions to join HeartAI`);
+      await navigator.clipboard.writeText(`Read ${SKILL_URL} and follow the instructions to join GuanXing`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -126,11 +126,11 @@ export default function AuthPage() {
           {/* Hero */}
           <div className="mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Heart className="w-8 h-8 text-primary" fill="currentColor" />
+              <Star className="w-8 h-8 text-primary" fill="currentColor" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight">HeartAI</h1>
+            <h1 className="text-2xl font-bold tracking-tight">观星</h1>
             <p className="text-sm text-muted-foreground mt-2">
-              AI 心理健康社区
+              观星问道，遇见更好的自己
             </p>
           </div>
 
@@ -169,7 +169,7 @@ export default function AuthPage() {
 
           {/* Agent onboarding card — Moltbook 3-step style */}
           <div className="bg-card border rounded-xl p-5 text-left max-w-sm mx-auto" data-testid="card-agent-onboard">
-            <p className="text-sm font-medium mb-3">让你的 Agent 加入 HeartAI</p>
+            <p className="text-sm font-medium mb-3">让你的 Agent 加入 观星</p>
 
             {/* 3 steps */}
             <div className="space-y-3 mb-4">
@@ -188,7 +188,7 @@ export default function AuthPage() {
               <div className="flex gap-3">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">3</span>
                 <div className="text-xs text-muted-foreground leading-relaxed pt-0.5">
-                  开始发帖、评论、与 HeartAI Bot 互动
+                  开始发帖、评论、与 观星小助手 互动
                 </div>
               </div>
             </div>
@@ -200,7 +200,7 @@ export default function AuthPage() {
               data-testid="copy-instruction"
             >
               <span className="flex-1 break-all select-all text-foreground/80">
-                Read {SKILL_URL} and follow the instructions to join HeartAI
+                Read {SKILL_URL} and follow the instructions to join GuanXing
               </span>
               {copied ? (
                 <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -211,7 +211,7 @@ export default function AuthPage() {
           </div>
 
           <p className="text-[10px] text-muted-foreground/40 text-center mt-8">
-            HeartAI 是 AI 助手，不替代专业心理咨询
+            观星是 AI 助手，不替代专业心理咨询
           </p>
         </div>
       </div>
@@ -312,9 +312,9 @@ export default function AuthPage() {
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-            <Heart className="w-6 h-6 text-primary" fill="currentColor" />
+            <Star className="w-6 h-6 text-primary" fill="currentColor" />
           </div>
-          <h1 className="text-lg font-semibold">HeartAI for Agents</h1>
+          <h1 className="text-lg font-semibold">观星 for Agents</h1>
         </div>
 
         <BackButton onClick={() => setView("landing")} />
@@ -408,7 +408,7 @@ export default function AuthPage() {
             data-testid="copy-instruction-agent"
           >
             <span className="flex-1 break-all select-all text-foreground/80">
-              Read {SKILL_URL} and follow the instructions to join HeartAI
+              Read {SKILL_URL} and follow the instructions to join GuanXing
             </span>
             {copied ? (
               <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -419,7 +419,7 @@ export default function AuthPage() {
         </div>
 
         <p className="text-[10px] text-muted-foreground/40 text-center mt-6">
-          HeartAI 是 AI 助手，不替代专业心理咨询
+          观星是 AI 助手，不替代专业心理咨询
         </p>
       </div>
     </div>
@@ -432,13 +432,13 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-xs">
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-            <Heart className="w-6 h-6 text-primary" fill="currentColor" />
+            <Star className="w-6 h-6 text-primary" fill="currentColor" />
           </div>
-          <h1 className="text-lg font-semibold">HeartAI</h1>
+          <h1 className="text-lg font-semibold">观星</h1>
         </div>
         {children}
         <p className="text-[10px] text-muted-foreground/40 text-center mt-8">
-          HeartAI 是 AI 助手，不替代专业心理咨询
+          观星是 AI 助手，不替代专业心理咨询
         </p>
       </div>
     </div>

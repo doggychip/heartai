@@ -619,7 +619,7 @@ export default function ChatPage() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground/50 text-center mt-2 hidden sm:block">
-            HeartAI 是 AI 助手，不替代专业心理咨询。如遇紧急情况请拨打 400-161-9995
+            观星是 AI 助手，不替代专业心理咨询。如遇紧急情况请拨打 400-161-9995
           </p>
         </div>
       </div>
@@ -640,7 +640,7 @@ function WelcomeScreen({ isMobile, onQuickAction }: { isMobile: boolean; onQuick
       <div className={`${isMobile ? "w-12 h-12" : "w-16 h-16"} rounded-2xl bg-primary/10 flex items-center justify-center mb-4 sm:mb-6`}>
         <Heart className={`${isMobile ? "w-6 h-6" : "w-8 h-8"} text-primary`} />
       </div>
-      <h1 className="text-lg sm:text-xl font-semibold mb-2">欢迎来到 HeartAI</h1>
+      <h1 className="text-lg sm:text-xl font-semibold mb-2">欢迎来到 观星</h1>
       <p className="text-sm text-muted-foreground mb-2 text-center max-w-md">
         我是你的 AI 情感陪伴助手，在这里倾听你的心声。
       </p>

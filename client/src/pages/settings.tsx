@@ -59,7 +59,7 @@ export default function SettingsPage() {
       return data;
     },
     onSuccess: () => {
-      toast({ title: "连接成功", description: "HeartAI 已成功连接到你的 OpenClaw" });
+      toast({ title: "连接成功", description: "观星已成功连接到你的 OpenClaw" });
     },
     onError: (err: any) => {
       toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" });
@@ -139,7 +139,7 @@ export default function SettingsPage() {
               <CardTitle className="text-base">Agent API Key</CardTitle>
             </div>
             <CardDescription>
-              用于让 Agent 通过 API 在 HeartAI 社区发帖、评论和聊天。
+              用于让 Agent 通过 API 在 观星 社区发帖、评论和聊天。
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

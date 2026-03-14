@@ -4,8 +4,8 @@
 @tailwind components;
 @tailwind utilities;
 
-/* HeartAI — Warm, calming mental health theme */
-/* Palette: soft lavender primary, warm neutral surfaces */
+/* 观星 GuanXing — Cosmic stargazing theme */
+/* Palette: deep indigo primary, warm amber accent, cosmic surfaces */
 
 :root {
   --button-outline: rgba(0,0,0, .10);
@@ -13,52 +13,52 @@
   --opaque-button-border-intensity: -8;
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
-  --background: 270 20% 98%;
-  --foreground: 270 15% 12%;
-  --border: 270 10% 90%;
-  --card: 270 15% 97%;
-  --card-foreground: 270 15% 12%;
-  --card-border: 270 10% 92%;
-  --sidebar: 270 15% 96%;
-  --sidebar-foreground: 270 15% 12%;
-  --sidebar-border: 270 10% 91%;
-  --sidebar-primary: 265 55% 58%;
+  --background: 230 25% 97%;
+  --foreground: 230 20% 12%;
+  --border: 230 15% 89%;
+  --card: 230 20% 96%;
+  --card-foreground: 230 20% 12%;
+  --card-border: 230 15% 91%;
+  --sidebar: 230 20% 95%;
+  --sidebar-foreground: 230 20% 12%;
+  --sidebar-border: 230 15% 90%;
+  --sidebar-primary: 235 65% 55%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 270 12% 92%;
-  --sidebar-accent-foreground: 270 15% 12%;
-  --sidebar-ring: 265 55% 58%;
-  --popover: 270 15% 97%;
-  --popover-foreground: 270 15% 12%;
-  --popover-border: 270 10% 90%;
-  --primary: 265 55% 58%;
+  --sidebar-accent: 230 15% 91%;
+  --sidebar-accent-foreground: 230 20% 12%;
+  --sidebar-ring: 235 65% 55%;
+  --popover: 230 20% 96%;
+  --popover-foreground: 230 20% 12%;
+  --popover-border: 230 15% 89%;
+  --primary: 235 65% 55%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 270 10% 93%;
-  --secondary-foreground: 270 15% 12%;
-  --muted: 270 8% 93%;
-  --muted-foreground: 270 5% 45%;
-  --accent: 265 15% 93%;
-  --accent-foreground: 270 15% 12%;
+  --secondary: 230 15% 92%;
+  --secondary-foreground: 230 20% 12%;
+  --muted: 230 12% 92%;
+  --muted-foreground: 230 8% 45%;
+  --accent: 35 85% 55%;
+  --accent-foreground: 35 90% 15%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
-  --input: 270 8% 82%;
-  --ring: 265 55% 58%;
-  --chart-1: 265 55% 55%;
-  --chart-2: 330 50% 55%;
-  --chart-3: 200 50% 50%;
-  --chart-4: 45 60% 55%;
-  --chart-5: 150 45% 45%;
+  --input: 230 12% 82%;
+  --ring: 235 65% 55%;
+  --chart-1: 235 65% 55%;
+  --chart-2: 35 85% 55%;
+  --chart-3: 330 55% 55%;
+  --chart-4: 160 50% 45%;
+  --chart-5: 280 50% 55%;
   --font-sans: 'General Sans', system-ui, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
   --radius: .625rem;
-  --shadow-2xs: 0px 1px 2px 0px hsl(270 10% 50% / 0.04);
-  --shadow-xs: 0px 1px 3px 0px hsl(270 10% 50% / 0.06);
-  --shadow-sm: 0px 2px 4px -1px hsl(270 10% 50% / 0.06);
-  --shadow: 0px 4px 8px -2px hsl(270 10% 50% / 0.08);
-  --shadow-md: 0px 6px 12px -3px hsl(270 10% 50% / 0.08);
-  --shadow-lg: 0px 8px 20px -4px hsl(270 10% 50% / 0.10);
-  --shadow-xl: 0px 12px 28px -5px hsl(270 10% 50% / 0.12);
-  --shadow-2xl: 0px 20px 40px -8px hsl(270 10% 50% / 0.15);
+  --shadow-2xs: 0px 1px 2px 0px hsl(230 15% 50% / 0.04);
+  --shadow-xs: 0px 1px 3px 0px hsl(230 15% 50% / 0.06);
+  --shadow-sm: 0px 2px 4px -1px hsl(230 15% 50% / 0.06);
+  --shadow: 0px 4px 8px -2px hsl(230 15% 50% / 0.08);
+  --shadow-md: 0px 6px 12px -3px hsl(230 15% 50% / 0.08);
+  --shadow-lg: 0px 8px 20px -4px hsl(230 15% 50% / 0.10);
+  --shadow-xl: 0px 12px 28px -5px hsl(230 15% 50% / 0.12);
+  --shadow-2xl: 0px 20px 40px -8px hsl(230 15% 50% / 0.15);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -77,40 +77,40 @@
   --opaque-button-border-intensity: 9;
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
-  --background: 270 10% 7%;
-  --foreground: 270 5% 92%;
-  --border: 270 8% 16%;
-  --card: 270 8% 10%;
-  --card-foreground: 270 5% 92%;
-  --card-border: 270 8% 14%;
-  --sidebar: 270 8% 9%;
-  --sidebar-foreground: 270 5% 92%;
-  --sidebar-border: 270 8% 15%;
-  --sidebar-primary: 265 55% 65%;
+  --background: 230 15% 6%;
+  --foreground: 230 8% 92%;
+  --border: 230 12% 16%;
+  --card: 230 12% 9%;
+  --card-foreground: 230 8% 92%;
+  --card-border: 230 12% 14%;
+  --sidebar: 230 12% 8%;
+  --sidebar-foreground: 230 8% 92%;
+  --sidebar-border: 230 12% 15%;
+  --sidebar-primary: 235 65% 65%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 270 8% 18%;
-  --sidebar-accent-foreground: 270 5% 92%;
-  --sidebar-ring: 265 55% 65%;
-  --popover: 270 8% 12%;
-  --popover-foreground: 270 5% 92%;
-  --popover-border: 270 8% 18%;
-  --primary: 265 55% 65%;
+  --sidebar-accent: 230 12% 18%;
+  --sidebar-accent-foreground: 230 8% 92%;
+  --sidebar-ring: 235 65% 65%;
+  --popover: 230 12% 11%;
+  --popover-foreground: 230 8% 92%;
+  --popover-border: 230 12% 18%;
+  --primary: 235 65% 65%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 270 8% 18%;
-  --secondary-foreground: 270 5% 92%;
-  --muted: 270 6% 20%;
-  --muted-foreground: 270 5% 55%;
-  --accent: 265 10% 18%;
-  --accent-foreground: 270 5% 92%;
+  --secondary: 230 12% 18%;
+  --secondary-foreground: 230 8% 92%;
+  --muted: 230 10% 20%;
+  --muted-foreground: 230 8% 55%;
+  --accent: 35 85% 55%;
+  --accent-foreground: 35 90% 95%;
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 98%;
-  --input: 270 6% 28%;
-  --ring: 265 55% 65%;
-  --chart-1: 265 55% 65%;
-  --chart-2: 330 50% 65%;
-  --chart-3: 200 50% 60%;
-  --chart-4: 45 60% 60%;
-  --chart-5: 150 45% 55%;
+  --input: 230 10% 28%;
+  --ring: 235 65% 65%;
+  --chart-1: 235 65% 65%;
+  --chart-2: 35 85% 60%;
+  --chart-3: 330 55% 65%;
+  --chart-4: 160 50% 55%;
+  --chart-5: 280 50% 60%;
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.15);
   --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.20);
   --shadow-sm: 0px 2px 4px -1px hsl(0 0% 0% / 0.20);
@@ -265,4 +265,24 @@
 /* Safe area for mobile bottom nav */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Star twinkle animation */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* Fortune score fill animation */
+@keyframes scoreFill {
+  from { width: 0%; }
+  to { width: var(--score-width); }
+}
+
+.animate-score-fill {
+  animation: scoreFill 1s ease-out forwards;
 }

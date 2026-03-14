@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
 import {
-  Heart,
+  Sparkles,
   MessageCircle,
   ClipboardList,
   BookHeart,
@@ -18,11 +18,17 @@ import {
   Settings,
   Brain,
   Scroll,
+  Star,
+  Compass,
+  Gauge,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
 const NAV_ITEMS = [
-  { path: "/", label: "AI 对话", icon: MessageCircle, guestVisible: false },
+  { path: "/", label: "今日运势", icon: Gauge, guestVisible: false },
+  { path: "/zodiac", label: "星座解读", icon: Star, guestVisible: false },
+  { path: "/mbti", label: "MBTI人格", icon: Compass, guestVisible: false },
+  { path: "/chat", label: "AI 对话", icon: MessageCircle, guestVisible: false },
   { path: "/emotion-insights", label: "情感频道", icon: Brain, guestVisible: false },
   { path: "/culture", label: "国粹频道", icon: Scroll, guestVisible: true },
   { path: "/assessments", label: "心理测评", icon: ClipboardList, guestVisible: false },
@@ -30,6 +36,22 @@ const NAV_ITEMS = [
   { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
   { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
 ];
+
+// SVG Logo Component for 观星
+function GuanXingLogo({ className = "w-8 h-8" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" fill="none" aria-label="观星">
+      <circle cx="16" cy="16" r="14" fill="hsl(var(--primary))" />
+      <circle cx="16" cy="16" r="11" fill="hsl(var(--primary))" stroke="hsl(var(--primary-foreground))" strokeWidth="0.5" opacity="0.3" />
+      {/* Main star */}
+      <path d="M16 6L18.5 12.5H25L19.75 16.5L22 23L16 19L10 23L12.25 16.5L7 12.5H13.5L16 6Z" fill="hsl(var(--primary-foreground))" opacity="0.95" />
+      {/* Small stars */}
+      <circle cx="8" cy="8" r="1" fill="hsl(var(--primary-foreground))" opacity="0.6" />
+      <circle cx="25" cy="9" r="0.7" fill="hsl(var(--primary-foreground))" opacity="0.4" />
+      <circle cx="24" cy="24" r="0.8" fill="hsl(var(--primary-foreground))" opacity="0.5" />
+    </svg>
+  );
+}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -52,6 +74,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       ? location === "/" || location === ""
       : location.startsWith(path);
 
+  // Mobile: show max 5 items in bottom bar
+  const mobileNavItems = isGuest
+    ? visibleNavItems.slice(0, 5)
+    : [
+        NAV_ITEMS[0], // 今日运势
+        NAV_ITEMS[1], // 星座解读
+        NAV_ITEMS[2], // MBTI
+        NAV_ITEMS[3], // AI对话
+        NAV_ITEMS[8], // 互助社区
+      ];
+
   // ─── Mobile Layout ──────────────────────────────────────
   if (isMobile) {
     return (
@@ -59,10 +92,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Top bar */}
         <header className="h-12 border-b border-border flex items-center justify-between px-4 bg-card/50 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
-              <Heart className="w-3.5 h-3.5 text-primary-foreground" fill="currentColor" />
-            </div>
-            <span className="font-semibold text-sm">HeartAI</span>
+            <GuanXingLogo className="w-7 h-7" />
+            <span className="font-semibold text-sm">观星</span>
           </div>
           <div className="flex items-center gap-1">
             <Link href="/settings">
@@ -106,7 +137,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Bottom tab bar */}
         <nav className="border-t border-border bg-card/80 backdrop-blur-sm flex-shrink-0 safe-area-bottom" data-testid="bottom-nav">
           <div className="flex items-center justify-around h-14">
-            {visibleNavItems.map((item) => {
+            {mobileNavItems.map((item) => {
               const active = isActive(item.path);
               const Icon = item.icon;
               return (
@@ -117,7 +148,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                         ? "text-primary"
                         : "text-muted-foreground"
                     }`}
-                    data-testid={`nav-mobile-${item.path.replace("/", "") || "chat"}`}
+                    data-testid={`nav-mobile-${item.path.replace("/", "") || "home"}`}
                   >
                     <Icon className="w-5 h-5" />
                     <span className="text-[10px] leading-none">{item.label}</span>
@@ -140,10 +171,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-b border-border flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Heart className="w-4 h-4 text-primary-foreground" fill="currentColor" />
+              <GuanXingLogo />
+              <div className="flex flex-col">
+                <span className="font-semibold text-base leading-tight">观星</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">GuanXing</span>
               </div>
-              <span className="font-semibold text-base">HeartAI</span>
             </div>
           </Link>
           <Button
@@ -158,19 +190,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="p-3 space-y-1">
+        <nav className="p-3 space-y-1 overflow-y-auto flex-1">
           {visibleNavItems.map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
             return (
               <Link key={item.path} href={item.path}>
                 <div
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                     active
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   }`}
-                  data-testid={`nav-${item.path.replace("/", "") || "chat"}`}
+                  data-testid={`nav-${item.path.replace("/", "") || "home"}`}
                 >
                   <Icon className="w-4 h-4 flex-shrink-0" />
                   <span>{item.label}</span>
@@ -185,7 +217,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="px-3 mt-1">
             <Link href="/settings">
               <div
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                   isActive("/settings")
                     ? "bg-primary/10 text-primary font-medium"
                     : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
@@ -199,48 +231,47 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
         {/* User info or guest login prompt */}
-        {user ? (
-          <div className="px-3 pb-2">
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/30">
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <User className="w-3.5 h-3.5 text-primary" />
+        <div className="mt-auto">
+          {user ? (
+            <div className="px-3 pb-2">
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/5">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <User className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <span className="text-xs font-medium truncate flex-1">
+                  {user.nickname || user.username}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={logout}
+                  data-testid="button-logout"
+                >
+                  <LogOut className="w-3 h-3" />
+                </Button>
               </div>
-              <span className="text-xs font-medium truncate flex-1">
-                {user.nickname || user.username}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                onClick={logout}
-                data-testid="button-logout"
-              >
-                <LogOut className="w-3 h-3" />
-              </Button>
             </div>
-          </div>
-        ) : isGuest ? (
-          <div className="px-3 pb-2">
-            <Link href="/auth">
-              <div
-                className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 text-primary text-sm cursor-pointer hover:bg-primary/20 transition-colors"
-                onClick={logout}
-                data-testid="button-guest-login"
-              >
-                <LogIn className="w-4 h-4 flex-shrink-0" />
-                <span className="font-medium">登录 / 注册</span>
-              </div>
-            </Link>
-          </div>
-        ) : null}
+          ) : isGuest ? (
+            <div className="px-3 pb-2">
+              <Link href="/auth">
+                <div
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 text-primary text-sm cursor-pointer hover:bg-primary/20 transition-colors"
+                  onClick={logout}
+                  data-testid="button-guest-login"
+                >
+                  <LogIn className="w-4 h-4 flex-shrink-0" />
+                  <span className="font-medium">登录 / 注册</span>
+                </div>
+              </Link>
+            </div>
+          ) : null}
 
-        {/* Footer */}
-        <div className="p-3 border-t border-border">
-          <PerplexityAttribution />
+          {/* Footer */}
+          <div className="p-3 border-t border-border">
+            <PerplexityAttribution />
+          </div>
         </div>
       </aside>
 
