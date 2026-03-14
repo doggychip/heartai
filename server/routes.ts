@@ -10,10 +10,14 @@ import OpenAI from "openai";
 import lunisolar from "lunisolar";
 import theGods from "lunisolar/plugins/theGods";
 import takeSound from "lunisolar/plugins/takeSound";
+import fetalGod from "lunisolar/plugins/fetalGod";
+import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
 
-// Initialize lunisolar plugins
+// Initialize lunisolar plugins — locale must be loaded before fetalGod
+lunisolar.locale(theGodsZhCn);
 lunisolar.extend(theGods);
 lunisolar.extend(takeSound);
+lunisolar.extend(fetalGod);
 
 // ─── OpenClaw Webhook Integration (per-user) ─────────────────────
 // Fallback to global env vars if user has no personal config
@@ -1083,6 +1087,14 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
       let duty12 = '';
       let luckHours: number[] = [];
       let luckDirections: Record<string, string> = {};
+      let goodGods: string[] = [];
+      let badGods: string[] = [];
+      let by12God = '';
+      let life12God = '';
+      let fetalGodDesc = '';
+      let chong = '';
+      let sha = '';
+      let hourDetails: { name: string; luck: number; gods: string[] }[] = [];
 
       try {
         const rawActs = d.theGods.getActs();
@@ -1091,13 +1103,61 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         duty12 = d.theGods.getDuty12God()?.toString() || '';
         luckHours = d.theGods.getLuckHours();
 
+        // 吉神/凶神
+        try {
+          goodGods = d.theGods.getGoodGods('MD').map((g: any) => g.name || g.toString());
+          badGods = d.theGods.getBadGods('MD').map((g: any) => g.name || g.toString());
+        } catch {}
+
+        // 黄黑道十二神 (青龙/明堂等)
+        try {
+          by12God = d.theGods.getBy12God('day')?.toString() || '';
+        } catch {}
+
+        // 长生十二神
+        try {
+          life12God = d.theGods.getLife12God('day')?.toString() || '';
+        } catch {}
+
+        // 胎神占方
+        try {
+          fetalGodDesc = (d as any).fetalGod || '';
+        } catch {}
+
+        // 冲煞
+        try {
+          const dayBranch = d.char8.day.branch;
+          const conflictBranch = dayBranch.conflict;
+          const zodiacNames = ['鼠','牛','虎','兔','龙','蛇','马','羊','猴','鸡','狗','猪'];
+          const directionMap: Record<number, string> = { 0:'北', 1:'东北', 2:'东北', 3:'东', 4:'东南', 5:'东南', 6:'南', 7:'西南', 8:'西南', 9:'西', 10:'西北', 11:'西北' };
+          chong = `冲${zodiacNames[conflictBranch.value]}(${conflictBranch.toString()})`;
+          sha = `煞${directionMap[conflictBranch.value] || ''}`;
+        } catch {}
+
         // 吉神方位
-        const dirs = ['喜神', '福神', '財神'] as const;
+        const dirs = ['喜神', '福神', '財神', '陽貴', '陰貴'] as const;
         for (const god of dirs) {
           try {
             const [d24] = d.theGods.getLuckDirection(god);
             luckDirections[god] = d24?.direction || '';
           } catch {}
+        }
+
+        // 时辰详情
+        const hourNames = ['子时(23-1)', '丑时(1-3)', '寅时(3-5)', '卯时(5-7)', '辰时(7-9)', '巳时(9-11)', '午时(11-13)', '未时(13-15)', '申时(15-17)', '酉时(17-19)', '戌时(19-21)', '亥时(21-23)'];
+        try {
+          const allHourGods = d.theGods.getAllDayHourGods();
+          for (let i = 0; i < 12; i++) {
+            hourDetails.push({
+              name: hourNames[i],
+              luck: luckHours[i] || 0,
+              gods: (allHourGods[i] || []).map((g: any) => g.name || g.toString()),
+            });
+          }
+        } catch {
+          for (let i = 0; i < 12; i++) {
+            hourDetails.push({ name: hourNames[i], luck: luckHours[i] || 0, gods: [] });
+          }
         }
       } catch (e) {
         console.error('theGods error:', e);
@@ -1114,10 +1174,100 @@ Returns recent posts, replies, unread notifications, and smart suggestions for w
         duty12,
         luckHours,
         luckDirections,
+        goodGods,
+        badGods,
+        by12God,
+        life12God,
+        fetalGodDesc,
+        chong,
+        sha,
+        hourDetails,
       });
     } catch (err) {
       console.error('Almanac error:', err);
       res.status(500).json({ error: 'Failed to get almanac data' });
+    }
+  });
+
+  // 多历法转换 — Multi-calendar conversion
+  app.get("/api/calendar/multi", async (req, res) => {
+    try {
+      const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+      const date = new Date(dateStr);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+
+      // 佛历 (Buddhist Era) = 公历年 + 543
+      const buddhistYear = year + 543;
+      const buddhistDate = `佛历${buddhistYear}年${month}月${day}日`;
+
+      // 道历 (Taoist calendar) = 公历年 + 2697 (从黄帝纪年开始)
+      const taoistYear = year + 2697;
+      const taoistDate = `道历${taoistYear}年${month}月${day}日`;
+
+      // 回历/伊斯兰历 (Islamic Hijri Calendar)
+      // Using the Kuwaiti algorithm for Hijri conversion
+      function gregorianToHijri(gy: number, gm: number, gd: number) {
+        const jd = Math.floor((1461 * (gy + 4800 + Math.floor((gm - 14) / 12))) / 4)
+          + Math.floor((367 * (gm - 2 - 12 * Math.floor((gm - 14) / 12))) / 12)
+          - Math.floor((3 * Math.floor((gy + 4900 + Math.floor((gm - 14) / 12)) / 100)) / 4)
+          + gd - 32075;
+        const l = jd - 1948440 + 10632;
+        const n = Math.floor((l - 1) / 10631);
+        const lRem = l - 10631 * n + 354;
+        const j = Math.floor((10985 - lRem) / 5316) * Math.floor((50 * lRem) / 17719)
+          + Math.floor(lRem / 5670) * Math.floor((43 * lRem) / 15238);
+        const lFinal = lRem - Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50)
+          - Math.floor(j / 16) * Math.floor((15238 * j) / 43) + 29;
+        const hm = Math.floor((24 * lFinal) / 709);
+        const hd = lFinal - Math.floor((709 * hm) / 24);
+        const hy = 30 * n + j - 30;
+        return { year: hy, month: hm, day: hd };
+      }
+
+      const hijri = gregorianToHijri(year, month, day);
+      const hijriMonths = [
+        '穆哈兰姆', '萨法尔', '赖比尔·奥伐尔', '赖比尔·塞尼',
+        '主马达·奥拉', '主马达·塞尼', '莱驶卜', '舍尔邦',
+        '赖买丹', '闪瓦尔', '都尔喀尔德', '都尔希吉来'
+      ];
+      const hijriDate = `回历${hijri.year}年${hijriMonths[hijri.month - 1] || hijri.month}月${hijri.day}日`;
+
+      // 农历信息
+      const lsr = lunisolar(dateStr);
+      const lunarDate = `农历${lsr.format('lMlD')}`;
+
+      // 干支纪年
+      const ganzhiYear = lsr.format('cY');
+
+      // 星期
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      const weekday = `星期${weekdays[date.getDay()]}`;
+
+      res.json({
+        date: dateStr,
+        gregorian: `公历${year}年${month}月${day}日`,
+        lunar: lunarDate,
+        ganzhiYear,
+        buddhist: buddhistDate,
+        buddhistYear,
+        taoist: taoistDate,
+        taoistYear,
+        hijri: hijriDate,
+        hijriYear: hijri.year,
+        hijriMonth: hijriMonths[hijri.month - 1] || `${hijri.month}`,
+        hijriDay: hijri.day,
+        weekday,
+        description: {
+          buddhist: '佛历以佛祖释迦牟尼涵槃之年为元年，比公历早543年。泰国、缅甸、斯里兰卡等佛教国家使用。',
+          taoist: '道历以黄帝纪年元年为起算，比公历早2697年。为中国道教传统历法。',
+          hijri: '伊斯兰历以先知穆罕默德迁徒之年为元年(622CE)，为纯太阴历，每年约354-355天。',
+        },
+      });
+    } catch (err) {
+      console.error('Multi-calendar error:', err);
+      res.status(500).json({ error: 'Failed to convert calendar' });
     }
   });
 

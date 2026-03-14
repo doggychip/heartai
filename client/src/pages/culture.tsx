@@ -39,7 +39,9 @@ import {
   Users,
   Dice5,
   Send,
+  Globe,
 } from "lucide-react";
+import { Link } from "wouter";
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -150,6 +152,23 @@ interface DivinationData {
   };
 }
 
+interface MultiCalendarData {
+  date: string;
+  gregorian: string;
+  lunar: string;
+  ganzhiYear: string;
+  buddhist: string;
+  buddhistYear: number;
+  taoist: string;
+  taoistYear: number;
+  hijri: string;
+  hijriYear: number;
+  hijriMonth: string;
+  hijriDay: number;
+  weekday: string;
+  description: { buddhist: string; taoist: string; hijri: string };
+}
+
 // ─── Constants ─────────────────────────────────────────
 
 const ELEMENT_COLORS: Record<string, { bg: string; text: string; icon: any; ring: string }> = {
@@ -205,6 +224,11 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
     queryKey: ["/api/culture/almanac"],
   });
 
+  const { data: multiCal } = useQuery<MultiCalendarData>({
+    queryKey: ["/api/calendar/multi"],
+    queryFn: () => apiRequest("GET", "/api/calendar/multi").then(r => r.json()),
+  });
+
   const seasonInfo = almanac ? (SEASON_MAP[almanac.season] || SEASON_MAP["春"]) : SEASON_MAP["春"];
 
   return (
@@ -256,23 +280,29 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
           { view: "fortune" as CultureView, icon: Sparkles, label: "每日运势", desc: "AI智能解读", color: "text-purple-500", bg: "bg-purple-500/10" },
           { view: "divination" as CultureView, icon: Dice5, label: "AI占卜", desc: "六爻问卦", color: "text-indigo-500", bg: "bg-indigo-500/10" },
           { view: "compatibility" as CultureView, icon: Users, label: "缘分合盘", desc: "双人五行", color: "text-pink-500", bg: "bg-pink-500/10" },
-          { view: "almanac" as CultureView, icon: Scroll, label: "每日黄历", desc: "宜忌·时辰", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
+          { view: "almanac" as CultureView, icon: Scroll, label: "万年黄历", desc: "宜忌·神煞·吉时", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10", linkTo: "/almanac" },
           { view: "bazi" as CultureView, icon: Compass, label: "八字排盘", desc: "五行分析", color: "text-teal-600 dark:text-teal-400", bg: "bg-teal-500/10" },
           { view: "solar" as CultureView, icon: Leaf, label: "节气养生", desc: "食物·运动", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
-        ].map((item) => (
-          <Card
-            key={item.view}
-            className="p-3 cursor-pointer hover:bg-accent/50 transition-colors active:scale-[0.98]"
-            onClick={() => onNavigate(item.view)}
-            data-testid={`culture-nav-${item.view}`}
-          >
-            <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center mb-2`}>
-              <item.icon className={`w-4.5 h-4.5 ${item.color}`} />
-            </div>
-            <div className="text-xs font-medium">{item.label}</div>
-            <div className="text-[10px] text-muted-foreground">{item.desc}</div>
-          </Card>
-        ))}
+        ].map((item) => {
+          const cardContent = (
+            <Card
+              key={item.view}
+              className="p-3 cursor-pointer hover:bg-accent/50 transition-colors active:scale-[0.98]"
+              onClick={'linkTo' in item ? undefined : () => onNavigate(item.view)}
+              data-testid={`culture-nav-${item.view}`}
+            >
+              <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center mb-2`}>
+                <item.icon className={`w-4.5 h-4.5 ${item.color}`} />
+              </div>
+              <div className="text-xs font-medium">{item.label}</div>
+              <div className="text-[10px] text-muted-foreground">{item.desc}</div>
+            </Card>
+          );
+          if ('linkTo' in item && (item as any).linkTo) {
+            return <Link key={item.view} href={(item as any).linkTo}>{cardContent}</Link>;
+          }
+          return cardContent;
+        })}
       </div>
 
       {/* Quick Info Cards */}
@@ -300,6 +330,37 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* 多历法展示 */}
+      {multiCal && (
+        <Card className="p-4 border-purple-200/40 dark:border-purple-900/30" data-testid="multi-calendar-card">
+          <div className="flex items-center gap-2 mb-3">
+            <Globe className="w-4 h-4 text-purple-500" />
+            <span className="text-xs font-medium">多历法展示</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { icon: '☸️', label: '佛历', value: `${multiCal.buddhistYear}年`, color: 'text-amber-600 dark:text-amber-400' },
+              { icon: '☯️', label: '道历', value: `${multiCal.taoistYear}年`, color: 'text-blue-600 dark:text-blue-400' },
+              { icon: '☪️', label: '回历', value: `${multiCal.hijriYear}年`, color: 'text-green-600 dark:text-green-400' },
+              { icon: '🌙', label: '农历', value: multiCal.lunar.replace('农历', ''), color: 'text-purple-600 dark:text-purple-400' },
+            ].map((cal) => (
+              <div key={cal.label} className="flex items-center gap-2 p-2 rounded-lg bg-accent/30">
+                <span className="text-sm">{cal.icon}</span>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">{cal.label}</div>
+                  <div className={`text-xs font-bold ${cal.color}`}>{cal.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <Link href="/almanac">
+            <Button variant="ghost" className="w-full mt-2 text-xs text-purple-500 hover:text-purple-600 h-7" data-testid="btn-view-almanac">
+              查看完整黄历 →
+            </Button>
+          </Link>
+        </Card>
       )}
     </div>
   );
