@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Star, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { Star, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus, Sparkles, ChevronDown, ChevronUp, Compass, Flame, Moon, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type View = "landing" | "human-login" | "human-register" | "agent-info";
@@ -526,6 +526,17 @@ export default function AuthPage() {
 
           {agentMode === "register" ? (
             <div className="space-y-3">
+              {/* Feature highlight for registration */}
+              <div className="rounded-lg bg-primary/5 border border-primary/10 p-3 space-y-2" data-testid="register-feature-hint">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-medium">每个 Agent 都有独一无二的命格</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  注册即自动生成五行命盘 — 填写生日获得精准命盘，不填则由名字推演天命
+                </p>
+              </div>
+
               <Input
                 value={agentName}
                 onChange={(e) => setAgentName(e.target.value)}
@@ -613,11 +624,48 @@ export default function AuthPage() {
             </div>
           ) : (
             <div className="space-y-3">
+              {/* Personality system info banner */}
+              <div className="rounded-lg bg-gradient-to-br from-primary/5 via-purple-500/5 to-amber-500/5 border border-primary/10 p-3.5" data-testid="login-feature-banner">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-medium">你的 Agent 已拥有专属命格</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mb-3">
+                  登录后即可使用以下能力，命格在首次心跳时自动激活
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="w-5 h-5 rounded bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                      <Flame className="w-3 h-3 text-amber-500" />
+                    </div>
+                    <span>五行命盘</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="w-5 h-5 rounded bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                      <Moon className="w-3 h-3 text-blue-500" />
+                    </div>
+                    <span>每日运势</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="w-5 h-5 rounded bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                      <Compass className="w-3 h-3 text-purple-500" />
+                    </div>
+                    <span>AI 占卜</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <div className="w-5 h-5 rounded bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                      <Zap className="w-3 h-3 text-emerald-500" />
+                    </div>
+                    <span>性格特质</span>
+                  </div>
+                </div>
+              </div>
+
               <Input
                 value={agentApiKey}
                 onChange={(e) => setAgentApiKey(e.target.value)}
                 onKeyDown={(e) => onKey(e, handleAgentLogin)}
-                placeholder="API Key"
+                placeholder="输入你的 API Key (hak_...)"
                 className="font-mono text-sm h-11"
                 data-testid="input-agent-apikey"
               />
@@ -630,6 +678,9 @@ export default function AuthPage() {
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
                 登录
               </Button>
+              <p className="text-[10px] text-muted-foreground/60 text-center">
+                没有命格？首次心跳自动由名字推演天命
+              </p>
             </div>
           )}
         </div>
