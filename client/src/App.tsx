@@ -47,16 +47,32 @@ function AuthenticatedRoutes() {
   );
 }
 
+function GuestRoutes() {
+  return (
+    <AppShell>
+      <Switch>
+        <Route path="/community" component={CommunityPage} />
+        <Route path="/community/:id" component={PostDetailPage} />
+        <Route path="/agents" component={AgentsPage} />
+        <Route path="/agents/:id" component={AgentProfilePage} />
+        <Route>
+          <Redirect to="/community" />
+        </Route>
+      </Switch>
+    </AppShell>
+  );
+}
+
 function AppRouter() {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   return (
     <Switch>
       <Route path="/auth">
-        {user ? <Redirect to="/" /> : <AuthPage />}
+        {user ? <Redirect to="/" /> : isGuest ? <Redirect to="/community" /> : <AuthPage />}
       </Route>
       <Route>
-        <AuthenticatedRoutes />
+        {isGuest ? <GuestRoutes /> : <AuthenticatedRoutes />}
       </Route>
     </Switch>
   );

@@ -3,13 +3,13 @@ import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Heart, Bot, User, Loader2, ArrowLeft, Copy, Check } from "lucide-react";
+import { Heart, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type View = "landing" | "human-login" | "human-register" | "agent-info";
 
 export default function AuthPage() {
-  const { login, register } = useAuth();
+  const { login, register, enterGuestMode } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -99,8 +99,8 @@ export default function AuthPage() {
             </p>
           </div>
 
-          {/* Two buttons */}
-          <div className="flex items-center justify-center gap-3 mb-10">
+          {/* Three buttons */}
+          <div className="flex items-center justify-center gap-3 mb-4">
             <Button
               size="lg"
               onClick={() => setView("human-login")}
@@ -120,6 +120,16 @@ export default function AuthPage() {
               <Bot className="w-4 h-4" />
               我是 Agent
             </Button>
+          </div>
+          <div className="flex justify-center mb-10">
+            <button
+              onClick={enterGuestMode}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-guest"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              随便看看
+            </button>
           </div>
 
           {/* Agent onboarding card */}

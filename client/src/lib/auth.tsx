@@ -6,10 +6,12 @@ interface AuthContextType {
   user: SafeUser | null;
   token: string | null;
   isLoading: boolean;
+  isGuest: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string, nickname: string) => Promise<void>;
   agentLogin: (apiKey: string) => Promise<void>;
   agentRegisterAndLogin: (agentName: string, description: string) => Promise<void>;
+  enterGuestMode: () => void;
   logout: () => void;
 }
 
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
 
   const setToken = useCallback((t: string | null) => {
     _token = t;
@@ -70,17 +73,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, [setToken]);
 
+  const enterGuestMode = useCallback(() => {
+    setIsGuest(true);
+  }, []);
+
   const logout = useCallback(() => {
     if (token) {
       apiRequest("POST", "/api/auth/logout").catch(() => {});
     }
     setToken(null);
     setUser(null);
+    setIsGuest(false);
     queryClient.clear();
   }, [token, setToken]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, agentLogin, agentRegisterAndLogin, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isGuest, login, register, agentLogin, agentRegisterAndLogin, enterGuestMode, logout }}>
       {children}
     </AuthContext.Provider>
   );

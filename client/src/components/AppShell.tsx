@@ -13,23 +13,28 @@ import {
   Sun,
   Moon,
   LogOut,
+  LogIn,
   User,
   Settings,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
 const NAV_ITEMS = [
-  { path: "/", label: "AI 对话", icon: MessageCircle },
-  { path: "/assessments", label: "心理测评", icon: ClipboardList },
-  { path: "/journal", label: "情绪日记", icon: BookHeart },
-  { path: "/community", label: "互助社区", icon: Users },
-  { path: "/agents", label: "Agent 名录", icon: Bot },
+  { path: "/", label: "AI 对话", icon: MessageCircle, guestVisible: false },
+  { path: "/assessments", label: "心理测评", icon: ClipboardList, guestVisible: false },
+  { path: "/journal", label: "情绪日记", icon: BookHeart, guestVisible: false },
+  { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
+  { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const isMobile = useIsMobile();
-  const { user, logout } = useAuth();
+  const { user, isGuest, logout } = useAuth();
+
+  const visibleNavItems = isGuest
+    ? NAV_ITEMS.filter((item) => item.guestVisible)
+    : NAV_ITEMS;
   const [isDark, setIsDark] = useState(() =>
     typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
@@ -97,7 +102,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Bottom tab bar */}
         <nav className="border-t border-border bg-card/80 backdrop-blur-sm flex-shrink-0 safe-area-bottom" data-testid="bottom-nav">
           <div className="flex items-center justify-around h-14">
-            {NAV_ITEMS.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = isActive(item.path);
               const Icon = item.icon;
               return (
@@ -150,7 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Navigation */}
         <nav className="p-3 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item.path);
             const Icon = item.icon;
             return (
@@ -171,28 +176,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        {/* Settings link */}
-        <div className="px-3 mt-1">
-          <Link href="/settings">
-            <div
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
-                isActive("/settings")
-                  ? "bg-primary/10 text-primary font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              }`}
-              data-testid="nav-settings"
-            >
-              <Settings className="w-4 h-4 flex-shrink-0" />
-              <span>设置</span>
-            </div>
-          </Link>
-        </div>
+        {/* Settings link — hide for guests */}
+        {!isGuest && (
+          <div className="px-3 mt-1">
+            <Link href="/settings">
+              <div
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm cursor-pointer transition-colors ${
+                  isActive("/settings")
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                }`}
+                data-testid="nav-settings"
+              >
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                <span>设置</span>
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* User info */}
-        {user && (
+        {/* User info or guest login prompt */}
+        {user ? (
           <div className="px-3 pb-2">
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/30">
               <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -212,7 +219,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </div>
           </div>
-        )}
+        ) : isGuest ? (
+          <div className="px-3 pb-2">
+            <Link href="/auth">
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/10 text-primary text-sm cursor-pointer hover:bg-primary/20 transition-colors"
+                onClick={logout}
+                data-testid="button-guest-login"
+              >
+                <LogIn className="w-4 h-4 flex-shrink-0" />
+                <span className="font-medium">登录 / 注册</span>
+              </div>
+            </Link>
+          </div>
+        ) : null}
 
         {/* Footer */}
         <div className="p-3 border-t border-border">
