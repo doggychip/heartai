@@ -7,6 +7,13 @@ import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
+import lunisolar from "lunisolar";
+import theGods from "lunisolar/plugins/theGods";
+import takeSound from "lunisolar/plugins/takeSound";
+
+// Initialize lunisolar plugins
+lunisolar.extend(theGods);
+lunisolar.extend(takeSound);
 
 // ─── OpenClaw Webhook Integration (per-user) ─────────────────────
 // Fallback to global env vars if user has no personal config
@@ -941,6 +948,231 @@ GET https://heartai.zeabur.app/api/agents
     }
   });
 
+  // ─── Chinese Culture / 国粹频道 APIs ────────────────────
+
+  // 每日黄历 — Today’s almanac data
+  app.get("/api/culture/almanac", async (req, res) => {
+    try {
+      const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+      const d = lunisolar(dateStr);
+
+      // Lunar info
+      const lunar = {
+        year: d.lunar.year,
+        month: d.lunar.month,
+        day: d.lunar.day,
+        yearName: d.format('lY'),
+        monthName: d.lunar.getMonthName(),
+        dayName: d.lunar.getDayName(),
+        isLeap: d.lunar.isLeapMonth,
+        zodiac: d.format('cZ'),
+      };
+
+      // 八字四柱
+      const bazi = {
+        full: d.char8.toString(),
+        year: { stem: d.char8.year.stem.toString(), branch: d.char8.year.branch.toString(), pillar: d.char8.year.toString() },
+        month: { stem: d.char8.month.stem.toString(), branch: d.char8.month.branch.toString(), pillar: d.char8.month.toString() },
+        day: { stem: d.char8.day.stem.toString(), branch: d.char8.day.branch.toString(), pillar: d.char8.day.toString() },
+        hour: { stem: d.char8.hour.stem.toString(), branch: d.char8.hour.branch.toString(), pillar: d.char8.hour.toString() },
+      };
+
+      // 五行纳音
+      const nayin = {
+        year: d.char8.year.takeSound?.toString() || '',
+        month: d.char8.month.takeSound?.toString() || '',
+        day: d.char8.day.takeSound?.toString() || '',
+        hour: d.char8.hour.takeSound?.toString() || '',
+      };
+
+      // 节气
+      const solarTerm = d.solarTerm?.toString() || null;
+      const season = d.getSeason();
+
+      // 神煞宜忌
+      let acts = { good: [] as string[], bad: [] as string[] };
+      let duty12 = '';
+      let luckHours: number[] = [];
+      let luckDirections: Record<string, string> = {};
+
+      try {
+        const rawActs = d.theGods.getActs();
+        acts.good = rawActs.good || [];
+        acts.bad = rawActs.bad || [];
+        duty12 = d.theGods.getDuty12God()?.toString() || '';
+        luckHours = d.theGods.getLuckHours();
+
+        // 吉神方位
+        const dirs = ['喜神', '福神', '財神'] as const;
+        for (const god of dirs) {
+          try {
+            const [d24] = d.theGods.getLuckDirection(god);
+            luckDirections[god] = d24?.direction || '';
+          } catch {}
+        }
+      } catch (e) {
+        console.error('theGods error:', e);
+      }
+
+      res.json({
+        date: dateStr,
+        lunar,
+        bazi,
+        nayin,
+        solarTerm,
+        season,
+        acts,
+        duty12,
+        luckHours,
+        luckDirections,
+      });
+    } catch (err) {
+      console.error('Almanac error:', err);
+      res.status(500).json({ error: 'Failed to get almanac data' });
+    }
+  });
+
+  // 八字分析 — Calculate Bazi from birth datetime
+  app.post("/api/culture/bazi", async (req, res) => {
+    try {
+      const { year, month, day, hour } = req.body;
+      if (!year || !month || !day) {
+        return res.status(400).json({ error: '请提供出生年月日' });
+      }
+
+      const hourVal = hour !== undefined ? parseInt(hour) : 12;
+      const dateStr = `${year}/${month}/${day} ${hourVal}:00`;
+      const d = lunisolar(dateStr);
+
+      // 四柱详情
+      const pillars = ['year', 'month', 'day', 'hour'] as const;
+      const pillarData = pillars.map(p => {
+        const pillar = d.char8[p];
+        const stem = pillar.stem;
+        const branch = pillar.branch;
+        return {
+          name: p === 'year' ? '年柱' : p === 'month' ? '月柱' : p === 'day' ? '日柱' : '时柱',
+          pillar: pillar.toString(),
+          stem: stem.toString(),
+          branch: branch.toString(),
+          stemElement: getStemElement(stem.toString()),
+          branchElement: getBranchElement(branch.toString()),
+          nayin: pillar.takeSound?.toString() || '',
+          hiddenStems: branch.hiddenStems?.map((s: any) => s.toString()) || [],
+        };
+      });
+
+      // 五行统计
+      const elementCount: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+      for (const p of pillarData) {
+        if (p.stemElement && elementCount[p.stemElement] !== undefined) elementCount[p.stemElement]++;
+        if (p.branchElement && elementCount[p.branchElement] !== undefined) elementCount[p.branchElement]++;
+      }
+
+      // 日主 (日柱天干)
+      const dayMaster = d.char8.day.stem.toString();
+      const dayMasterElement = getStemElement(dayMaster);
+
+      // 生肖
+      const zodiac = d.format('cZ');
+
+      // 性格/情绪倾向分析 (基于五行)
+      const personality = getElementPersonality(dayMasterElement, elementCount);
+
+      res.json({
+        birthDate: `${year}-${month}-${day}`,
+        birthHour: hourVal,
+        fullBazi: d.char8.toString(),
+        pillars: pillarData,
+        dayMaster,
+        dayMasterElement,
+        zodiac,
+        elementCount,
+        personality,
+      });
+    } catch (err) {
+      console.error('Bazi calculation error:', err);
+      res.status(500).json({ error: 'Failed to calculate Bazi' });
+    }
+  });
+
+  // 节气养生数据
+  app.get("/api/culture/solar-terms", async (req, res) => {
+    try {
+      const now = lunisolar();
+      const currentTerm = now.solarTerm?.toString() || null;
+
+      // Find the most recent and next solar terms
+      let recentTerm = currentTerm;
+      let recentDate = '';
+      let nextTerm = '';
+      let nextDate = '';
+
+      // Search backward for recent term
+      for (let i = 0; i <= 30; i++) {
+        const check = lunisolar(new Date(Date.now() - i * 86400000));
+        if (check.solarTerm) {
+          recentTerm = check.solarTerm.toString();
+          recentDate = check.format('YYYY-MM-DD');
+          break;
+        }
+      }
+
+      // Search forward for next term
+      for (let i = 1; i <= 30; i++) {
+        const check = lunisolar(new Date(Date.now() + i * 86400000));
+        if (check.solarTerm) {
+          nextTerm = check.solarTerm.toString();
+          nextDate = check.format('YYYY-MM-DD');
+          break;
+        }
+      }
+
+      const season = now.getSeason();
+      const wellness = getSolarTermWellness(recentTerm || '');
+
+      res.json({
+        currentTerm,
+        recentTerm,
+        recentDate,
+        nextTerm,
+        nextDate,
+        season,
+        wellness,
+        lunarDate: now.lunar.toString(),
+      });
+    } catch (err) {
+      console.error('Solar terms error:', err);
+      res.status(500).json({ error: 'Failed to get solar terms data' });
+    }
+  });
+
+  // 情绪日历增强 — 返回指定月份的农历+节气信息
+  app.get("/api/culture/lunar-month", async (req, res) => {
+    try {
+      const year = parseInt(req.query.year as string) || new Date().getFullYear();
+      const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+
+      const days: any[] = [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = lunisolar(`${year}/${month}/${day}`);
+        days.push({
+          day,
+          lunarDay: d.lunar.getDayName(),
+          lunarMonth: d.lunar.getMonthName(),
+          solarTerm: d.solarTerm?.toString() || null,
+          isFirstLunarDay: d.lunar.day === 1,
+        });
+      }
+
+      res.json({ year, month, days });
+    } catch (err) {
+      console.error('Lunar month error:', err);
+      res.status(500).json({ error: 'Failed to get lunar month data' });
+    }
+  });
+
   // ─── Mood Journal Routes (auth required) ──────────────────────
   app.get("/api/mood", requireAuth, async (req, res) => {
     const entries = await storage.getMoodEntriesByUser(getUserId(req));
@@ -1679,4 +1911,145 @@ GET https://heartai.zeabur.app/api/agents
   startBotAutoPost();
 
   return httpServer;
+}
+
+// ─── Chinese Culture Helper Functions ──────────────────────────
+
+function getStemElement(stem: string): string {
+  const map: Record<string, string> = {
+    '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土',
+    '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
+  };
+  return map[stem] || '';
+}
+
+function getBranchElement(branch: string): string {
+  const map: Record<string, string> = {
+    '子': '水', '丑': '土', '寅': '木', '卯': '木', '辰': '土', '巳': '火',
+    '午': '火', '未': '土', '申': '金', '酉': '金', '戌': '土', '亥': '水',
+  };
+  return map[branch] || '';
+}
+
+function getElementPersonality(dayMasterElement: string, counts: Record<string, number>): {
+  traits: string[];
+  emotionTendency: string;
+  strengths: string[];
+  advice: string;
+} {
+  const elementTraits: Record<string, { traits: string[]; emotion: string; strengths: string[]; advice: string }> = {
+    '木': {
+      traits: ['仁慈善良', '富有同情心', '追求成长', '正直坚韧'],
+      emotion: '内心充满生机与希望，但在压力下容易变得优柔寡断。情绪像树木一样需要空间和时间来生长。',
+      strengths: ['善于倾听他人', '有自我疗愈能力', '适应力强'],
+      advice: '建议多接触自然，森林浴或户外活动能帮助你重获能量。当情绪低落时，试试园艺或散步。',
+    },
+    '火': {
+      traits: ['热情开朗', '充满活力', '富有感染力', '直觉敏锐'],
+      emotion: '情绪强烈而直接，想笑就笑，想哭就哭。容易急躁但也很快平复。',
+      strengths: ['能快速释放情绪', '感染力强', '乐观积极'],
+      advice: '建议通过运动或创造性活动来释放多余的精力。冥想和深呼吸能帮助你找到内心平静。',
+    },
+    '土': {
+      traits: ['稳重踏实', '包容大度', '重视信任', '耐心坚毅'],
+      emotion: '情绪稳定且持久，不易波动。但一旦累积了太多压力，可能会突然爆发。',
+      strengths: ['情绪稳定性高', '是别人的心理支柱', '善于自我调节'],
+      advice: '注意不要过度压抑情绪，定期找信任的人倾诉。美食和舒适的环境能帮助你放松。',
+    },
+    '金': {
+      traits: ['果断坚定', '重视原则', '追求完美', '正义感强'],
+      emotion: '外表冷静理性，内心却很敏感。很难表达脆弱的一面，但其实非常需要温暖。',
+      strengths: ['自律性强', '善于理性分析情绪', '执行力高'],
+      advice: '尝试通过音乐、写作或艺术来表达内心情感。不要拒绝接受帮助，示弱不是软弱。',
+    },
+    '水': {
+      traits: ['智慧灵活', '善于沟通', '富有想象力', '适应性极强'],
+      emotion: '情绪流动性强，像水一样变化多端。容易共情他人，但也容易被周围情绪影响。',
+      strengths: ['共情能力强', '情绪恢复快', '创造力丰富'],
+      advice: '保护好自己的情绪边界，不要过度吸收他人的情绪。泳泳和泡澡能帮助你重设心情。',
+    },
+  };
+
+  const base = elementTraits[dayMasterElement] || elementTraits['土'];
+
+  // 五行失衡补充分析
+  const total = Object.values(counts).reduce((s, v) => s + v, 0);
+  const weakElements = Object.entries(counts).filter(([_, c]) => c === 0).map(([e]) => e);
+  const strongElements = Object.entries(counts).filter(([_, c]) => c >= 3).map(([e]) => e);
+
+  let balanceAdvice = '';
+  if (weakElements.length > 0) {
+    const elementAdvice: Record<string, string> = {
+      '金': '缺金者可多听音乐、佩戴金属饰品，培养果断力',
+      '木': '缺木者建议多接触植物和自然，培养成长思维',
+      '水': '缺水者可多喝水、游泳，培养灵活思考与沟通能力',
+      '火': '缺火者建议多社交、运动，培养热情和行动力',
+      '土': '缺土者建议建立稳定的日常作息，培养耐心和踏实感',
+    };
+    balanceAdvice = weakElements.map(e => elementAdvice[e]).join('。');
+  }
+
+  return {
+    traits: base.traits,
+    emotionTendency: base.emotion,
+    strengths: base.strengths,
+    advice: base.advice + (balanceAdvice ? `。另外，${balanceAdvice}。` : ''),
+  };
+}
+
+function getSolarTermWellness(term: string): {
+  name: string;
+  description: string;
+  wellness: string[];
+  emotionGuide: string;
+  foods: string[];
+  exercise: string;
+} {
+  const data: Record<string, { desc: string; wellness: string[]; emotion: string; foods: string[]; exercise: string }> = {
+    '立春': { desc: '万物复苏，春更序幕拉开', wellness: ['早睡早起，顺应春生', '舒展筋骨，多做伸展'], emotion: '春主肝气，容易急躁易怒。建议多到户外活动，保持心情舒畅。', foods: ['豆芽', '韭菜', '菠菜', '芹菜'], exercise: '踏青、太极拳、散步' },
+    '雨水': { desc: '冰雪消融，春雨开始润泽大地', wellness: ['防春寒，注意保暖', '健脾祁湿'], emotion: '注意情绪的“春困”现象，保持规律作息。', foods: ['山药', '红枣', '蒸饼', '小米粥'], exercise: '慢跑、瑜伽' },
+    '惊蛰': { desc: '春雷惊百虫，天气回暖', wellness: ['春将到，要注意防风', '养胝护肝'], emotion: '惊蛰时节能量上升，是开始新计划的好时机。', foods: ['梨', '菊花茶', '枕头', '莲子'], exercise: '爬山、快走' },
+    '春分': { desc: '昨夜平分，昼夜等长', wellness: ['调和阴阳，均衡饮食', '早睡早起'], emotion: '春分是平衡的时刻，适合反思生活中的平衡感。', foods: ['香樽', '豆腐', '时令青菜'], exercise: '太极拳、散步、放风筝' },
+    '清明': { desc: '天清地明，万物显现', wellness: ['戾胝开胃', '多食清淡'], emotion: '清明尝触发思念与感伤，允许自己悲伤，也可与家人团聚慰籍。', foods: ['青团', '芒果', '菊花茶'], exercise: '踏青、户外散心' },
+    '谷雨': { desc: '雨生百谷，播种好时节', wellness: ['补水祁湿', '保护脊背'], emotion: '播种的季节，适合设定新目标，培养希望感。', foods: ['藤茶', '菊花茶', '绿豆汤'], exercise: '户外徒步、自车' },
+    '立夏': { desc: '夏季开始，万物繁茂', wellness: ['清心火，养心经', '早睡早起'], emotion: '夏季心火旺盛，注意控制急躁，保持内心宁静。', foods: ['苦瓜', '绿豆', '莲子', '西瓜'], exercise: '游泳、晚间散步' },
+    '小满': { desc: '小得盈满，小满则安', wellness: ['清热利湿', '饮食清淡'], emotion: '小满寓意知足常乐，反思生活中已拥有的幸福。', foods: ['蓣白', '蓒头', '若菜'], exercise: '缓跑、瑜伽' },
+    '芒种': { desc: '有芒的作物开始播种', wellness: ['防晒消暑', '补充水分'], emotion: '忙磌时节，关注工作生活平衡，避免过度劳累。', foods: ['藤茶', '酸梅汤', '山椰'], exercise: '晚间散步、游泳' },
+    '夏至': { desc: '白昂最长，阳气至极', wellness: ['消暑清心', '午休养神'], emotion: '阳气最旺，容易兴奋但也容易耗散。注意休息，保存精力。', foods: ['西瓜', '苦瓜', '绿豆汤', '酸梨汤'], exercise: '早起运动、游泳' },
+    '小暑': { desc: '天气开始炎热', wellness: ['防暑降温', '清淡饮食'], emotion: '热天容易心烦气躁，找到自己的清凉方式。', foods: ['莲藕', '黄瓜', '绿豆汤'], exercise: '游泳、室内瑜伽' },
+    '大暑': { desc: '一年中最热的时节', wellness: ['避开高温，多补水', '养心安神'], emotion: '炒热天气影响情绪，试试茶道、书法等静心活动。', foods: ['冬瓜', '荷叶茶', '绿豆水', '酸梅汤'], exercise: '清晨散步、室内运动' },
+    '立秋': { desc: '秋季开始，暑去凉来', wellness: ['润肺防燥', '早睡早起'], emotion: '秋天容易悲伤，积极开展户外活动，感受秋高气爽。', foods: ['雪梨', '银耳', '百合', '蜂蜜'], exercise: '父山、慢跑' },
+    '处暑': { desc: '暑气渐消，秋意渐浓', wellness: ['调理脾胃', '缓解秋乏'], emotion: '季节过渡期，身体开始调整，给自己更多耐心。', foods: ['鸭肉', '百合', '银耳汤'], exercise: '散步、太极拳' },
+    '白露': { desc: '露凝而白，秋寒渐重', wellness: ['润肺润燥', '保护呼吸道'], emotion: '秋意渐浓，反思过去、感恩当下，培养内心的富足感。', foods: ['红薯', '芝麻', '核桃', '百合'], exercise: '立秋操、由山' },
+    '秋分': { desc: '昼夜平分，秋色平分', wellness: ['滙阴润肺', '防寒保暖'], emotion: '秋分是平衡的象征，审视生活中的平衡，调整节奏。', foods: ['芹菜', '百合', '雪梨', '莲藕'], exercise: '登山、骑行' },
+    '寒露': { desc: '寒气渐重，露水将凝', wellness: ['防寒保暖', '斜补肾气'], emotion: '天气转凉，注意保暖也要温暖内心，多与亲友联系。', foods: ['羊肉', '百合', '银耳', '大枣'], exercise: '太极拳、室内健身' },
+    '霜降': { desc: '初霜出现，深秋已至', wellness: ['养胃暖身', '补气养血'], emotion: '深秋常带来孤独感，主动寻找温暖的人际连接。', foods: ['山药', '栗子', '鱼汤', '红枣'], exercise: '登高望远、慢跑' },
+    '立冬': { desc: '冬季开始，万物收藏', wellness: ['封藏补肾', '早睡晚起'], emotion: '冬天适合内省和休息，不要强迫自己太积极，学会享受安静。', foods: ['羊肉', '姜汤', '山药', '核桃'], exercise: '太极拳、室内瑜伽' },
+    '小雪': { desc: '天气寇冷，小雪初降', wellness: ['防寒保暖', '温袆5养肾'], emotion: '核冬夜长，容易低落。给自己安排一些温暖的小确幸。', foods: ['火锅', '羊肉汤', '核桃', '红枣'], exercise: '室内运动、太极拳' },
+    '大雪': { desc: '雪量增大，銀裝素裹', wellness: ['温补6养肾', '防寒保暖'], emotion: '雪天安宁美丽，享受这份宁静，进行内心的自我对话。', foods: ['红薯', '羊肉', '桂圆', '红豆汤'], exercise: '室内健身、冥想' },
+    '冬至': { desc: '白昂最短，阴极之至阳生', wellness: ['进补大好时节', '早睡晚起'], emotion: '冬至是转折点，最黑暗过后将迎来光明。对未来保持信心。', foods: ['汤圆', '羊肉', '饱子', '姜汤'], exercise: '室内瑜伽、冥想' },
+    '小寒': { desc: '寒气渐重，进入最冷时段', wellness: ['大补养生', '防寒保暖'], emotion: '严寒考验耐心，这正是锻炼意志力的好时候。', foods: ['火锅', '羊肉', '桂圆汤', '红枣'], exercise: '室内健身、太极拳' },
+    '大寒': { desc: '一年中最冷时节，冬尽春近', wellness: ['温补6养肾', '防寒保暖', '准备迎接新春'], emotion: '寒冬即将过去，春天就在前方。回顾过去一年，对新年充满期待。', foods: ['腪八粥', '羊肉汤', '大枣', '核桃'], exercise: '室内瑜伽、散步' },
+  };
+
+  const info = data[term];
+  if (!info) {
+    return {
+      name: term || '未知节气',
+      description: '让我们顺应自然节律，调养身心。',
+      wellness: ['规律作息', '均衡饮食', '适度运动'],
+      emotionGuide: '根据季节变化调整心情，顺应自然节奏。',
+      foods: ['时令蔬果', '粥品'],
+      exercise: '散步、健身',
+    };
+  }
+
+  return {
+    name: term,
+    description: info.desc,
+    wellness: info.wellness,
+    emotionGuide: info.emotion,
+    foods: info.foods,
+    exercise: info.exercise,
+  };
 }

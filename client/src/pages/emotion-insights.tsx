@@ -628,17 +628,42 @@ function EmotionCommunityTab() {
   );
 }
 
-// ─── Tab 4: 情绪日历 ───────────────────────────────────
+// ─── Tab 4: 情绪日历 (农历+节气增强) ───────────────────────
+
+interface LunarDayInfo {
+  day: number;
+  lunarDay: string;
+  lunarMonth: string;
+  solarTerm: string | null;
+  isFirstLunarDay: boolean;
+}
+
+interface LunarMonthResponse {
+  year: number;
+  month: number;
+  days: LunarDayInfo[];
+}
 
 function EmotionCalendarTab() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
+  // 情绪日历数据
   const { data, isLoading } = useQuery<CalendarResponse>({
     queryKey: ["/api/emotion-channel/calendar", year, month],
     queryFn: async () => {
       const res = await fetch(`/api/emotion-channel/calendar?year=${year}&month=${month}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+  });
+
+  // 农历+节气数据
+  const { data: lunarData } = useQuery<LunarMonthResponse>({
+    queryKey: ["/api/culture/lunar-month", year, month],
+    queryFn: async () => {
+      const res = await fetch(`/api/culture/lunar-month?year=${year}&month=${month}`);
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -653,6 +678,12 @@ function EmotionCalendarTab() {
     if (month === 12) { setMonth(1); setYear(y => y + 1); }
     else setMonth(m => m + 1);
   };
+
+  // Build lunar lookup map
+  const lunarMap = new Map<number, LunarDayInfo>();
+  if (lunarData?.days) {
+    for (const d of lunarData.days) lunarMap.set(d.day, d);
+  }
 
   // Build calendar grid
   const firstDay = new Date(year, month - 1, 1);
@@ -676,6 +707,9 @@ function EmotionCalendarTab() {
     ? activeDays.reduce((s, d) => s + d.avgValence, 0) / activeDays.length
     : 0;
 
+  // Count solar terms this month
+  const solarTermsThisMonth = lunarData?.days?.filter(d => d.solarTerm) || [];
+
   return (
     <div className="space-y-4">
       {/* Month navigation */}
@@ -684,8 +718,17 @@ function EmotionCalendarTab() {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prevMonth} data-testid="button-prev-month">
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <div className="text-sm font-medium">
-            {year}年 {MONTH_NAMES[month - 1]}
+          <div className="text-center">
+            <div className="text-sm font-medium">
+              {year}年 {MONTH_NAMES[month - 1]}
+            </div>
+            {lunarData?.days && lunarData.days.length > 0 && (
+              <div className="text-[10px] text-muted-foreground">
+                农历{lunarData.days[0].lunarMonth}
+                {lunarData.days[lunarData.days.length - 1].lunarMonth !== lunarData.days[0].lunarMonth
+                  ? ` ~ ${lunarData.days[lunarData.days.length - 1].lunarMonth}` : ""}
+              </div>
+            )}
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth} data-testid="button-next-month">
             <ChevronRight className="w-4 h-4" />
@@ -694,24 +737,34 @@ function EmotionCalendarTab() {
       </Card>
 
       {/* Summary */}
-      {activeDays.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold text-primary">{activeDays.length}</div>
-            <div className="text-[10px] text-muted-foreground">记录天数</div>
-          </Card>
-          <Card className="p-3 text-center">
-            <div className="text-lg font-bold">
-              {activeDays.reduce((s, d) => s + d.count, 0)}
-            </div>
-            <div className="text-[10px] text-muted-foreground">总记录</div>
-          </Card>
-          <Card className="p-3 text-center">
-            <div className={`text-lg font-bold ${valenceColor(overallValence)}`}>
-              {valenceLabel(overallValence)}
-            </div>
-            <div className="text-[10px] text-muted-foreground">月均情绪</div>
-          </Card>
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="p-3 text-center">
+          <div className="text-lg font-bold text-primary">{activeDays.length}</div>
+          <div className="text-[10px] text-muted-foreground">记录天数</div>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className={`text-lg font-bold ${activeDays.length > 0 ? valenceColor(overallValence) : ""}`}>
+            {activeDays.length > 0 ? valenceLabel(overallValence) : "—"}
+          </div>
+          <div className="text-[10px] text-muted-foreground">月均情绪</div>
+        </Card>
+        <Card className="p-3 text-center">
+          <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+            {solarTermsThisMonth.length}
+          </div>
+          <div className="text-[10px] text-muted-foreground">本月节气</div>
+        </Card>
+      </div>
+
+      {/* Solar term badges */}
+      {solarTermsThisMonth.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {solarTermsThisMonth.map((d) => (
+            <Badge key={d.day} variant="outline" className="text-[10px] gap-1 border-amber-500/30 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
+              <Leaf className="w-3 h-3" />
+              {d.solarTerm} · {month}/{d.day}
+            </Badge>
+          ))}
         </div>
       )}
 
@@ -737,26 +790,51 @@ function EmotionCalendarTab() {
               }
               const hasData = cell.count > 0;
               const isToday = cell.day === now.getDate() && month === now.getMonth() + 1 && year === now.getFullYear();
+              const lunar = lunarMap.get(cell.day);
+              const hasSolarTerm = !!lunar?.solarTerm;
+              const isLunarFirst = !!lunar?.isFirstLunarDay;
+
+              // Show: solar term name > 初一(月名) > 农历日
+              const lunarLabel = hasSolarTerm
+                ? lunar!.solarTerm!
+                : isLunarFirst
+                  ? lunar!.lunarMonth
+                  : lunar?.lunarDay || "";
 
               return (
                 <div
                   key={`day-${cell.day}`}
                   className={`aspect-square rounded-lg flex flex-col items-center justify-center relative transition-colors ${
                     isToday ? "ring-1 ring-primary" : ""
-                  } ${hasData ? "bg-accent/30 hover:bg-accent/50 cursor-default" : ""}`}
-                  title={hasData ? `${cell.topEmotion} · ${cell.count}条记录 · 效价${cell.avgValence}` : ""}
+                  } ${hasSolarTerm ? "bg-amber-50 dark:bg-amber-950/20" : ""} ${hasData && !hasSolarTerm ? "bg-accent/30 hover:bg-accent/50" : ""} ${isLunarFirst && !hasSolarTerm ? "bg-red-50/50 dark:bg-red-950/10" : ""}`}
+                  title={hasData
+                    ? `${cell.topEmotion} · ${cell.count}条记录 · 效价${cell.avgValence}${lunar ? ` · ${lunar.lunarMonth}${lunar.lunarDay}` : ""}${hasSolarTerm ? ` · ${lunar!.solarTerm}` : ""}`
+                    : lunar ? `${lunar.lunarMonth}${lunar.lunarDay}${hasSolarTerm ? ` · ${lunar.solarTerm}` : ""}` : ""}
                   data-testid={`calendar-day-${cell.day}`}
                 >
-                  <span className={`text-[11px] ${isToday ? "font-bold text-primary" : hasData ? "font-medium" : "text-muted-foreground"}`}>
+                  {/* Gregorian date */}
+                  <span className={`text-[11px] leading-none ${isToday ? "font-bold text-primary" : hasData ? "font-medium" : "text-muted-foreground"}`}>
                     {cell.day}
                   </span>
+
+                  {/* Lunar / solar term sublabel */}
+                  {lunarLabel && (
+                    <span className={`text-[8px] leading-none mt-0.5 truncate max-w-full px-0.5 ${
+                      hasSolarTerm
+                        ? "text-amber-600 dark:text-amber-400 font-medium"
+                        : isLunarFirst
+                          ? "text-red-500 dark:text-red-400 font-medium"
+                          : "text-muted-foreground/70"
+                    }`}>
+                      {lunarLabel}
+                    </span>
+                  )}
+
+                  {/* Emotion indicator */}
                   {hasData && (
-                    <>
-                      <span className="text-xs leading-none mt-0.5">{cell.topEmoji}</span>
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full mt-0.5 ${valenceBgColor(cell.avgValence)}`}
-                      />
-                    </>
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full mt-0.5 ${valenceBgColor(cell.avgValence)}`}
+                    />
                   )}
                 </div>
               );
@@ -766,7 +844,7 @@ function EmotionCalendarTab() {
       )}
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-center flex-wrap gap-3 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-1">
           <div className="w-2 h-2 rounded-full bg-green-500" />
           <span>积极</span>
@@ -778,6 +856,14 @@ function EmotionCalendarTab() {
         <div className="flex items-center gap-1">
           <div className="w-2 h-2 rounded-full bg-orange-500" />
           <span>消极</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30" style={{width: 8, height: 8}} />
+          <span>节气</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-red-500 font-medium">初一</span>
+          <span>农历月首</span>
         </div>
       </div>
     </div>

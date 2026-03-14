@@ -17,12 +17,14 @@ import {
   User,
   Settings,
   Brain,
+  Scroll,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
 const NAV_ITEMS = [
   { path: "/", label: "AI 对话", icon: MessageCircle, guestVisible: false },
   { path: "/emotion-insights", label: "情感频道", icon: Brain, guestVisible: false },
+  { path: "/culture", label: "国粹频道", icon: Scroll, guestVisible: true },
   { path: "/assessments", label: "心理测评", icon: ClipboardList, guestVisible: false },
   { path: "/journal", label: "情绪日记", icon: BookHeart, guestVisible: false },
   { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
