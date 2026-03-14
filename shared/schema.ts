@@ -79,6 +79,7 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   emotionTag: text("emotion_tag"),
   emotionScore: integer("emotion_score"),
+  emotionData: text("emotion_data"), // JSON: multi-dimensional emotion analysis
   createdAt: text("created_at").notNull(),
 });
 
@@ -88,10 +89,31 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   content: true,
   emotionTag: true,
   emotionScore: true,
+  emotionData: true,
 });
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+// ─── Multi-Dimensional Emotion Types ────────────────────────
+export interface EmotionDimension {
+  name: string;       // e.g. "joy", "anxiety", "admiration"
+  nameZh: string;     // 中文名 e.g. "喜悦", "焦虑", "钦佩"
+  score: number;      // 0-1 intensity
+  emoji: string;      // display emoji
+}
+
+export interface DeepEmotionAnalysis {
+  primary: EmotionDimension;           // strongest emotion
+  secondary: EmotionDimension | null;  // second strongest (if score > 0.3)
+  dimensions: EmotionDimension[];      // top 8 emotions sorted by score
+  valence: number;      // -1 (negative) to 1 (positive) overall sentiment
+  arousal: number;      // 0 (calm) to 1 (excited) activation level
+  dominance: number;    // 0 (submissive) to 1 (dominant) control level
+  riskLevel: "safe" | "mild" | "moderate" | "high";  // crisis detection
+  insight: string;      // short Chinese insight about the emotion state
+  suggestion: string;   // Chinese wellness suggestion
+}
 
 // ─── Mood Journal Entries ───────────────────────────────────
 export const moodEntries = pgTable("mood_entries", {
@@ -240,6 +262,7 @@ export interface ChatResponse {
     score: number;
     suggestion: string;
   };
+  deepEmotion?: DeepEmotionAnalysis;
 }
 
 export const submitAssessmentSchema = z.object({

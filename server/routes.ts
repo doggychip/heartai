@@ -2,7 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema } from "@shared/schema";
-import type { SafeUser, PublicAgent, AgentProfile, User } from "@shared/schema";
+import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
+import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
@@ -538,24 +539,138 @@ GET https://heartai.zeabur.app/api/agents
       }
 
       const { cleanText, emotion, score } = parseEmotionTag(aiText);
-      const suggestion = getEmotionSuggestion(emotion, score);
-      const aiMessage = await storage.createMessage({ conversationId, role: "assistant", content: cleanText, emotionTag: emotion, emotionScore: score });
+      
+      // Deep emotion analysis (runs in parallel, non-blocking)
+      let deepEmotion: DeepEmotionAnalysis | undefined;
+      try {
+        // Build context from last few messages for better analysis
+        const recentContext = history.slice(-6).map(m => 
+          `${m.role === "user" ? "用户" : "AI"}: ${m.content.slice(0, 100)}`
+        ).join("\n");
+        deepEmotion = await analyzeEmotion(message, recentContext);
+      } catch (err) {
+        console.error("Deep emotion analysis failed, using fallback:", err);
+      }
 
-      res.json({ conversationId, message: userMessage, aiMessage, emotionAnalysis: { emotion, score, suggestion } });
+      // Use deep emotion for legacy fields if available, otherwise fallback to LLM tag
+      const legacy = deepEmotion ? toLegacyEmotion(deepEmotion) : { emotion, score, suggestion: getEmotionSuggestion(emotion, score) };
+      const suggestion = deepEmotion?.suggestion || legacy.suggestion;
+      
+      const aiMessage = await storage.createMessage({
+        conversationId, role: "assistant", content: cleanText,
+        emotionTag: legacy.emotion,
+        emotionScore: legacy.score,
+        emotionData: deepEmotion ? JSON.stringify(deepEmotion) : null,
+      });
 
-      // Sync to OpenClaw (per-user)
-      const emotionLabel: Record<string, string> = {
-        joy: "😊 开心", sadness: "😢 难过", anger: "😤 愤怒", fear: "😰 恐惧",
-        anxiety: "😟 焦虑", surprise: "😮 惊讶", calm: "😌 平静", neutral: "😐 平静",
-      };
+      res.json({
+        conversationId, message: userMessage, aiMessage,
+        emotionAnalysis: { emotion: legacy.emotion, score: legacy.score, suggestion },
+        deepEmotion,
+      });
+
+      // Sync to OpenClaw with deep emotion data (per-user)
+      const primaryEmoji = deepEmotion?.primary.emoji || "😐";
+      const primaryName = deepEmotion?.primary.nameZh || emotion;
+      const topDims = deepEmotion?.dimensions.slice(0, 3)
+        .map(d => `${d.emoji}${d.nameZh}(${Math.round(d.score * 100)}%)`).join(" ") || "";
       notifyOpenClaw(
         userId,
-        `[HeartAI 聊天同步]\n用户说: ${message}\nAI回复: ${cleanText}\n情绪分析: ${emotionLabel[emotion] || emotion} (${score}/10)\n建议: ${suggestion}`,
+        `[HeartAI 聊天同步]\n用户说: ${message}\nAI回复: ${cleanText}\n主要情绪: ${primaryEmoji} ${primaryName}\n情绪维度: ${topDims}\n${deepEmotion?.insight || ""}\n建议: ${suggestion}`,
         { name: "HeartAI-Chat" }
       );
     } catch (err) {
       console.error("Chat error:", err);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ─── Emotion Analysis API ─────────────────────────────
+  // Get emotion history for a conversation
+  app.get("/api/conversations/:id/emotions", requireAuth, async (req, res) => {
+    try {
+      const messages = await storage.getMessagesByConversation(req.params.id);
+      const emotions = messages
+        .filter(m => m.role === "assistant" && m.emotionData)
+        .map(m => {
+          try {
+            const deep = JSON.parse(m.emotionData!);
+            return {
+              messageId: m.id,
+              createdAt: m.createdAt,
+              ...deep,
+            };
+          } catch { return null; }
+        })
+        .filter(Boolean);
+      res.json(emotions);
+    } catch (err) {
+      console.error("Emotion history error:", err);
+      res.status(500).json({ error: "Failed to get emotion history" });
+    }
+  });
+
+  // Get user's overall emotion stats across all conversations
+  app.get("/api/emotion-stats", requireAuth, async (req, res) => {
+    try {
+      const conversations = await storage.getConversationsByUser(getUserId(req));
+      const allEmotions: any[] = [];
+      
+      for (const conv of conversations.slice(0, 20)) {
+        const messages = await storage.getMessagesByConversation(conv.id);
+        for (const m of messages) {
+          if (m.role === "assistant" && m.emotionData) {
+            try {
+              const deep = JSON.parse(m.emotionData);
+              allEmotions.push({
+                createdAt: m.createdAt,
+                primary: deep.primary,
+                valence: deep.valence,
+                arousal: deep.arousal,
+                dimensions: deep.dimensions?.slice(0, 5),
+              });
+            } catch {}
+          }
+        }
+      }
+
+      // Aggregate emotion frequencies
+      const emotionFreq: Record<string, { count: number; totalScore: number; nameZh: string; emoji: string }> = {};
+      for (const e of allEmotions) {
+        if (e.primary) {
+          const key = e.primary.name;
+          if (!emotionFreq[key]) {
+            emotionFreq[key] = { count: 0, totalScore: 0, nameZh: e.primary.nameZh, emoji: e.primary.emoji };
+          }
+          emotionFreq[key].count++;
+          emotionFreq[key].totalScore += e.primary.score;
+        }
+      }
+
+      const topEmotions = Object.entries(emotionFreq)
+        .map(([name, data]) => ({ name, ...data, avgScore: data.totalScore / data.count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // Valence trend (last 20)
+      const valenceTrend = allEmotions.slice(-20).map(e => ({
+        createdAt: e.createdAt,
+        valence: e.valence,
+        arousal: e.arousal,
+        primary: e.primary?.nameZh,
+      }));
+
+      res.json({
+        totalAnalyses: allEmotions.length,
+        topEmotions,
+        valenceTrend,
+        avgValence: allEmotions.length > 0 
+          ? allEmotions.reduce((sum, e) => sum + (e.valence || 0), 0) / allEmotions.length 
+          : 0,
+      });
+    } catch (err) {
+      console.error("Emotion stats error:", err);
+      res.status(500).json({ error: "Failed to get emotion stats" });
     }
   });
 

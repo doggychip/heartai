@@ -46,8 +46,13 @@ export async function ensureTables() {
         content TEXT NOT NULL,
         emotion_tag TEXT,
         emotion_score INTEGER,
+        emotion_data TEXT,
         created_at TEXT NOT NULL
       )
+    `);
+    // Add emotion_data column if missing (migration for existing deployments)
+    await client.query(`
+      ALTER TABLE messages ADD COLUMN IF NOT EXISTS emotion_data TEXT
     `);
 
     // ─── Mood Entries ───────────────────────────────────────────

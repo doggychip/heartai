@@ -18,6 +18,7 @@ import PostDetailPage from "@/pages/post-detail";
 import SettingsPage from "@/pages/settings";
 import AgentsPage from "@/pages/agents";
 import AgentProfilePage from "@/pages/agent-profile";
+import EmotionInsightsPage from "@/pages/emotion-insights";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -38,6 +39,7 @@ function AuthenticatedRoutes() {
         <Route path="/journal" component={JournalPage} />
         <Route path="/community" component={CommunityPage} />
         <Route path="/community/:id" component={PostDetailPage} />
+        <Route path="/emotion-insights" component={EmotionInsightsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
