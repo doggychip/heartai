@@ -1,5 +1,4 @@
 import { pool } from "./db";
-import { log } from "./index";
 
 /**
  * Programmatic schema push — creates all tables if they don't exist.
@@ -141,7 +140,7 @@ export async function ensureTables() {
     `);
 
     await client.query("COMMIT");
-    log("Database tables ensured", "db");
+    console.log("[db] Database tables ensured");
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Failed to create tables:", err);
