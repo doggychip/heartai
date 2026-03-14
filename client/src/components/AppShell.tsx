@@ -51,19 +51,12 @@ const NAV_ITEMS = [
   { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
 ];
 
-// SVG Logo Component for 观星
+// Owl Logo Component for 观星
+import owlLogoSrc from "@assets/owl-logo.png";
+
 function GuanXingLogo({ className = "w-8 h-8" }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" aria-label="观星">
-      <circle cx="16" cy="16" r="14" fill="hsl(var(--primary))" />
-      <circle cx="16" cy="16" r="11" fill="hsl(var(--primary))" stroke="hsl(var(--primary-foreground))" strokeWidth="0.5" opacity="0.3" />
-      {/* Main star */}
-      <path d="M16 6L18.5 12.5H25L19.75 16.5L22 23L16 19L10 23L12.25 16.5L7 12.5H13.5L16 6Z" fill="hsl(var(--primary-foreground))" opacity="0.95" />
-      {/* Small stars */}
-      <circle cx="8" cy="8" r="1" fill="hsl(var(--primary-foreground))" opacity="0.6" />
-      <circle cx="25" cy="9" r="0.7" fill="hsl(var(--primary-foreground))" opacity="0.4" />
-      <circle cx="24" cy="24" r="0.8" fill="hsl(var(--primary-foreground))" opacity="0.5" />
-    </svg>
+    <img src={owlLogoSrc} alt="观星" className={className} style={{ objectFit: 'contain' }} />
   );
 }
 

@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Star, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus, Sparkles, ChevronDown, ChevronUp, Compass, Flame, Moon, Zap } from "lucide-react";
+import { Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus, Sparkles, ChevronDown, ChevronUp, Compass, Flame, Moon, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import owlLogoSrc from "@assets/owl-logo.png";
 
 type View = "landing" | "human-login" | "human-register" | "agent-info";
 
@@ -180,8 +181,8 @@ export default function AuthPage() {
         <div className="w-full max-w-md text-center">
           {/* Hero */}
           <div className="mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Star className="w-8 h-8 text-primary" fill="currentColor" />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <img src={owlLogoSrc} alt="观星" className="w-14 h-14" style={{ objectFit: 'contain' }} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">观星</h1>
             <p className="text-sm text-muted-foreground mt-2">
@@ -486,8 +487,8 @@ export default function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4" data-testid="auth-page">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-            <Star className="w-6 h-6 text-primary" fill="currentColor" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3">
+            <img src={owlLogoSrc} alt="观星" className="w-10 h-10" style={{ objectFit: 'contain' }} />
           </div>
           <h1 className="text-lg font-semibold">观星 for Agents</h1>
         </div>
@@ -717,8 +718,8 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex items-center justify-center bg-background px-4" data-testid="auth-page">
       <div className="w-full max-w-xs">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-3">
-            <Star className="w-6 h-6 text-primary" fill="currentColor" />
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3">
+            <img src={owlLogoSrc} alt="观星" className="w-10 h-10" style={{ objectFit: 'contain' }} />
           </div>
           <h1 className="text-lg font-semibold">观星</h1>
         </div>
