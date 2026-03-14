@@ -7,6 +7,31 @@ import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
 
+// ─── OpenClaw Webhook Integration ─────────────────────────────
+const OPENCLAW_WEBHOOK_URL = process.env.OPENCLAW_WEBHOOK_URL || "";
+const OPENCLAW_WEBHOOK_TOKEN = process.env.OPENCLAW_WEBHOOK_TOKEN || "";
+
+async function notifyOpenClaw(message: string, options?: { name?: string; channel?: string; deliver?: boolean }) {
+  if (!OPENCLAW_WEBHOOK_URL || !OPENCLAW_WEBHOOK_TOKEN) return;
+  try {
+    await fetch(`${OPENCLAW_WEBHOOK_URL}/agent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENCLAW_WEBHOOK_TOKEN}`,
+      },
+      body: JSON.stringify({
+        message,
+        name: options?.name || "HeartAI",
+        deliver: options?.deliver ?? true,
+        channel: options?.channel || "last",
+      }),
+    });
+  } catch (err) {
+    console.error("OpenClaw webhook error:", err);
+  }
+}
+
 const SYSTEM_PROMPT = `你是 HeartAI，一个专业、温暖且富有同理心的 AI 情感陪伴助手。你的目标是：
 
 1. **倾听与共情**：认真倾听用户的感受，用温暖的语言回应，让用户感到被理解。
@@ -208,6 +233,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const aiMessage = await storage.createMessage({ conversationId, role: "assistant", content: cleanText, emotionTag: emotion, emotionScore: score });
 
       res.json({ conversationId, message: userMessage, aiMessage, emotionAnalysis: { emotion, score, suggestion } });
+
+      // Sync to OpenClaw
+      const emotionLabel: Record<string, string> = {
+        joy: "😊 开心", sadness: "😢 难过", anger: "😤 愤怒", fear: "😰 恐惧",
+        anxiety: "😟 焦虑", surprise: "😮 惊讶", calm: "😌 平静", neutral: "😐 平静",
+      };
+      notifyOpenClaw(
+        `[HeartAI 聊天同步]\n用户说: ${message}\nAI回复: ${cleanText}\n情绪分析: ${emotionLabel[emotion] || emotion} (${score}/10)\n建议: ${suggestion}`,
+        { name: "HeartAI-Chat" }
+      );
     } catch (err) {
       console.error("Chat error:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -270,6 +305,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         assessmentId, answers: JSON.stringify(answers), totalScore, resultSummary, resultDetail,
       });
       res.json(result);
+
+      // Notify OpenClaw for deep analysis
+      notifyOpenClaw(
+        `[HeartAI 测评完成] 用户完成了「${assessment.name}」测评。\n总分: ${totalScore}\n结果摘要: ${resultSummary}\n详细分析: ${resultDetail}\n\n请基于以上测评结果，生成一份更详细的心理健康分析报告，包括可能的原因分析、改善建议和注意事项。用温暖专业的语气。`,
+        { name: "HeartAI-Assessment" }
+      );
     } catch (err) {
       console.error("Assessment submit error:", err);
       res.status(500).json({ error: "Failed to submit assessment" });
@@ -327,6 +368,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       });
+
+      // Content moderation via OpenClaw
+      notifyOpenClaw(
+        `[HeartAI 社区内容审核] 新帖子发布:\n标题: ${parsed.data.title}\n内容: ${parsed.data.content}\n标签: ${(parsed.data.tags || []).join(", ")}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n\n请审核这篇帖子是否包含：1) 自杀/自残倾向 2) 骚扰/辱骂内容 3) 虚假医疗建议。如有问题请通知我。`,
+        { name: "HeartAI-Moderation", deliver: false }
+      );
     } catch (err) {
       console.error("Create post error:", err);
       res.status(500).json({ error: "发帖失败" });
