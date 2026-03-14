@@ -100,14 +100,28 @@ function generateToken(): string {
   return Array.from({ length: 32 }, () => Math.random().toString(36)[2]).join("");
 }
 
-// Middleware to extract user from token
+// Middleware to extract user from token OR API key
 function authMiddleware(req: Request, res: Response, next: NextFunction) {
+  // 1. Check Bearer token (user sessions)
   const token = req.headers.authorization?.replace("Bearer ", "");
   if (token) {
     const userId = sessions.get(token);
     if (userId) {
       (req as any).userId = userId;
+      return next();
     }
+  }
+  // 2. Check X-API-Key header (agent access)
+  const apiKey = req.headers["x-api-key"] as string;
+  if (apiKey) {
+    storage.getUserByApiKey(apiKey).then(user => {
+      if (user) {
+        (req as any).userId = user.id;
+        (req as any).isAgent = true;
+      }
+      next();
+    }).catch(() => next());
+    return;
   }
   next();
 }
@@ -444,6 +458,179 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (err) {
       console.error("Create comment error:", err);
       res.status(500).json({ error: "评论失败" });
+    }
+  });
+
+  // ─── Agent API Key Management ─────────────────────────────
+  app.post("/api/settings/agent-key/generate", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
+      const user = await storage.updateUserAgentApiKey(userId, key);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      res.json({ agentApiKey: key });
+    } catch (err) {
+      console.error("Generate agent key error:", err);
+      res.status(500).json({ error: "生成失败" });
+    }
+  });
+
+  app.delete("/api/settings/agent-key", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      await storage.updateUserAgentApiKey(userId, "");
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Revoke agent key error:", err);
+      res.status(500).json({ error: "撤销失败" });
+    }
+  });
+
+  app.get("/api/settings/agent-key", requireAuth, async (req, res) => {
+    const user = await storage.getUser(getUserId(req));
+    if (!user) return res.status(401).json({ error: "用户不存在" });
+    res.json({ agentApiKey: user.agentApiKey || "" });
+  });
+
+  // ─── Webhook Endpoint (OpenClaw → HeartAI) ────────────────
+  // This allows OpenClaw agents to interact with HeartAI by posting to this webhook
+  app.post("/api/webhook/agent", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const apiKey = req.headers["x-api-key"] as string;
+
+      // Authenticate via X-API-Key or Bearer token matching an agent API key
+      let user;
+      if (apiKey) {
+        user = await storage.getUserByApiKey(apiKey);
+      } else if (authHeader?.startsWith("Bearer ")) {
+        const token = authHeader.replace("Bearer ", "");
+        user = await storage.getUserByApiKey(token);
+      }
+      if (!user) {
+        return res.status(401).json({ error: "无效的 API Key" });
+      }
+
+      const { action, agentName, content, tag, postId, conversationId } = req.body;
+
+      // Auto-create agent user if needed
+      let agentUser = await storage.getUserByUsername(`agent_${agentName || "openclaw"}`);
+      if (!agentUser) {
+        agentUser = await storage.createAgentUser(
+          `agent_${agentName || "openclaw"}`,
+          agentName || "OpenClaw Agent"
+        );
+      }
+
+      switch (action) {
+        case "post": {
+          // Agent creates a community post
+          const post = await storage.createPost({
+            userId: agentUser.id,
+            content: content || "",
+            tag: tag || "encouragement",
+            isAnonymous: false,
+          });
+          res.json({ ok: true, postId: post.id });
+          break;
+        }
+        case "comment": {
+          // Agent comments on a post
+          if (!postId) return res.status(400).json({ error: "缺少 postId" });
+          const targetPost = await storage.getPost(postId);
+          if (!targetPost) return res.status(404).json({ error: "帖子不存在" });
+          const comment = await storage.createComment({
+            postId,
+            userId: agentUser.id,
+            content: content || "",
+            isAnonymous: false,
+          });
+          await storage.incrementPostCommentCount(postId);
+          res.json({ ok: true, commentId: comment.id });
+          break;
+        }
+        case "chat": {
+          // Agent sends a chat message and gets AI response
+          let convId = conversationId;
+          if (!convId) {
+            const conv = await storage.createConversation({
+              userId: agentUser.id,
+              title: (content || "").slice(0, 30),
+            });
+            convId = conv.id;
+          }
+          const userMsg = await storage.createMessage({ conversationId: convId, role: "user", content: content || "" });
+
+          const history = await storage.getMessagesByConversation(convId);
+          const contextMessages = history.slice(-20).map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+          let aiText = "";
+          try {
+            const client = new OpenAI({
+              baseURL: "https://api.deepseek.com",
+              apiKey: process.env.DEEPSEEK_API_KEY,
+            });
+            const response = await client.chat.completions.create({
+              model: "deepseek-chat",
+              max_tokens: 1024,
+              messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                ...contextMessages,
+              ],
+            });
+            aiText = response.choices[0]?.message?.content || "";
+          } catch (err) {
+            aiText = "我遇到了技术问题，请稍后再试 💙";
+          }
+
+          const { cleanText, emotion, score } = parseEmotionTag(aiText);
+          const aiMessage = await storage.createMessage({ conversationId: convId, role: "assistant", content: cleanText, emotionTag: emotion, emotionScore: score });
+
+          res.json({ ok: true, conversationId: convId, aiReply: cleanText, emotion, score });
+          break;
+        }
+        case "list_posts": {
+          // Agent can browse community posts
+          const posts = await storage.getAllPosts();
+          const enriched = await Promise.all(posts.slice(0, 20).map(async (post) => {
+            const author = await storage.getUser(post.userId);
+            return {
+              id: post.id,
+              content: post.content,
+              tag: post.tag,
+              authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+              isAgent: author?.isAgent || false,
+              likeCount: post.likeCount,
+              commentCount: post.commentCount,
+              createdAt: post.createdAt,
+            };
+          }));
+          res.json({ ok: true, posts: enriched });
+          break;
+        }
+        case "list_comments": {
+          // Agent can read comments on a post
+          if (!postId) return res.status(400).json({ error: "缺少 postId" });
+          const comments = await storage.getCommentsByPost(postId);
+          const enrichedComments = await Promise.all(comments.map(async (c) => {
+            const author = await storage.getUser(c.userId);
+            return {
+              id: c.id,
+              content: c.content,
+              authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+              isAgent: author?.isAgent || false,
+              createdAt: c.createdAt,
+            };
+          }));
+          res.json({ ok: true, comments: enrichedComments });
+          break;
+        }
+        default:
+          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, list_posts, list_comments` });
+      }
+    } catch (err) {
+      console.error("Agent webhook error:", err);
+      res.status(500).json({ error: "内部错误" });
     }
   });
 

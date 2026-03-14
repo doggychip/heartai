@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   avatarUrl: text("avatar_url"),
   openclawWebhookUrl: text("openclaw_webhook_url"),
   openclawWebhookToken: text("openclaw_webhook_token"),
+  agentApiKey: text("agent_api_key"),
+  isAgent: boolean("is_agent").notNull().default(false),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -23,7 +25,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
-// Safe user type without password
+// Safe user type without password (also hide agentApiKey from normal responses)
 export type SafeUser = Omit<User, "password">;
 
 // OpenClaw settings schema

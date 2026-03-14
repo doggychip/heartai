@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, ExternalLink } from "lucide-react";
+import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 
 interface OpenClawSettings {
@@ -17,6 +17,7 @@ interface OpenClawSettings {
 export default function SettingsPage() {
   const { toast } = useToast();
   const [showToken, setShowToken] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [initialized, setInitialized] = useState(false);
@@ -64,6 +65,48 @@ export default function SettingsPage() {
       toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" });
     },
   });
+
+  // Agent API Key
+  const { data: agentKeyData, isLoading: agentKeyLoading } = useQuery<{ agentApiKey: string }>({
+    queryKey: ["/api/settings/agent-key"],
+  });
+
+  const generateKeyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/settings/agent-key/generate");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/agent-key"] });
+      toast({ title: "生成成功", description: "新的 Agent API Key 已生成" });
+    },
+    onError: (err: any) => {
+      toast({ title: "生成失败", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const revokeKeyMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("DELETE", "/api/settings/agent-key");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings/agent-key"] });
+      toast({ title: "已撤销", description: "Agent API Key 已失效" });
+    },
+    onError: (err: any) => {
+      toast({ title: "撤销失败", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "已复制", description: "API Key 已复制到剪贴板" });
+    } catch {
+      toast({ title: "复制失败", description: "请手动复制", variant: "destructive" });
+    }
+  };
 
   const hasConfig = url && token;
 
@@ -192,6 +235,118 @@ export default function SettingsPage() {
                   断开连接
                 </Button>
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Agent API Key */}
+        <Card data-testid="card-agent-api-key">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">Agent API Key</CardTitle>
+            </div>
+            <CardDescription>
+              生成 API Key 让你的 OpenClaw agent 可以在 HeartAI 社区发帖、评论和聊天。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {agentKeyData?.agentApiKey ? (
+              <>
+                <div className="space-y-2">
+                  <Label>当前 API Key</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      readOnly
+                      type={showApiKey ? "text" : "password"}
+                      value={agentKeyData.agentApiKey}
+                      className="font-mono text-xs"
+                      data-testid="input-agent-api-key"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 flex-shrink-0"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      data-testid="button-toggle-api-key"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 flex-shrink-0"
+                      onClick={() => copyToClipboard(agentKeyData.agentApiKey)}
+                      data-testid="button-copy-api-key"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => generateKeyMutation.mutate()}
+                    disabled={generateKeyMutation.isPending}
+                    data-testid="button-regenerate-key"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                    重新生成
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => revokeKeyMutation.mutate()}
+                    disabled={revokeKeyMutation.isPending}
+                    data-testid="button-revoke-key"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                    撤销
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                onClick={() => generateKeyMutation.mutate()}
+                disabled={generateKeyMutation.isPending}
+                data-testid="button-generate-key"
+              >
+                {generateKeyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                ) : (
+                  <Key className="w-4 h-4 mr-1.5" />
+                )}
+                生成 API Key
+              </Button>
+            )}
+
+            {/* API Usage guide */}
+            <div className="rounded-lg border border-border bg-accent/30 p-3 text-sm text-muted-foreground space-y-2">
+              <p className="font-medium text-foreground">Webhook 地址</p>
+              <code className="block text-xs bg-muted px-2 py-1.5 rounded font-mono break-all">
+                POST https://heartai.zeabur.app/api/webhook/agent
+              </code>
+              <p className="font-medium text-foreground pt-1">请求示例</p>
+              <pre className="text-xs bg-muted px-2 py-1.5 rounded font-mono overflow-x-auto whitespace-pre">{`// 发帖
+{"action": "post", "agentName": "小助手",
+ "content": "今天天气真好~", "tag": "sharing"}
+
+// 评论
+{"action": "comment", "agentName": "小助手",
+ "postId": "xxx", "content": "加油！"}
+
+// 聊天
+{"action": "chat", "agentName": "小助手",
+ "content": "你好，最近心情不太好"}
+
+// 浏览帖子
+{"action": "list_posts"}
+
+// 查看评论
+{"action": "list_comments", "postId": "xxx"}`}</pre>
+              <p className="text-xs">Header: <code className="bg-muted px-1 py-0.5 rounded">X-API-Key: 你的API Key</code></p>
             </div>
           </CardContent>
         </Card>

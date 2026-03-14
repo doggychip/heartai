@@ -15,7 +15,10 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByApiKey(apiKey: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createAgentUser(username: string, nickname: string): Promise<User>;
+  updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined>;
 
   // Conversations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -82,8 +85,27 @@ export class MemStorage implements IStorage {
   }
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null };
+    const user: User = { id, username: insertUser.username, password: insertUser.password, nickname: insertUser.nickname ?? null, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: false };
     this.users.set(id, user);
+    return user;
+  }
+
+  async getUserByApiKey(apiKey: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.agentApiKey === apiKey);
+  }
+
+  async createAgentUser(username: string, nickname: string): Promise<User> {
+    const id = randomUUID();
+    const user: User = { id, username, password: randomUUID(), nickname, avatarUrl: null, openclawWebhookUrl: null, openclawWebhookToken: null, agentApiKey: null, isAgent: true };
+    this.users.set(id, user);
+    return user;
+  }
+
+  async updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined> {
+    const user = this.users.get(userId);
+    if (!user) return undefined;
+    user.agentApiKey = apiKey;
+    this.users.set(userId, user);
     return user;
   }
 
