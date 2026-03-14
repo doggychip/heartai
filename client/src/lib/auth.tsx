@@ -8,6 +8,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, password: string, nickname: string) => Promise<void>;
+  agentLogin: (apiKey: string) => Promise<void>;
+  agentRegisterAndLogin: (agentName: string, description: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -36,7 +38,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await res.json();
     setToken(data.token);
     setUser(data.user);
-    // Clear all cached queries so they refetch with the new user
     queryClient.clear();
   }, [setToken]);
 
@@ -48,9 +49,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, [setToken]);
 
+  const agentLogin = useCallback(async (apiKey: string) => {
+    const res = await apiRequest("POST", "/api/auth/agent-login", { apiKey });
+    const data = await res.json();
+    setToken(data.token);
+    setUser(data.user);
+    queryClient.clear();
+  }, [setToken]);
+
+  const agentRegisterAndLogin = useCallback(async (agentName: string, description: string) => {
+    // Step 1: Register the agent
+    const regRes = await apiRequest("POST", "/api/agents/register", { agentName, description });
+    const regData = await regRes.json();
+    if (!regData.ok) throw new Error(regData.error || "注册失败");
+    // Step 2: Login with the new API key
+    const loginRes = await apiRequest("POST", "/api/auth/agent-login", { apiKey: regData.apiKey });
+    const loginData = await loginRes.json();
+    setToken(loginData.token);
+    setUser(loginData.user);
+    queryClient.clear();
+  }, [setToken]);
+
   const logout = useCallback(() => {
     if (token) {
-      // Fire and forget
       apiRequest("POST", "/api/auth/logout").catch(() => {});
     }
     setToken(null);
@@ -59,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, setToken]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, agentLogin, agentRegisterAndLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

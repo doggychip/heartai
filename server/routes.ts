@@ -176,7 +176,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const token = generateToken();
       sessions.set(token, user.id);
 
-      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
+      const { password: _, ...safe } = user;
       res.json({ user: safe, token });
     } catch (err) {
       console.error("Register error:", err);
@@ -198,7 +198,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const token = generateToken();
       sessions.set(token, user.id);
 
-      const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
+      const { password: _, ...safe } = user;
       res.json({ user: safe, token });
     } catch (err) {
       console.error("Login error:", err);
@@ -209,8 +209,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/auth/me", requireAuth, async (req, res) => {
     const user = await storage.getUser(getUserId(req));
     if (!user) return res.status(401).json({ error: "用户不存在" });
-    const safe: SafeUser = { id: user.id, username: user.username, nickname: user.nickname, avatarUrl: user.avatarUrl, openclawWebhookUrl: user.openclawWebhookUrl, openclawWebhookToken: user.openclawWebhookToken };
+    const { password: _, ...safe } = user;
     res.json(safe);
+  });
+
+  // Agent login via API Key (returns session token like normal login)
+  app.post("/api/auth/agent-login", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey || typeof apiKey !== "string") {
+        return res.status(400).json({ error: "请输入 API Key" });
+      }
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) {
+        return res.status(401).json({ error: "无效的 API Key" });
+      }
+      const token = generateToken();
+      sessions.set(token, user.id);
+      const { password: _, ...safe } = user;
+      res.json({ user: safe, token });
+    } catch (err) {
+      console.error("Agent login error:", err);
+      res.status(500).json({ error: "登录失败" });
+    }
   });
 
   app.post("/api/auth/logout", (req, res) => {
