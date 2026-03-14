@@ -1173,7 +1173,338 @@ GET https://heartai.zeabur.app/api/agents
     }
   });
 
-  // ─── Mood Journal Routes (auth required) ──────────────────────
+  // ─── 每日运势 AI 生成 ──────────────────────────────────
+  app.post("/api/culture/daily-fortune", async (req, res) => {
+    try {
+      const { birthDate, birthHour } = req.body;
+      if (!birthDate) return res.status(400).json({ error: 'birthDate is required (YYYY-MM-DD)' });
+
+      const hour = birthHour ?? 12;
+      const birth = lunisolar(birthDate);
+      const today = lunisolar(new Date());
+
+      // 出生八字
+      const birthBazi = birth.char8.toString();
+      const dayMasterStem = today.char8.day.stem.toString();
+      const dayMasterBranch = today.char8.day.branch.toString();
+      const birthDayMaster = birth.char8.day.stem.toString();
+      const birthElement = getStemElement(birthDayMaster);
+
+      // 今日天干地支
+      const todayBazi = today.char8.toString();
+      const todaySolarTerm = today.solarTerm?.toString() || '';
+      const todayLunar = `${today.lunar.getMonthName()}${today.lunar.getDayName()}`;
+
+      // 今日宜忌
+      let acts = { good: [] as string[], bad: [] as string[] };
+      try {
+        const theGods = (today as any).theGods;
+        if (theGods?.getActs) {
+          const actsData = theGods.getActs();
+          acts.good = actsData[0]?.map((a: any) => a.toString()) || [];
+          acts.bad = actsData[1]?.map((a: any) => a.toString()) || [];
+        }
+      } catch (e) {}
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const prompt = `你是一位精通中国传统命理学的AI顾问。请根据以下信息生成今日个人运势报告。
+
+用户出生日期: ${birthDate}
+用户出生八字: ${birthBazi}
+用户日主(五行): ${birthElement}(${birthDayMaster})
+
+今日信息:
+- 公历: ${new Date().toLocaleDateString('zh-CN')}
+- 农历: ${todayLunar}
+- 今日四柱: ${todayBazi}
+- 今日天干: ${dayMasterStem}
+- 今日地支: ${dayMasterBranch}
+- 节气: ${todaySolarTerm || '无'}
+- 宜: ${acts.good.slice(0, 6).join('、') || '无'}
+- 忌: ${acts.bad.slice(0, 6).join('、') || '无'}
+
+请返回严格的JSON格式（不要markdown代码块），包含:
+{
+  "totalScore": 85,
+  "loveScore": 80,
+  "careerScore": 88,
+  "wealthScore": 75,
+  "healthScore": 90,
+  "summary": "今日综合运势一句话概括（20字以内）",
+  "detail": "今日运势详细分析（100-150字，结合用户五行与今日天干地支的生克关系）",
+  "luckyColor": "幸运颜色",
+  "luckyNumber": "幸运数字",
+  "luckyDirection": "幸运方位",
+  "advice": "今日情绪建议（50字以内，温暖正向）",
+  "warning": "今日需注意的事项（30字以内）"
+}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 500,
+        temperature: 0.8,
+        messages: [
+          { role: "system", content: "你是一位资深命理AI助手，精通八字、五行、天干地支的生克关系。回答温暖积极，结合传统智慧给出实用建议。只返回JSON。" },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      let fortune: any;
+      try {
+        const raw = response.choices[0]?.message?.content?.trim() || '{}';
+        fortune = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+      } catch {
+        fortune = {
+          totalScore: 80, loveScore: 78, careerScore: 82, wealthScore: 76, healthScore: 85,
+          summary: "今日运势平稳，宜静不宜动",
+          detail: "今日天干地支与命主五行关系和谐，整体运势平稳。建议保持平和心态，做好手头工作。",
+          luckyColor: "绿色", luckyNumber: "3", luckyDirection: "东方",
+          advice: "保持乐观心态，多与自然接触", warning: "避免急躁冲动"
+        };
+      }
+
+      res.json({
+        ...fortune,
+        meta: {
+          birthDate,
+          birthElement,
+          todayBazi,
+          todayLunar,
+          solarTerm: todaySolarTerm || null,
+        }
+      });
+    } catch (err) {
+      console.error('Daily fortune error:', err);
+      res.status(500).json({ error: 'Failed to generate daily fortune' });
+    }
+  });
+
+  // ─── 缘分合盘 / 双人五行分析 ──────────────────────────────
+  app.post("/api/culture/compatibility", async (req, res) => {
+    try {
+      const { person1, person2 } = req.body;
+      if (!person1?.birthDate || !person2?.birthDate) {
+        return res.status(400).json({ error: 'Both person1 and person2 with birthDate are required' });
+      }
+
+      const d1 = lunisolar(person1.birthDate);
+      const d2 = lunisolar(person2.birthDate);
+
+      const bazi1 = d1.char8.toString();
+      const bazi2 = d2.char8.toString();
+      const dm1 = d1.char8.day.stem.toString();
+      const dm2 = d2.char8.day.stem.toString();
+      const elem1 = getStemElement(dm1);
+      const elem2 = getStemElement(dm2);
+      const zodiac1 = d1.lunar.getYearName?.() || '';
+      const zodiac2 = d2.lunar.getYearName?.() || '';
+
+      // 五行统计
+      function countElements(d: any) {
+        const count: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+        const pillars = [d.char8.year, d.char8.month, d.char8.day, d.char8.hour];
+        for (const p of pillars) {
+          const se = getStemElement(p.stem.toString());
+          const be = getBranchElement(p.branch.toString());
+          if (count[se] !== undefined) count[se]++;
+          if (count[be] !== undefined) count[be]++;
+        }
+        return count;
+      }
+
+      const elemCount1 = countElements(d1);
+      const elemCount2 = countElements(d2);
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const prompt = `你是一位精通中国传统八字合婚的命理AI。请分析以下两人的缘分。
+
+甲方: ${person1.name || '甲方'}
+- 出生: ${person1.birthDate}
+- 八字: ${bazi1}
+- 日主: ${dm1}(${elem1})
+- 五行: 金${elemCount1['金']} 木${elemCount1['木']} 水${elemCount1['水']} 火${elemCount1['火']} 土${elemCount1['土']}
+
+乙方: ${person2.name || '乙方'}
+- 出生: ${person2.birthDate}
+- 八字: ${bazi2}
+- 日主: ${dm2}(${elem2})
+- 五行: 金${elemCount2['金']} 木${elemCount2['木']} 水${elemCount2['水']} 火${elemCount2['火']} 土${elemCount2['土']}
+
+请返回严格JSON（不要markdown代码块）:
+{
+  "totalScore": 85,
+  "dimensions": [
+    { "name": "性格互补", "score": 88, "desc": "简短分析" },
+    { "name": "情感共鸣", "score": 82, "desc": "简短分析" },
+    { "name": "事业助力", "score": 79, "desc": "简短分析" },
+    { "name": "生活默契", "score": 86, "desc": "简短分析" }
+  ],
+  "summary": "两人关系总结（80-120字）",
+  "strengths": ["优势1", "优势2", "优势3"],
+  "challenges": ["挑战1", "挑战2"],
+  "advice": "相处建议（60字以内）"
+}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 600,
+        temperature: 0.7,
+        messages: [
+          { role: "system", content: "你是资深合婚命理师，精通八字、五行生克。分析温暖客观，给出建设性建议。只返回JSON。" },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      let result: any;
+      try {
+        const raw = response.choices[0]?.message?.content?.trim() || '{}';
+        result = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+      } catch {
+        result = {
+          totalScore: 78,
+          dimensions: [
+            { name: "性格互补", score: 80, desc: "两人性格有一定互补" },
+            { name: "情感共鸣", score: 76, desc: "情感表达方式有差异" },
+            { name: "事业助力", score: 82, desc: "事业方面有正向助力" },
+            { name: "生活默契", score: 74, desc: "生活习惯需要磨合" },
+          ],
+          summary: "两人缘分中等偏上，性格上有互补之处。",
+          strengths: ["五行互补", "志趣相投"],
+          challenges: ["沟通方式差异"],
+          advice: "多理解包容，以心换心。"
+        };
+      }
+
+      res.json({
+        ...result,
+        person1: { name: person1.name || '甲方', birthDate: person1.birthDate, dayMaster: dm1, element: elem1, elementCount: elemCount1 },
+        person2: { name: person2.name || '乙方', birthDate: person2.birthDate, dayMaster: dm2, element: elem2, elementCount: elemCount2 },
+      });
+    } catch (err) {
+      console.error('Compatibility error:', err);
+      res.status(500).json({ error: 'Failed to analyze compatibility' });
+    }
+  });
+
+  // ─── AI 占卜问答 ──────────────────────────────────────────
+  app.post("/api/culture/divination", async (req, res) => {
+    try {
+      const { question, method } = req.body;
+      if (!question) return res.status(400).json({ error: 'question is required' });
+
+      const divMethod = method || 'liuyao'; // liuyao=六爻, shichen=时辰占, meihua=梅花易数
+      const now = lunisolar(new Date());
+      const todayBazi = now.char8.toString();
+      const currentHourBranch = now.char8.hour.branch.toString();
+      const lunarInfo = `${now.lunar.getMonthName()}${now.lunar.getDayName()}`;
+
+      // 随机取卦 (模拟六爻摇卦)
+      const hexLines = Array.from({ length: 6 }, () => {
+        const r = Math.random();
+        if (r < 0.125) return { type: 'old_yang', value: 9, changing: true };
+        if (r < 0.375) return { type: 'young_yang', value: 7, changing: false };
+        if (r < 0.5) return { type: 'old_yin', value: 6, changing: true };
+        return { type: 'young_yin', value: 8, changing: false };
+      });
+
+      const TRIGRAM_NAMES = ['坤','震','坎','兑','艮','离','巽','乾'];
+      const lower = (hexLines[0].value % 2) + (hexLines[1].value % 2) * 2 + (hexLines[2].value % 2) * 4;
+      const upper = (hexLines[3].value % 2) + (hexLines[4].value % 2) * 2 + (hexLines[5].value % 2) * 4;
+      const lowerName = TRIGRAM_NAMES[lower] || '坤';
+      const upperName = TRIGRAM_NAMES[upper] || '乾';
+
+      const hasChanging = hexLines.some(l => l.changing);
+      const changingLines = hexLines.map((l, i) => l.changing ? i + 1 : 0).filter(Boolean);
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const prompt = `你是一位精通中国传统占卜的AI大师。用户求问一个问题，请根据卦象给出解读。
+
+问题: ${question}
+占卜时间: ${new Date().toLocaleString('zh-CN')}
+农历: ${lunarInfo}
+时辰: ${currentHourBranch}时
+当日四柱: ${todayBazi}
+
+卦象信息:
+- 下卦: ${lowerName}
+- 上卦: ${upperName}
+- 六爻(自下而上): ${hexLines.map(l => l.value).join(', ')}
+- 变爻: ${hasChanging ? `第${changingLines.join('、')}爻` : '无变爻'}
+
+请返回严格JSON（不要markdown代码块）:
+{
+  "hexagramName": "卦名（如：天火同人）",
+  "hexagramSymbol": "卦符号（☰☲等Unicode符号组合）",
+  "mainReading": "主卦解读（60-80字）",
+  "changingReading": "变卦解读（如有变爻则50字，无则null）",
+  "answer": "针对问题的具体回答（80-120字，温暖正向）",
+  "outlook": "吉凶判断：大吉/中吉/小吉/平/小凶/中凶",
+  "advice": "行动建议（40字以内）",
+  "timing": "时机提示（20字以内）"
+}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 500,
+        temperature: 0.85,
+        messages: [
+          { role: "system", content: "你是资深易学AI大师，精通六爻、梅花易数。解读客观温暖，不恐吓用户，引导积极行动。只返回JSON。" },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      let reading: any;
+      try {
+        const raw = response.choices[0]?.message?.content?.trim() || '{}';
+        reading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+      } catch {
+        reading = {
+          hexagramName: `${upperName}${lowerName}卦`,
+          hexagramSymbol: '☰☲',
+          mainReading: '此卦象征和谐与合作，提示当前局面利于沟通协调。',
+          changingReading: hasChanging ? '变卦暗示情况将有积极转变。' : null,
+          answer: '综合卦象来看，所问之事整体趋势向好，需保持耐心。',
+          outlook: '中吉',
+          advice: '以诚待人，顺势而为。',
+          timing: '近期可有进展'
+        };
+      }
+
+      res.json({
+        ...reading,
+        meta: {
+          question,
+          method: divMethod,
+          time: new Date().toISOString(),
+          lunarTime: lunarInfo,
+          hourBranch: currentHourBranch,
+          hexagram: {
+            upper: upperName,
+            lower: lowerName,
+            lines: hexLines.map(l => ({ value: l.value, changing: l.changing })),
+            changingLines,
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Divination error:', err);
+      res.status(500).json({ error: 'Failed to perform divination' });
+    }
+  });
+
+  // ─── Mood Journal Routes (auth required) ──────────────────────────
   app.get("/api/mood", requireAuth, async (req, res) => {
     const entries = await storage.getMoodEntriesByUser(getUserId(req));
     res.json(entries);
