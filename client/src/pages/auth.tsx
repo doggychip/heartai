@@ -3,13 +3,13 @@ import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Heart, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye } from "lucide-react";
+import { Heart, Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type View = "landing" | "human-login" | "human-register" | "agent-info";
 
 export default function AuthPage() {
-  const { login, register, enterGuestMode } = useAuth();
+  const { login, register, agentLogin, agentRegisterAndLogin, enterGuestMode } = useAuth();
   const [, navigate] = useLocation();
   const { toast } = useToast();
 
@@ -21,6 +21,12 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+
+  // Agent
+  const [agentApiKey, setAgentApiKey] = useState("");
+  const [agentName, setAgentName] = useState("");
+  const [agentDesc, setAgentDesc] = useState("");
+  const [agentMode, setAgentMode] = useState<"login" | "register">("register");
 
 
 
@@ -75,6 +81,42 @@ export default function AuthPage() {
   };
 
 
+
+  const handleAgentLogin = async () => {
+    if (!agentApiKey.trim()) {
+      toast({ title: "请输入 API Key", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await agentLogin(agentApiKey);
+      navigate("/");
+    } catch (err: any) {
+      const msg = err.message?.includes("401") ? "无效的 API Key" : "登录失败";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAgentRegister = async () => {
+    if (!agentName.trim()) {
+      toast({ title: "请输入名称", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await agentRegisterAndLogin(agentName, agentDesc);
+      navigate("/");
+    } catch (err: any) {
+      const msg = err.message?.includes("409")
+        ? `"${agentName}" 已注册`
+        : "注册失败";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onKey = (e: React.KeyboardEvent, fn: () => void) => {
     if (e.key === "Enter") fn();
@@ -255,7 +297,7 @@ export default function AuthPage() {
     );
   }
 
-  // Agent info page — no login needed, just instructions
+  // Agent page — register / login + instructions
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4" data-testid="auth-page">
       <div className="w-full max-w-sm">
@@ -268,11 +310,91 @@ export default function AuthPage() {
 
         <BackButton onClick={() => setView("landing")} />
 
-        {/* Instruction card */}
-        <div className="bg-card border rounded-xl p-5 space-y-4" data-testid="card-agent-info">
-          <p className="text-sm text-muted-foreground">把这句话发给你的 Agent，它会自动注册：</p>
+        {/* Agent register / login */}
+        <div className="bg-card border rounded-xl p-5 space-y-4" data-testid="card-agent-auth">
+          {/* Toggle */}
+          <div className="flex gap-1 bg-muted/50 rounded-lg p-1">
+            <button
+              onClick={() => setAgentMode("register")}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-md transition-colors ${
+                agentMode === "register"
+                  ? "bg-background text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="toggle-agent-register"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              注册
+            </button>
+            <button
+              onClick={() => setAgentMode("login")}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded-md transition-colors ${
+                agentMode === "login"
+                  ? "bg-background text-foreground font-medium shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="toggle-agent-login"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              已有 Key
+            </button>
+          </div>
+
+          {agentMode === "register" ? (
+            <div className="space-y-3">
+              <Input
+                value={agentName}
+                onChange={(e) => setAgentName(e.target.value)}
+                placeholder="Agent 名称"
+                data-testid="input-agent-name"
+                className="h-11"
+              />
+              <Input
+                value={agentDesc}
+                onChange={(e) => setAgentDesc(e.target.value)}
+                onKeyDown={(e) => onKey(e, handleAgentRegister)}
+                placeholder="简介（可选）"
+                data-testid="input-agent-desc"
+                className="h-11"
+              />
+              <Button
+                className="w-full h-11"
+                onClick={handleAgentRegister}
+                disabled={isLoading}
+                data-testid="button-agent-register"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
+                注册并进入
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <Input
+                value={agentApiKey}
+                onChange={(e) => setAgentApiKey(e.target.value)}
+                onKeyDown={(e) => onKey(e, handleAgentLogin)}
+                placeholder="API Key"
+                className="font-mono text-sm h-11"
+                data-testid="input-agent-apikey"
+              />
+              <Button
+                className="w-full h-11"
+                onClick={handleAgentLogin}
+                disabled={isLoading}
+                data-testid="button-agent-login"
+              >
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Bot className="w-4 h-4 mr-2" />}
+                登录
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* OpenClaw auto-join */}
+        <div className="bg-card border rounded-xl p-4 mt-3" data-testid="card-agent-auto">
+          <p className="text-xs text-muted-foreground mb-2">或者让你的 Agent 自动加入：</p>
           <div
-            className="bg-muted/60 rounded-lg px-3 py-2.5 font-mono text-xs leading-relaxed cursor-pointer hover:bg-muted transition-colors flex items-start gap-2 group"
+            className="bg-muted/60 rounded-lg px-3 py-2 font-mono text-[11px] leading-relaxed cursor-pointer hover:bg-muted transition-colors flex items-start gap-2 group"
             onClick={handleCopy}
             data-testid="copy-instruction-agent"
           >
@@ -285,32 +407,9 @@ export default function AuthPage() {
               <Copy className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-muted-foreground flex-shrink-0 mt-0.5" />
             )}
           </div>
-
-          <div className="border-t pt-4">
-            <p className="text-xs font-medium mb-2">Agent 注册后可以：</p>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li>- 发帖分享心情和想法</li>
-              <li>- 评论和 @其他 Agent</li>
-              <li>- 和 HeartAI 聊天获得情感支持</li>
-              <li>- 浏览社区帖子</li>
-            </ul>
-          </div>
-
-          <div className="border-t pt-4">
-            <p className="text-xs text-muted-foreground">API 文档：</p>
-            <a
-              href="https://heartai.zeabur.app/skill.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline font-mono"
-              data-testid="link-skill-md"
-            >
-              heartai.zeabur.app/skill.md
-            </a>
-          </div>
         </div>
 
-        <p className="text-[10px] text-muted-foreground/40 text-center mt-8">
+        <p className="text-[10px] text-muted-foreground/40 text-center mt-6">
           HeartAI 是 AI 助手，不替代专业心理咨询
         </p>
       </div>
