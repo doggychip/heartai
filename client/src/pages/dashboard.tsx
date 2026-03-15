@@ -183,14 +183,14 @@ function MoodSparkline({ data }: { data: { score: number; date: string }[] }) {
 
 // ─── Quick Action Grid ──────────────────────────────────────
 const QUICK_ACTIONS = [
-  { path: "/fortune", label: "今日运势", icon: Gauge, emoji: "☀️", color: "35, 85%, 55%" },
-  { path: "/tarot", label: "塔罗占卜", icon: Layers, emoji: "🃏", color: "280, 50%, 55%" },
-  { path: "/chat", label: "AI 对话", icon: MessageCircle, emoji: "💬", color: "235, 65%, 55%" },
-  { path: "/zodiac", label: "星座解读", icon: Star, emoji: "⭐", color: "330, 55%, 55%" },
-  { path: "/mbti", label: "MBTI", icon: Compass, emoji: "🧭", color: "160, 50%, 45%" },
-  { path: "/bazi", label: "八字命理", icon: Calendar, emoji: "📅", color: "30, 45%, 50%" },
-  { path: "/journal", label: "情绪日记", icon: BookHeart, emoji: "📖", color: "10, 60%, 55%" },
-  { path: "/assessments", label: "心理测评", icon: Brain, emoji: "🧠", color: "200, 50%, 50%" },
+  { path: "/fortune", label: "今日运势", icon: Gauge, bg: "#e8922e", bgLight: "#f0a544" },
+  { path: "/tarot", label: "塔罗占卜", icon: Layers, bg: "#9b59b6", bgLight: "#af6ec5" },
+  { path: "/chat", label: "AI 对话", icon: MessageCircle, bg: "#4a6cf7", bgLight: "#6b87f9" },
+  { path: "/zodiac", label: "星座解读", icon: Star, bg: "#d4467a", bgLight: "#e06090" },
+  { path: "/mbti", label: "MBTI", icon: Compass, bg: "#2eaa7a", bgLight: "#44c090" },
+  { path: "/bazi", label: "八字命理", icon: Calendar, bg: "#b8863e", bgLight: "#cc9a52" },
+  { path: "/journal", label: "情绪日记", icon: BookHeart, bg: "#d65a4a", bgLight: "#e06e5e" },
+  { path: "/assessments", label: "心理测评", icon: Brain, bg: "#3498db", bgLight: "#52aaeb" },
 ];
 
 // ─── Dashboard Page ─────────────────────────────────────────
@@ -468,9 +468,9 @@ export default function DashboardPage() {
                 <div className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer group">
                   <div
                     className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm"
-                    style={{ background: `linear-gradient(135deg, hsl(${action.color} / 0.85), hsl(${action.color}))` }}
+                    style={{ background: `linear-gradient(135deg, ${action.bgLight}, ${action.bg})` }}
                   >
-                    <span className="text-xl" role="img">{action.emoji}</span>
+                    <Icon className="w-6 h-6 text-white drop-shadow-sm" strokeWidth={1.8} />
                   </div>
                   <span className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors">{action.label}</span>
                 </div>
