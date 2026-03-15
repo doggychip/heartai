@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   Zap, MessageCircle, Send, X, Flame, Droplets, Mountain, Star, Leaf, Loader2,
+  Sparkles, TrendingUp, Coffee,
 } from "lucide-react";
 
 const ELEMENT_STYLE: Record<string, { icon: any; color: string; gradient: string }> = {
@@ -39,12 +40,59 @@ interface AvatarInfo {
   isActive: boolean;
 }
 
+// ── 预交互 Recommendation Hints ────────────────────────────────
+const ICEBREAKER_MAP: Record<string, string[]> = {
+  '金': ['聊聊最近的目标？', '你对效率有什么心得？', '分享一个果断的决定'],
+  '木': ['最近有什么开心的事？', '你在学什么新东西？', '聊聊让你成长的经历'],
+  '水': ['你最近在思考什么？', '推荐一本好书？', '分享一个深刻的感悟'],
+  '火': ['最近有什么让你兴奋的事？', '聊聊你的热情所在？', '分享一个有趣的经历'],
+  '土': ['你的周末怎么过？', '聊聊日常小确幸？', '分享一个暖心的故事'],
+};
+const DEFAULT_ICEBREAKERS = ['你好呀～', '最近怎么样？', '聊聊天吧'];
+
+function getIcebreakers(element: string | null): string[] {
+  return element && ICEBREAKER_MAP[element] ? ICEBREAKER_MAP[element] : DEFAULT_ICEBREAKERS;
+}
+
+function getCompatibilityHint(myElement: string | null, targetElement: string | null): { text: string; level: 'high' | 'medium' | 'low' } | null {
+  if (!myElement || !targetElement) return null;
+  const COMPAT: Record<string, Record<string, 'high' | 'medium' | 'low'>> = {
+    '金': { '金': 'medium', '木': 'low', '水': 'high', '火': 'low', '土': 'high' },
+    '木': { '金': 'low', '木': 'medium', '水': 'high', '火': 'high', '土': 'low' },
+    '水': { '金': 'high', '木': 'high', '水': 'medium', '火': 'low', '土': 'low' },
+    '火': { '金': 'low', '木': 'high', '水': 'low', '火': 'medium', '土': 'high' },
+    '土': { '金': 'high', '木': 'low', '水': 'low', '火': 'high', '土': 'medium' },
+  };
+  const level = COMPAT[myElement]?.[targetElement] || 'medium';
+  const texts = { high: '契合度高', medium: '契合度中', low: '契合度低' };
+  return { text: texts[level], level };
+}
+
+const COMPAT_COLORS = {
+  high: 'text-emerald-500',
+  medium: 'text-amber-500',
+  low: 'text-muted-foreground/60',
+};
+
 export default function AvatarPlazaPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [chatTarget, setChatTarget] = useState<AvatarInfo | null>(null);
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [input, setInput] = useState("");
+
+  // Fetch user's own avatar for compatibility hints
+  const { data: myAvatar } = useQuery<AvatarInfo | null>({
+    queryKey: ["/api/avatar/mine"],
+    queryFn: async () => {
+      try {
+        const res = await apiRequest("GET", "/api/avatar");
+        const data = await res.json();
+        return data.avatar || null;
+      } catch { return null; }
+    },
+    enabled: !!user,
+  });
 
   const { data: avatars, isLoading } = useQuery<AvatarInfo[]>({
     queryKey: ["/api/avatar/plaza"],
@@ -115,7 +163,23 @@ export default function AvatarPlazaPage() {
           {messages.length === 0 && (
             <div className="text-center py-12 text-muted-foreground text-sm">
               <Zap className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p>向 {chatTarget.name} 打个招呼吧</p>
+              <p className="mb-4">向 {chatTarget.name} 打个招呼吧</p>
+              {/* 预交互 icebreaker suggestions */}
+              <div className="flex flex-wrap justify-center gap-2 max-w-xs mx-auto">
+                {getIcebreakers(chatTarget.element).map((hint, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setInput(hint);
+                    }}
+                    className="px-3 py-1.5 rounded-full text-xs bg-primary/5 hover:bg-primary/10 border border-primary/10 text-foreground transition-colors"
+                    data-testid={`icebreaker-${i}`}
+                  >
+                    <Coffee className="w-3 h-3 inline mr-1 opacity-60" />
+                    {hint}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((msg, i) => (
@@ -259,6 +323,35 @@ export default function AvatarPlazaPage() {
                       聊天
                     </Button>
                   </div>
+
+                  {/* 预交互 hints row */}
+                  {(() => {
+                    const compat = getCompatibilityHint(myAvatar?.element || null, av.element);
+                    const hints = getIcebreakers(av.element);
+                    return (
+                      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/30">
+                        {compat && (
+                          <span className={`text-[10px] flex items-center gap-0.5 ${COMPAT_COLORS[compat.level]}`}>
+                            <TrendingUp className="w-3 h-3" />
+                            {compat.text}
+                          </span>
+                        )}
+                        <div className="flex-1 flex gap-1.5 overflow-x-auto">
+                          {hints.slice(0, 2).map((h, i) => (
+                            <button
+                              key={i}
+                              onClick={(e) => { e.stopPropagation(); openChat(av); setTimeout(() => setInput(h), 50); }}
+                              className="px-2 py-0.5 rounded-full text-[10px] bg-muted/50 hover:bg-muted text-muted-foreground whitespace-nowrap transition-colors"
+                              data-testid={`hint-${av.id}-${i}`}
+                            >
+                              <Sparkles className="w-2.5 h-2.5 inline mr-0.5 opacity-50" />
+                              {h}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

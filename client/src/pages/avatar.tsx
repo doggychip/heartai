@@ -11,10 +11,12 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import {
   Zap, Brain, MessageCircle, ThumbsUp, Eye, SkipForward, Send,
-  RefreshCw, Power, PowerOff, Plus, Trash2, Sparkles,
+  RefreshCw, Power, PowerOff, Plus, Trash2, Sparkles, Activity,
+  Database, ShieldCheck, User,
 } from "lucide-react";
 
 const ELEMENT_EMOJI: Record<string, string> = { '金': '✨', '木': '🌿', '水': '💧', '火': '🔥', '土': '⛰️' };
@@ -26,6 +28,64 @@ const ELEMENT_STYLE: Record<string, string> = {
   '土': '沉稳包容，踏实可靠',
 };
 
+// ── Sync Rate Ring ────────────────────────────────────────
+function SyncRateRing({ rate, size = 80 }: { rate: number; size?: number }) {
+  const r = (size - 8) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (rate / 100) * circumference;
+  const color = rate >= 70 ? '#22c55e' : rate >= 40 ? '#eab308' : '#94a3b8';
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="currentColor" className="text-muted/20" strokeWidth={4} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={4}
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 1s ease' }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-lg font-bold" style={{ color }}>{rate}%</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Sync Breakdown ────────────────────────────────────────
+function SyncBreakdown({ breakdown }: { breakdown: { memory: number; activity: number; approval: number; personality: number } }) {
+  const items = [
+    { label: '记忆丰富度', value: breakdown.memory, max: 30, icon: <Database className="w-3.5 h-3.5" /> },
+    { label: '互动活跃度', value: breakdown.activity, max: 25, icon: <Activity className="w-3.5 h-3.5" /> },
+    { label: '行为认可率', value: breakdown.approval, max: 25, icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+    { label: '人格完整度', value: breakdown.personality, max: 20, icon: <User className="w-3.5 h-3.5" /> },
+  ];
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-2">
+          <span className="text-muted-foreground">{item.icon}</span>
+          <span className="text-[11px] text-muted-foreground w-20 shrink-0">{item.label}</span>
+          <Progress value={(item.value / item.max) * 100} className="flex-1 h-1.5" />
+          <span className="text-[10px] text-muted-foreground w-10 text-right">{item.value}/{item.max}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Memory Slot Indicator ─────────────────────────────────
+function MemorySlotBar({ used, total }: { used: number; total: number }) {
+  const pct = (used / total) * 100;
+  const color = pct >= 90 ? 'text-red-500' : pct >= 70 ? 'text-yellow-500' : 'text-primary';
+  return (
+    <div className="flex items-center gap-2">
+      <Database className={`w-3.5 h-3.5 ${color}`} />
+      <Progress value={pct} className="flex-1 h-1.5" />
+      <span className={`text-[11px] font-medium ${color}`}>{used}/{total}</span>
+    </div>
+  );
+}
+
 function AvatarSetup({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -36,11 +96,7 @@ function AvatarSetup({ onCreated }: { onCreated: () => void }) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/avatar", {
-        method: "POST",
-        body: JSON.stringify({ name, bio, sliderPraise, sliderSerious, sliderWarm }),
-        headers: { "Content-Type": "application/json" },
-      });
+      return apiRequest("POST", "/api/avatar", { name, bio, sliderPraise, sliderSerious, sliderWarm });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
@@ -117,18 +173,18 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
   // Daily summary
   const { data: summary } = useQuery({
     queryKey: ["/api/avatar/daily-summary"],
-    queryFn: () => apiRequest("/api/avatar/daily-summary").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/avatar/daily-summary").then(r => r.json()),
   });
 
   // Actions
-  const { data: actions, refetch: refetchActions } = useQuery({
+  const { data: actions } = useQuery({
     queryKey: ["/api/avatar/actions"],
-    queryFn: () => apiRequest("/api/avatar/actions").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/avatar/actions").then(r => r.json()),
   });
 
   // Browse trigger
   const browseMutation = useMutation({
-    mutationFn: () => apiRequest("/api/avatar/browse", { method: "POST" }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/avatar/browse").then(r => r.json()),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar/actions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/avatar/daily-summary"] });
@@ -139,7 +195,7 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
 
   // Toggle active
   const toggleMutation = useMutation({
-    mutationFn: () => apiRequest("/api/avatar/toggle", { method: "POST" }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/avatar/toggle").then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
       toast({ title: avatar.isActive ? "分身已暂停" : "分身已激活" });
@@ -148,13 +204,10 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
 
   // Add memory
   const addMemMutation = useMutation({
-    mutationFn: () => apiRequest("/api/avatar/memories", {
-      method: "POST",
-      body: JSON.stringify({ category: memCategory, content: memContent, weight: 5 }),
-      headers: { "Content-Type": "application/json" },
-    }).then(r => r.json()),
+    mutationFn: () => apiRequest("POST", "/api/avatar/memories", { category: memCategory, content: memContent, weight: 5 }).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar/daily-summary"] });
       setMemContent("");
       toast({ title: "记忆已添加" });
     },
@@ -162,19 +215,28 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
 
   // Delete memory
   const delMemMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/avatar/memories/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/avatar"] }),
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/avatar/memories/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar/daily-summary"] });
+    },
+  });
+
+  // Prune memories
+  const pruneMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/avatar/memories/prune").then(r => r.json()),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar/daily-summary"] });
+      toast({ title: `已清理 ${data.pruned} 条低权重记忆`, description: `剩余 ${data.remaining} 条` });
+    },
   });
 
   // Chat with avatar
   const chatMutation = useMutation({
     mutationFn: async () => {
       if (!chatTargetId.trim()) throw new Error("请输入用户ID");
-      const resp = await apiRequest(`/api/avatar/${chatTargetId}/chat`, {
-        method: "POST",
-        body: JSON.stringify({ message: chatMessage }),
-        headers: { "Content-Type": "application/json" },
-      });
+      const resp = await apiRequest("POST", `/api/avatar/${chatTargetId}/chat`, { message: chatMessage });
       return resp.json();
     },
     onSuccess: (data) => {
@@ -188,11 +250,22 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
     onError: (e: any) => toast({ title: "对话失败", description: e.message, variant: "destructive" }),
   });
 
+  // Approve action
+  const approveMutation = useMutation({
+    mutationFn: (params: { id: string; approved: boolean }) =>
+      apiRequest("POST", `/api/avatar/actions/${params.id}/approve`, { approved: params.approved }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar/actions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/avatar/daily-summary"] });
+    },
+  });
+
   const actionList = actions || recentActions;
+  const syncRate = summary?.syncRate ?? 0;
 
   return (
     <div className="space-y-4">
-      {/* Header card */}
+      {/* Header card with sync rate */}
       <Card className="border-primary/20">
         <CardContent className="pt-4">
           <div className="flex items-center justify-between">
@@ -219,25 +292,38 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
           </div>
           {avatar.bio && <p className="text-sm text-muted-foreground mt-2">{avatar.bio}</p>}
           
-          {/* Daily stats */}
-          {summary && (
-            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              <div className="bg-muted/50 rounded p-2">
-                <div className="text-lg font-bold">{summary.stats?.totalBrowsed || 0}</div>
-                <div className="text-[10px] text-muted-foreground">浏览</div>
+          {/* Sync rate + daily stats */}
+          <div className="mt-3 flex items-center gap-4">
+            <SyncRateRing rate={syncRate} size={72} />
+            <div className="flex-1">
+              <div className="text-xs text-muted-foreground mb-1.5">
+                同步率 — 分身与你的契合程度
               </div>
-              <div className="bg-muted/50 rounded p-2">
-                <div className="text-lg font-bold">{summary.stats?.likes || 0}</div>
-                <div className="text-[10px] text-muted-foreground">点赞</div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="bg-muted/50 rounded p-1.5">
+                  <div className="text-sm font-bold">{summary?.stats?.totalBrowsed || 0}</div>
+                  <div className="text-[9px] text-muted-foreground">浏览</div>
+                </div>
+                <div className="bg-muted/50 rounded p-1.5">
+                  <div className="text-sm font-bold">{summary?.stats?.likes || 0}</div>
+                  <div className="text-[9px] text-muted-foreground">点赞</div>
+                </div>
+                <div className="bg-muted/50 rounded p-1.5">
+                  <div className="text-sm font-bold">{summary?.stats?.comments || 0}</div>
+                  <div className="text-[9px] text-muted-foreground">评论</div>
+                </div>
+                <div className="bg-muted/50 rounded p-1.5">
+                  <div className="text-sm font-bold">{summary?.memorySlots?.used || 0}</div>
+                  <div className="text-[9px] text-muted-foreground">记忆</div>
+                </div>
               </div>
-              <div className="bg-muted/50 rounded p-2">
-                <div className="text-lg font-bold">{summary.stats?.comments || 0}</div>
-                <div className="text-[10px] text-muted-foreground">评论</div>
-              </div>
-              <div className="bg-muted/50 rounded p-2">
-                <div className="text-lg font-bold">{summary.memoryCount || 0}</div>
-                <div className="text-[10px] text-muted-foreground">记忆</div>
-              </div>
+            </div>
+          </div>
+
+          {/* Sync breakdown */}
+          {summary?.syncBreakdown && (
+            <div className="mt-3 p-3 bg-muted/30 rounded-lg">
+              <SyncBreakdown breakdown={summary.syncBreakdown} />
             </div>
           )}
         </CardContent>
@@ -291,8 +377,20 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
                             {a.actionType === 'skip' && '跳过'}
                           </span>
                           {a.isApproved === null && a.actionType === 'comment' && (
-                            <Badge variant="outline" className="text-[10px]">待审核</Badge>
+                            <div className="flex items-center gap-1">
+                              <Badge variant="outline" className="text-[10px]">待审核</Badge>
+                              <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] text-green-600"
+                                onClick={() => approveMutation.mutate({ id: a.id, approved: true })}>
+                                ✓
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px] text-red-500"
+                                onClick={() => approveMutation.mutate({ id: a.id, approved: false })}>
+                                ✗
+                              </Button>
+                            </div>
                           )}
+                          {a.isApproved === true && <Badge variant="secondary" className="text-[9px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">已认可</Badge>}
+                          {a.isApproved === false && <Badge variant="secondary" className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">已拒绝</Badge>}
                           <span className="text-[10px] text-muted-foreground ml-auto">{new Date(a.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         {a.post && <p className="text-xs text-muted-foreground truncate mt-0.5">📄 {a.post.content}</p>}
@@ -312,11 +410,26 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
           </ScrollArea>
         </TabsContent>
 
-        {/* Memory tab */}
+        {/* Memory tab with slot management */}
         <TabsContent value="memory" className="space-y-3">
           <Card>
             <CardContent className="pt-4 space-y-3">
-              <p className="text-xs text-muted-foreground">告诉分身关于你的事，它会学习并融入互动风格中。</p>
+              {/* Memory slot indicator */}
+              {summary?.memorySlots && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">记忆槽位</p>
+                    {summary.memorySlots.used > 100 && (
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px] text-orange-600" onClick={() => pruneMutation.mutate()}>
+                        清理低权重记忆
+                      </Button>
+                    )}
+                  </div>
+                  <MemorySlotBar used={summary.memorySlots.used} total={summary.memorySlots.total} />
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">告诉分身关于你的事，它会学习并融入互动风格中。每条记忆可设置权重(1-10)。</p>
               <div className="flex gap-2">
                 <select value={memCategory} onChange={e => setMemCategory(e.target.value)} className="text-xs border rounded px-2 py-1 bg-background" data-testid="mem-category-select">
                   <option value="interest">兴趣爱好</option>
@@ -340,6 +453,7 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
                   <CardContent className="py-2 px-3 flex items-center gap-2">
                     <Badge variant="outline" className="text-[10px] shrink-0">{m.category}</Badge>
                     <p className="text-xs flex-1">{m.content}</p>
+                    <span className="text-[9px] text-muted-foreground shrink-0">w:{m.weight}</span>
                     <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => delMemMutation.mutate(m.id)} data-testid={`del-mem-${m.id}`}>
                       <Trash2 className="w-3 h-3 text-muted-foreground" />
                     </Button>
@@ -359,7 +473,7 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
         <TabsContent value="chat" className="space-y-3">
           <Card>
             <CardContent className="pt-4 space-y-3">
-              <p className="text-xs text-muted-foreground">输入用户ID，和他们的AI分身对话。</p>
+              <p className="text-xs text-muted-foreground">输入用户ID，和他们的AI分身对话。也可以去分身广场直接发起对话。</p>
               <div className="flex gap-2">
                 <Input placeholder="目标用户ID" value={chatTargetId} onChange={e => setChatTargetId(e.target.value)} className="flex-1 text-sm" data-testid="chat-target-input" />
               </div>
@@ -375,7 +489,7 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted'
                   }`}>
-                    {msg.role === 'avatar' && <Badge variant="outline" className="text-[9px] mb-1">AI 分身</Badge>}
+                    {msg.role === 'avatar' && <Badge variant="outline" className="text-[9px] mb-1 border-blue-400 text-blue-600 dark:text-blue-400">AI 分身</Badge>}
                     <p className="text-xs">{msg.content}</p>
                   </div>
                 </div>
@@ -411,11 +525,7 @@ function AvatarSettings({ avatar }: { avatar: any }) {
   const { toast } = useToast();
 
   const updateMutation = useMutation({
-    mutationFn: () => apiRequest("/api/avatar", {
-      method: "POST",
-      body: JSON.stringify({ name, bio, sliderPraise, sliderSerious, sliderWarm }),
-      headers: { "Content-Type": "application/json" },
-    }),
+    mutationFn: () => apiRequest("POST", "/api/avatar", { name, bio, sliderPraise, sliderSerious, sliderWarm }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
       toast({ title: "分身设置已更新" });
@@ -462,7 +572,7 @@ export default function AvatarPage() {
   const { user } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ["/api/avatar"],
-    queryFn: () => apiRequest("/api/avatar").then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/avatar").then(r => r.json()),
   });
 
   if (isLoading) {

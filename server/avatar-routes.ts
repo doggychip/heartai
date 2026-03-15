@@ -502,7 +502,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       const avatar = await storage.getAvatarByUser(userId);
       if (!avatar) return res.json(null);
 
-      const actions = await storage.getAvatarActions(avatar.id, 50);
+      const actions = await storage.getAvatarActions(avatar.id, 100);
       const today = new Date().toISOString().split('T')[0];
       const todayActions = actions.filter(a => a.createdAt.startsWith(today));
 
@@ -518,15 +518,65 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 
       const memories = await storage.getAvatarMemories(avatar.id);
 
+      // 同步率计算 (Sync Rate) — inspired by Elys
+      // Based on: memory count, approved actions ratio, total interactions, personality completeness
+      const totalActions = actions.length;
+      const approvedActions = actions.filter(a => a.isApproved === true).length;
+      const rejectedActions = actions.filter(a => a.isApproved === false).length;
+      const approvalRate = totalActions > 0 ? approvedActions / Math.max(approvedActions + rejectedActions, 1) : 0;
+      
+      const memoryScore = Math.min(memories.length / 50, 1) * 30;      // max 30 pts from 50 memories
+      const actionScore = Math.min(totalActions / 100, 1) * 25;        // max 25 pts from 100 actions
+      const approvalScore = approvalRate * 25;                          // max 25 pts from approval
+      const personalityScore = (avatar.element ? 10 : 0) + (avatar.bio ? 10 : 0); // max 20 pts
+      const syncRate = Math.round(Math.min(memoryScore + actionScore + approvalScore + personalityScore, 100));
+
       res.json({
         date: today,
         stats: { likes, comments, skips, totalBrowsed: todayActions.length },
         thoughts,
         memoryCount: memories.length,
+        memorySlots: { used: memories.length, total: 128 },
         isActive: avatar.isActive,
+        syncRate,
+        syncBreakdown: {
+          memory: Math.round(memoryScore),
+          activity: Math.round(actionScore),
+          approval: Math.round(approvalScore),
+          personality: Math.round(personalityScore),
+        },
       });
     } catch (err) {
       res.status(500).json({ error: "获取日报失败" });
+    }
+  });
+
+  // ─── Memory decay: prune low-weight old memories when exceeding 128 slots ─
+  app.post("/api/avatar/memories/prune", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const avatar = await storage.getAvatarByUser(userId);
+      if (!avatar) return res.status(400).json({ error: "请先创建分身" });
+
+      const memories = await storage.getAvatarMemories(avatar.id);
+      if (memories.length <= 128) {
+        return res.json({ pruned: 0, remaining: memories.length });
+      }
+
+      // Sort by weight ASC, then by date ASC (oldest+lowest weight first)
+      const sorted = [...memories].sort((a, b) => {
+        if (a.weight !== b.weight) return a.weight - b.weight;
+        return a.createdAt.localeCompare(b.createdAt);
+      });
+
+      const toPrune = sorted.slice(0, memories.length - 128);
+      for (const m of toPrune) {
+        await storage.deleteAvatarMemory(m.id);
+      }
+
+      res.json({ pruned: toPrune.length, remaining: 128 });
+    } catch (err) {
+      res.status(500).json({ error: "记忆清理失败" });
     }
   });
 

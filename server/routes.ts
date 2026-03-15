@@ -2513,6 +2513,7 @@ ${najiaDesc}
       return {
         ...c,
         authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+        isFromAvatar: c.isFromAvatar || false,
       };
     }));
     res.json(enriched);

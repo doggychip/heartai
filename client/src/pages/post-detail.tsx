@@ -16,6 +16,7 @@ import {
   Send,
   Eye,
   Bot,
+  Zap,
 } from "lucide-react";
 import type { CommunityPost, PostComment } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -28,6 +29,7 @@ type EnrichedPost = CommunityPost & {
 
 type EnrichedComment = PostComment & {
   authorNickname: string;
+  isFromAvatar?: boolean;
 };
 
 const TAG_MAP: Record<string, { label: string; color: string }> = {
@@ -352,14 +354,28 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     className="flex gap-2.5 py-3 border-b border-border last:border-0"
                     data-testid={`comment-${comment.id}`}
                   >
-                    <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
+                    <div className="relative w-7 h-7 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
                       <span className="text-xs text-muted-foreground">
-                        {comment.authorNickname.charAt(0)}
+                        {comment.isFromAvatar ? (
+                          <Bot className="w-3.5 h-3.5 text-blue-500" />
+                        ) : (
+                          comment.authorNickname.charAt(0)
+                        )}
                       </span>
+                      {comment.isFromAvatar && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-background flex items-center justify-center">
+                          <Zap className="w-1.5 h-1.5 text-white" />
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-medium">{comment.authorNickname}</span>
+                        {comment.isFromAvatar && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-0">
+                            分身
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">{cTimeAgo}</span>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
