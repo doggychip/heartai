@@ -183,14 +183,14 @@ function MoodSparkline({ data }: { data: { score: number; date: string }[] }) {
 
 // ─── Quick Action Grid ──────────────────────────────────────
 const QUICK_ACTIONS = [
-  { path: "/fortune", label: "今日运势", icon: Gauge, color: "hsl(35, 85%, 55%)" },
-  { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "hsl(280, 50%, 55%)" },
-  { path: "/chat", label: "AI 对话", icon: MessageCircle, color: "hsl(235, 65%, 55%)" },
-  { path: "/zodiac", label: "星座解读", icon: Star, color: "hsl(330, 55%, 55%)" },
-  { path: "/mbti", label: "MBTI", icon: Compass, color: "hsl(160, 50%, 45%)" },
-  { path: "/bazi", label: "八字命理", icon: Calendar, color: "hsl(30, 45%, 50%)" },
-  { path: "/journal", label: "情绪日记", icon: BookHeart, color: "hsl(10, 60%, 55%)" },
-  { path: "/assessments", label: "心理测评", icon: Brain, color: "hsl(200, 50%, 50%)" },
+  { path: "/fortune", label: "今日运势", icon: Gauge, emoji: "☀️", color: "35, 85%, 55%" },
+  { path: "/tarot", label: "塔罗占卜", icon: Layers, emoji: "🃏", color: "280, 50%, 55%" },
+  { path: "/chat", label: "AI 对话", icon: MessageCircle, emoji: "💬", color: "235, 65%, 55%" },
+  { path: "/zodiac", label: "星座解读", icon: Star, emoji: "⭐", color: "330, 55%, 55%" },
+  { path: "/mbti", label: "MBTI", icon: Compass, emoji: "🧭", color: "160, 50%, 45%" },
+  { path: "/bazi", label: "八字命理", icon: Calendar, emoji: "📅", color: "30, 45%, 50%" },
+  { path: "/journal", label: "情绪日记", icon: BookHeart, emoji: "📖", color: "10, 60%, 55%" },
+  { path: "/assessments", label: "心理测评", icon: Brain, emoji: "🧠", color: "200, 50%, 50%" },
 ];
 
 // ─── Dashboard Page ─────────────────────────────────────────
@@ -467,10 +467,10 @@ export default function DashboardPage() {
               <Link key={action.path} href={action.path}>
                 <div className="flex flex-col items-center gap-1.5 py-3 px-1 rounded-xl hover:bg-accent/50 transition-colors cursor-pointer group">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
-                    style={{ backgroundColor: `${action.color}15` }}
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 shadow-sm"
+                    style={{ background: `linear-gradient(135deg, hsl(${action.color} / 0.85), hsl(${action.color}))` }}
                   >
-                    <Icon className="w-5 h-5" style={{ color: action.color }} />
+                    <span className="text-xl" role="img">{action.emoji}</span>
                   </div>
                   <span className="text-[11px] text-muted-foreground group-hover:text-foreground transition-colors">{action.label}</span>
                 </div>
