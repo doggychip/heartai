@@ -2118,6 +2118,234 @@ ${najiaDesc}
   });
 
 
+  // ─── 求签解签 (Fortune Stick Drawing + AI Interpretation) ─────────
+  app.post("/api/culture/qiuqian", async (req, res) => {
+    try {
+      const { question, category } = req.body;
+      // category: general | love | career | wealth | health | exam
+      const qianCategory = category || 'general';
+
+      // 100支签 — 经典观音灵签体系
+      const QIAN_POOL: { number: number; rank: string; title: string; poem: string;解: string }[] = [
+        { number: 1, rank: '上上', title: '开天辟地', poem: '天开地辟结良缘，日吉时良万事全。若得此签非小可，人行忠正帝王宣。', 解: '万事皆通，如日方升。' },
+        { number: 2, rank: '上上', title: '鬼谷下山', poem: '盈虚消息百年中，冉冉光阴有限终。万事劝人宜早计，莫教蹉跎过此中。', 解: '时不我待，及时行动。' },
+        { number: 3, rank: '下下', title: '董永卖身', poem: '临风冒雨去还乡，心已思量意已忙。因祸得福天之意，更逢云开见太阳。', 解: '先苦后甜，守得云开。' },
+        { number: 4, rank: '上中', title: '玉莲会友', poem: '千年古镜复重圆，女再求夫男再婚。自此门庭重改换，更添福禄在儿孙。', 解: '破镜重圆，否极泰来。' },
+        { number: 5, rank: '中中', title: '刘晨遇仙', poem: '一锄掘地要求泉，须是掘开数丈渊。须到久深方见水，比中尽有更深缘。', 解: '持之以恒，功到自成。' },
+        { number: 6, rank: '上上', title: '仁贵遇主', poem: '投身岩下铜鸟居，奋志须登上品誉。四海有缘方契合，前程万里自觉殊。', 解: '贵人相助，前途光明。' },
+        { number: 7, rank: '中下', title: '苏秦不第', poem: '奔波阵阵似浮云，何日停车落脚跟。心事不须空计较，且从耐守自然轮。', 解: '切忌焦躁，静待时机。' },
+        { number: 8, rank: '上中', title: '姚能遇仙', poem: '茂林松柏正兴旺，雨雪风霜总莫为。异日忽然成大用，功名由此定标奇。', 解: '根基深固，大器晚成。' },
+        { number: 9, rank: '中中', title: '孔明博望', poem: '烟开雾散正分明，万象森罗在此形。且把陈方立定志，波浪无侵水自清。', 解: '拨云见日，坚定信念。' },
+        { number: 10, rank: '上中', title: '庞涓观阵', poem: '石藏无价玉和珍，只管他乡外处寻。宛如持灯更觅火，不如收拾用自心。', 解: '反求诸己，宝藏在心。' },
+        { number: 11, rank: '上上', title: '书生遇友', poem: '逍遥自在乐升平，万事安然百事宁。无数良田收获满，喜看秋色入门庭。', 解: '丰收在望，万事如意。' },
+        { number: 12, rank: '上中', title: '武吉逢师', poem: '否去泰来咫尺间，劝君安守莫心焦。若逢险处须当避，紫气东来慢慢消。', 解: '转运在即，谨慎行事。' },
+        { number: 13, rank: '中平', title: '罗通寻父', poem: '自小生身富贵家，眼前万物总堪夸。逢春花放枝枝美，少遇风波有几差。', 解: '优势尚在，且行且珍惜。' },
+        { number: 14, rank: '中中', title: '子牙弃官', poem: '宛如仙鹤出笼中，脱得笼中路路通。南北东西无阻隔，任尔飞鸣入碧空。', 解: '挣脱束缚，自由发展。' },
+        { number: 15, rank: '中下', title: '苏武牧羊', poem: '行人千里未归程，纵有音书岂太平。边塞风霜忧抱恨，一朝回首慰平生。', 解: '路途遥远，耐心等候。' },
+        { number: 16, rank: '中中', title: '叶梦熊朝帝', poem: '人怀苦心正相宜，莫把心事对人知。须识此身非到处，等闲谋算且迟迟。', 解: '韬光养晦，切勿声张。' },
+        { number: 17, rank: '中下', title: '话梅止渴', poem: '莫听闲言说是非，晨昏只好念阿弥。若逢大事休慌速，须在三思免过迷。', 解: '三思后行，莫听谣言。' },
+        { number: 18, rank: '上中', title: '曹国舅为仙', poem: '修行一路觅知音，贪恋红尘误自身。若得贵人来指引，此身可待脱凡尘。', 解: '修身养性，等待机缘。' },
+        { number: 19, rank: '上中', title: '子仪封王', poem: '急水滩头放纸鸢，手拈丝线且收牵。凤凰一出鸡群散，百世英雄在眼前。', 解: '把握要领，一飞冲天。' },
+        { number: 20, rank: '上上', title: '姜太公遇文王', poem: '当春久雨喜开晴，玉出昆山石自明。终有贵人来协力，前程万里甚分明。', 解: '雨过天晴，贵人提携。' },
+        { number: 21, rank: '中中', title: '李旦游阵', poem: '天门日射马行空，虽有马首未见龙。名利二途当慎择，急流勇退是良功。', 解: '审时度势，懂得取舍。' },
+        { number: 22, rank: '中上', title: '六郎逢救', poem: '旱时田里尽枯焦，幸得天恩降雨浇。花果草木皆润泽，始知一雨值千金。', 解: '及时雨至，旱苗逢甘。' },
+        { number: 23, rank: '中下', title: '怀德招亲', poem: '无事不须多计较，此生福禄自天排。若遇嫌猜当自省，修心积善自然来。', 解: '莫要计较，修心为上。' },
+        { number: 24, rank: '上中', title: '殷郊遇师', poem: '出入营谋大吉昌，连年作事尽称强。一条大路通云汉，万事从今得主张。', 解: '大路畅通，事事顺利。' },
+        { number: 25, rank: '上上', title: '伯牙访友', poem: '知音说与知音听，非是知音不与弹。曲调若逢同声和，尽在高山流水间。', 解: '遇知己，得共鸣。' },
+        { number: 26, rank: '中平', title: '钟馗得道', poem: '上下传来事转虚，天边接引片帆飞。莫愁道路无知己，人世更多暗里扶。', 解: '虽感孤独，暗中有助。' },
+        { number: 27, rank: '中下', title: '刘基谏主', poem: '一谋一用一番新，须教仔细察斯真。若是琴堂调雅曲，知音才是识弦人。', 解: '慧眼识人，谨慎交友。' },
+        { number: 28, rank: '下下', title: '李后寻夫', poem: '东边月上正婵娟，倏尔云遮月半边。万事不由人计较，一心还仗上苍怜。', 解: '世事难料，随缘而安。' },
+        { number: 29, rank: '中平', title: '赵子龙救主', poem: '宝剑出匣耀光明，在匣何曾有几个。若得贵人来指引，斯时始觉有前程。', 解: '蓄势待发，需要伯乐。' },
+        { number: 30, rank: '中中', title: '棋盘上将', poem: '一着棋高说与知，须从局外耐思之。若能看透棋中意，且静且思见端倪。', 解: '跳出局外，冷静分析。' },
+        { number: 31, rank: '中上', title: '佛印会东坡', poem: '春来花发映阳台，万里舒张独自栽。多少枝头红与白，此中何必有安排。', 解: '顺其自然，各展其美。' },
+        { number: 32, rank: '上上', title: '刘备求贤', poem: '刘备当年在许昌，须知孔明入南阳。凤鸣高岗风远扬，斯时正是好时光。', 解: '礼贤下士，正当其时。' },
+        { number: 33, rank: '中上', title: '李靖归山', poem: '内事须防外事侵，暗中发箭最难评。一朝若遇龙与凤，四海风云际会新。', 解: '防内忧外患，待龙凤呈祥。' },
+        { number: 34, rank: '中平', title: '桃花女破阵', poem: '行人吉运在天时，巧借天风送我归。只恐半途生阻碍，须加谨慎保安危。', 解: '行运虽好，途中需慎。' },
+        { number: 35, rank: '上中', title: '唐僧取经', poem: '衣锦还乡路正长，须知天远水茫茫。万般辛苦终须到，但把心坚石也穿。', 解: '坚持到底，必达目标。' },
+        { number: 36, rank: '中中', title: '湘子遇宝', poem: '一字当中有吉凶，须从反覆看分明。好将佛法多修积，前景自然渐有声。', 解: '善恶分明，修行积德。' },
+        { number: 37, rank: '上中', title: '李泌归山', poem: '欲问营谋定如何，笑看秋水映碧波。要凭一叶轻舟渡，万顷烟波任纵横。', 解: '化繁为简，轻松渡过。' },
+        { number: 38, rank: '中下', title: '何文秀遇救', poem: '月照天书静夜深，翻来覆去费沉吟。要知此事非容易，万般须看仔细心。', 解: '深思熟虑，谨慎决策。' },
+        { number: 39, rank: '下下', title: '姜女寻夫', poem: '天边消息实难猜，无限忧愁挂满怀。若得贵人垂一引，前途指日见光明。', 解: '忧虑重重，盼望贵人。' },
+        { number: 40, rank: '中中', title: '武侯出阵', poem: '忽然一夜起风波，四面八方受折磨。须以沉心来应对，待到春来雪自消。', 解: '临危不乱，春暖花开。' },
+        { number: 41, rank: '上中', title: '董卓进京', poem: '正是桃花浪里舟，浪中何惧溯行流。一朝得到青云路，万里风光任遨游。', 解: '逆流而上，终达彼岸。' },
+        { number: 42, rank: '中上', title: '目莲救母', poem: '一片孝心感动天，千般磨难化云烟。只因善念通神佛，功德圆满百福全。', 解: '至孝至善，福报自来。' },
+        { number: 43, rank: '中平', title: '行者得道', poem: '日出东方渐渐红，须知海阔水无穷。天高地厚知何尽，莫把心思太急匆。', 解: '胸怀宽广，切忌心急。' },
+        { number: 44, rank: '上中', title: '姜维胆略', poem: '棋逢对手费思量，出入攻防各有方。若论英雄当世比，还须智略胜平常。', 解: '棋逢对手，以智取胜。' },
+        { number: 45, rank: '下下', title: '仁宗认母', poem: '温柔自古胜刚强，莫把心机太较量。百计千方终无益，不如守拙待时芳。', 解: '守拙待时，莫强求。' },
+        { number: 46, rank: '中中', title: '渭水钓鱼', poem: '劝尔安心莫急忙，大器晚成自有方。三十河东四十西，莫道无翻身日子。', 解: '大器晚成，耐心等候。' },
+        { number: 47, rank: '上上', title: '梁灏登科', poem: '锦上添花色更鲜，运来禄马喜双全。时人莫讶功名晚，天意分明在少年。', 解: '锦上添花，双喜临门。' },
+        { number: 48, rank: '中下', title: '韩信问路', poem: '鹪鹩虽小栖林中，一旦风来便不同。若遇不测且退步，明朝又是一春风。', 解: '退一步海阔天空。' },
+        { number: 49, rank: '上中', title: '王裒泣墓', poem: '天晴日朗气象新，功名事业有精神。前途万里通霄路，忠孝传家世代春。', 解: '气象一新，前途光明。' },
+        { number: 50, rank: '中上', title: '陶朱公隐居', poem: '五湖四海任翱翔，择善而从守正方。多少浮云遮望眼，心明如镜自安详。', 解: '择善固执，心明自安。' },
+        { number: 51, rank: '中平', title: '孔融让梨', poem: '谦虚礼让是良方，一片冰心在玉壶。凡事不争天自佑，功名富贵自然殊。', 解: '谦让之道，天佑之。' },
+        { number: 52, rank: '中中', title: '太白醉酒', poem: '水中捞月费功夫，月在天高水自流。莫把虚花当实际，到头来是一场愁。', 解: '脚踏实地，莫追虚名。' },
+        { number: 53, rank: '上中', title: '狄青挂帅', poem: '失意番成得意时，龙门一跳便成奇。青云直上无难事，大展鸿图在此时。', 解: '厚积薄发，鱼跃龙门。' },
+        { number: 54, rank: '中平', title: '马超追曹', poem: '快马一鞭人未知，追风赶月费心机。纵然追到千里外，不如稳坐钓鱼矶。', 解: '不要盲目追逐，以静制动。' },
+        { number: 55, rank: '中上', title: '包公断案', poem: '公道自在人心间，清如明镜照当先。是非曲直终有辨，正义之光必凯旋。', 解: '公道在心，正义必胜。' },
+        { number: 56, rank: '中下', title: '嫦娥奔月', poem: '碧海青天夜夜心，高处不胜寒意深。若是贪求天上月，反失人间万种情。', 解: '知足常乐，莫贪高远。' },
+        { number: 57, rank: '中中', title: '孟母择邻', poem: '择善而居需远虑，近朱者赤近墨黑。良禽择木而栖止，环境能改运中机。', 解: '慎选环境，择善而居。' },
+        { number: 58, rank: '上上', title: '文王遇凤', poem: '凤鸣岐山兆吉祥，文王圣德感上苍。从此龙飞凤舞起，八百基业万年长。', 解: '龙凤呈祥，千载良机。' },
+        { number: 59, rank: '中上', title: '张良拾履', poem: '弯腰拾履非卑下，忍辱负重志气高。老者授书知天命，功成身退乐逍遥。', 解: '忍辱负重，终获天书。' },
+        { number: 60, rank: '中平', title: '夸父追日', poem: '欲追日月费精神，虽有雄心力未伸。且把心思收一收，量力而行莫逞能。', 解: '量力而行，莫逞匹夫之勇。' },
+        { number: 61, rank: '中中', title: '蔡文姬归汉', poem: '身在异乡心在汉，归期何日是归年。千回百转终得返，一番新景在眼前。', 解: '游子思归，终得团圆。' },
+        { number: 62, rank: '中下', title: '屈原怀沙', poem: '怀才不遇叹知音，满腹文章无处伸。且将激愤化力量，留得清名万古存。', 解: '怀才不遇时，沉淀自我。' },
+        { number: 63, rank: '上中', title: '花木兰从军', poem: '巾帼不让须眉者，替父从军震四方。但凡有志终成事，莫道女子不如郎。', 解: '巾帼英雄，有志竟成。' },
+        { number: 64, rank: '中中', title: '精卫填海', poem: '精卫衔石志不移，沧海茫茫何足奇。只要心中有信念，移山填海亦可期。', 解: '矢志不渝，定能成功。' },
+        { number: 65, rank: '上上', title: '凤凰涅槃', poem: '浴火重生翔九天，灰飞烟灭又重圆。绝处逢生天注定，涅槃之后更蹁跹。', 解: '置之死地而后生。' },
+        { number: 66, rank: '中上', title: '老子出关', poem: '紫气东来圣人行，道法自然万物生。无为之中有大道，守柔处弱反为赢。', 解: '无为而治，以柔克刚。' },
+        { number: 67, rank: '中平', title: '庄周梦蝶', poem: '是蝶是人难分清，人生如梦梦如行。不如随缘安此世，物我两忘最轻盈。', 解: '物我两忘，随缘自在。' },
+        { number: 68, rank: '中中', title: '管鲍之交', poem: '知己难逢须珍重，管鲍之情千古名。世间纵有千般友，难得一人知我心。', 解: '珍惜知己，贵在真心。' },
+        { number: 69, rank: '中下', title: '后羿射日', poem: '九日当空百物焦，英雄弯弓射大雕。纵有本事须谨用，功高震主有危潮。', 解: '锋芒太露，须防忌讳。' },
+        { number: 70, rank: '上中', title: '牛郎织女', poem: '金风玉露一相逢，便胜人间无数中。纵有银河来阻隔，鹊桥一渡万千情。', 解: '有情人终成眷属。' },
+        { number: 71, rank: '中中', title: '愚公移山', poem: '子子孙孙无穷尽，山高万仞亦能平。世人休笑愚公拙，恒心一到事功成。', 解: '持之以恒，必能成事。' },
+        { number: 72, rank: '中下', title: '黛玉葬花', poem: '花谢花飞飞满天，红消香断有谁怜。人生莫学多愁客，豁达心胸乐自然。', 解: '莫要伤春悲秋，豁达为上。' },
+        { number: 73, rank: '上上', title: '龙门鲤跃', poem: '一朝鱼化龙门去，翻身一跃入青云。十年辛苦无人问，一举成名天下闻。', 解: '十年磨一剑，一朝成大器。' },
+        { number: 74, rank: '中平', title: '孟姜女哭城', poem: '一片真心动鬼神，长城万里泪中崩。世间最怕情深意，铁石心肠也有痕。', 解: '真情所至，金石为开。' },
+        { number: 75, rank: '中上', title: '伯乐相马', poem: '千里马遇伯乐时，不入凡尘谁得知。但看识人须有眼，莫把良材作柴枝。', 解: '寻找伯乐，展现才华。' },
+        { number: 76, rank: '中中', title: '曹冲称象', poem: '巧思妙想胜蛮力，四两拨千斤里奇。世间万事皆有法，用智不用力为宜。', 解: '以巧取胜，智慧为上。' },
+        { number: 77, rank: '下下', title: '荆轲刺秦', poem: '风萧萧兮易水寒，壮士一去不复还。虽怀壮志成败论，须知时势胜人谋。', 解: '时势不利，切勿冒进。' },
+        { number: 78, rank: '上中', title: '寒窗苦读', poem: '十年寒窗无人问，一朝高中天下知。莫嫌眼前风霜苦，回首方觉值千金。', 解: '苦尽甘来，终有回报。' },
+        { number: 79, rank: '中上', title: '塞翁失马', poem: '塞翁失马焉知非福，得失之间莫要忧。世事如棋局局新，笑看风云心自由。', 解: '祸福相依，莫以一时论。' },
+        { number: 80, rank: '中平', title: '螳臂挡车', poem: '自不量力费心机，螳螂挡车笑可悲。但凡行事当审己，过刚必折是天规。', 解: '审时度势，量力而行。' },
+        { number: 81, rank: '上中', title: '黄石授书', poem: '深夜授书有天机，一卷兵法定乾坤。时来运转非人力，顺天应命莫迟疑。', 解: '天赐良机，果断把握。' },
+        { number: 82, rank: '中中', title: '韦编三绝', poem: '读书破万卷下笔如有神，三绝韦编志最真。厚积方能薄发出，学海无涯苦作舟。', 解: '厚积薄发，学无止境。' },
+        { number: 83, rank: '中下', title: '刻舟求剑', poem: '刻舟求剑笑人痴，世事无常莫固执。流水落花随时变，随机应变是真知。', 解: '灵活应变，莫守旧法。' },
+        { number: 84, rank: '上上', title: '状元游街', poem: '十年苦读一朝中，金榜题名天下同。春风得意马蹄疾，一日看尽长安花。', 解: '功成名就，喜气洋洋。' },
+        { number: 85, rank: '中上', title: '桃园结义', poem: '兄弟同心利断金，桃园结义古今吟。人生得一知心友，胜过黄金万万斤。', 解: '同心协力，义气当先。' },
+        { number: 86, rank: '中平', title: '负荆请罪', poem: '知错能改善莫大焉，负荆请罪古人传。放下身段非可耻，化敌为友天地宽。', 解: '知错能改，胸怀宽广。' },
+        { number: 87, rank: '中中', title: '守株待兔', poem: '守株待兔不可期，侥幸心理误前机。成功只给有准备，主动出击莫迟疑。', 解: '主动出击，莫存侥幸。' },
+        { number: 88, rank: '上上', title: '九天揽月', poem: '可上九天揽明月，可下五洋捉鳖鱼。胸怀壮志凌云起，万里鹏程在此时。', 解: '壮志凌云，正是时候。' },
+        { number: 89, rank: '中下', title: '画蛇添足', poem: '已成之事莫多添，画蛇添足反招嫌。凡事适可而止好，过犹不及是箴言。', 解: '适可而止，不要画蛇添足。' },
+        { number: 90, rank: '中上', title: '司马光砸缸', poem: '急中生智破困局，反向思维见奇功。遇事不慌心镇定，化危为安是英雄。', 解: '急中生智，化险为夷。' },
+        { number: 91, rank: '中平', title: '滴水穿石', poem: '一滴一滴不停歇，穿石之功在岁月。看似微小力量大，坚持不懈终有得。', 解: '积少成多，坚持见效。' },
+        { number: 92, rank: '上中', title: '春江花月', poem: '春江潮水连海平，海上明月共潮生。万物复苏春意满，好风凭借力上青。', 解: '春暖花开，好运将至。' },
+        { number: 93, rank: '中中', title: '锦囊妙计', poem: '事到临头莫慌张，锦囊妙计在身旁。早做准备多谋划，兵来将挡水来防。', 解: '未雨绸缪，有备无患。' },
+        { number: 94, rank: '中下', title: '杞人忧天', poem: '忧天忧地不自安，无事生非自心烦。且把忧愁抛脑后，天塌下来有高山。', 解: '莫要杞人忧天，放宽心态。' },
+        { number: 95, rank: '上上', title: '百鸟朝凤', poem: '百鸟朝凤瑞气生，万象更新运转通。千载难逢好机遇，一飞冲天震长空。', 解: '瑞气临门，千载难逢。' },
+        { number: 96, rank: '中上', title: '卧薪尝胆', poem: '忍辱偷生非懦弱，卧薪尝胆志如钢。三千越甲终吞吴，忍到最后是强者。', 解: '忍辱负重，终成大业。' },
+        { number: 97, rank: '中平', title: '破釜沉舟', poem: '背水一战无退路，破釜沉舟意已决。置之死地方后生，豪情壮志不可灭。', 解: '背水一战的时候到了。' },
+        { number: 98, rank: '中中', title: '画龙点睛', poem: '万事俱备待东风，画龙还需最后晴。临门一脚当果断，犹豫不决误前程。', 解: '万事俱备，果断行动。' },
+        { number: 99, rank: '上上', title: '满堂金玉', poem: '满堂金玉福禄全，喜事连连乐无边。紫微高照添吉庆，家和万事兴百年。', 解: '满堂吉庆，万事亨通。' },
+        { number: 100, rank: '中上', title: '归去来兮', poem: '归去来兮田园乐，种豆南山挂松萝。富贵功名浮云似，不如归去享天和。', 解: '返璞归真，知足常乐。' },
+      ];
+
+      // 基于问题+时间的伪随机选签（同一时辰同一问题会得到相同签）
+      const seed = `${question || 'default'}-${new Date().toISOString().slice(0, 13)}`;
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) {
+        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+        hash = hash & hash;
+      }
+      const qianIndex = Math.abs(hash) % 100;
+      const qian = QIAN_POOL[qianIndex];
+
+      // 获取用户八字/MBTI信息用于个性化解签
+      let userProfile = '';
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.slice(7);
+          const jwt = await import('jsonwebtoken');
+          const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'heartai-secret-key-2025') as any;
+          const user = await storage.getUser(decoded.userId);
+          if (user) {
+            const parts: string[] = [];
+            if (user.birthDate) parts.push(`出生日期：${user.birthDate}`);
+            if ((user as any).mbtiType) parts.push(`MBTI人格类型：${(user as any).mbtiType}`);
+            if ((user as any).zodiacSign) parts.push(`星座：${(user as any).zodiacSign}`);
+            if (parts.length > 0) userProfile = parts.join('，');
+          }
+        } catch {}
+      }
+
+      // 获取当前时辰信息
+      const now = lunisolar(new Date());
+      const lunarInfo = `${now.lunar.getMonthName()}${now.lunar.getDayName()}`;
+      const hourBranch = now.char8.hour.branch.toString();
+
+      const categoryLabels: Record<string, string> = {
+        general: '综合运势', love: '感情姻缘', career: '事业前程',
+        wealth: '财运财富', health: '健康平安', exam: '考试学业',
+      };
+
+      // AI解签 (with graceful fallback)
+      let aiReading: any;
+      try {
+        const client = new OpenAI({
+          baseURL: "https://api.deepseek.com",
+          apiKey: process.env.DEEPSEEK_API_KEY || 'sk-placeholder',
+        });
+
+        const aiPrompt = `你是一位慈悲智慧的古寺住持，正在为香客解签。请基于签文内容，结合求签者的问题和个人信息，给出温暖、正面、有建设性的解读。
+
+第${qian.number}签 · ${qian.rank}签 · ${qian.title}
+签诗：${qian.poem}
+签解：${qian.解}
+
+求签类别：${categoryLabels[qianCategory] || '综合运势'}
+${question ? `求签者的问题：${question}` : '求签者未提出具体问题，请做通用运势解读'}
+${userProfile ? `求签者信息：${userProfile}` : ''}
+当前时间：农历${lunarInfo}，${hourBranch}时
+
+请返回严格JSON（不要markdown代码块）:
+{
+  "overallReading": "总体解读（结合签文和求签者的情况，150-200字，温暖正面，引经据典）",
+  "poemAnalysis": ["第一句签诗的逐句解读","第二句","第三句","第四句"],
+  "categoryAdvice": "针对所求类别的具体建议（80-100字）",
+  "luckyElements": {"direction": "吉方位", "color": "吉色", "number": "吉数", "time": "吉时"},
+  "actionTip": "一句话行动指南（20字以内）"
+}`;
+
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 800,
+          temperature: 0.85,
+          messages: [
+            { role: "system", content: "你是一位慈悲智慧的古寺住持，解签风格温暖正面，擅长引用典故和诗词，给人积极向上的力量。只返回JSON。" },
+            { role: "user", content: aiPrompt },
+          ],
+        });
+
+        const raw = response.choices[0]?.message?.content?.trim() || '{}';
+        aiReading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+      } catch (aiErr) {
+        console.log('Qiuqian AI error (using fallback):', (aiErr as Error).message);
+        aiReading = {
+          overallReading: `您抽到的是第${qian.number}签「${qian.title}」，为${qian.rank}签。${qian.解}此签提示您，当前运势整体向好，建议保持积极心态，顺势而为。签诗中暗含天机，细细品味，自能领悟其中深意。古人云：“天行健，君子以自强不息”，愿您以此签为引，坚定前行。`,
+          poemAnalysis: qian.poem.match(/[^，。]+[，。]/g)?.map((line: string, i: number) => {
+            const analyses = ['此句点明时势背景，暗示当前局面的基调。', '此句描述过程中的关键转折，套示机会或挑战。', '此句揭示核心要旨，是全签的精华所在。', '此句总结全局，指明最终走向和结果。'];
+            return `「${line.replace(/[，。]/g, '')}」— ${analyses[i] || '此句寓意深远，值得细品。'}`;
+          }) || ['签诗寓意深远，值得细品。'],
+          categoryAdvice: `在${categoryLabels[qianCategory] || '综合运势'}方面，此签提示您保持耐心与信心，积极面对每一个挑战，好运自然来。古人云：“尽人事，听天命”，做好当下能做的每件事。`,
+          luckyElements: { direction: '东南', color: '青色', number: '三、八', time: '辰时' },
+          actionTip: '顺势而为，静待花开。'
+        };
+      }
+
+      res.json({
+        qian: {
+          number: qian.number,
+          rank: qian.rank,
+          title: qian.title,
+          poem: qian.poem,
+          baseMeaning: qian.解,
+        },
+        category: qianCategory,
+        categoryLabel: categoryLabels[qianCategory] || '综合运势',
+        ...aiReading,
+        meta: {
+          question: question || null,
+          time: new Date().toISOString(),
+          lunarTime: lunarInfo,
+          hourBranch,
+        }
+      });
+    } catch (err) {
+      console.error('Qiuqian error:', err);
+      res.status(500).json({ error: 'Failed to perform fortune stick reading' });
+    }
+  });
+
   // ─── 姓名测分 (五格三才 Name Scoring) ──────────────────────────────
   app.post("/api/culture/name-score", async (req, res) => {
     try {

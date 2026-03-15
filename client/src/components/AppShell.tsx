@@ -40,6 +40,7 @@ import {
   Moon,
   Podcast,
   UserCircle,
+  Flame,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -84,6 +85,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/mbti", label: "MBTI人格", icon: Compass, guestVisible: false },
       { path: "/bazi", label: "八字命理", icon: Calendar, guestVisible: true },
       { path: "/tarot", label: "塔罗占卜", icon: Layers, guestVisible: true },
+      { path: "/qiuqian", label: "求签解签", icon: Flame, guestVisible: true },
       { path: "/fengshui", label: "风水评估", icon: HomeIcon, guestVisible: false },
       { path: "/compatibility", label: "缘分雷达", icon: Radar, guestVisible: false },
       { path: "/soulmate", label: "灵魂伴侣", icon: Heart, guestVisible: false },
@@ -137,6 +139,7 @@ const GUEST_MOBILE_TABS: NavItem[] = [
   { path: "/culture", label: "国粹", icon: Scroll, guestVisible: true },
   { path: "/bazi", label: "八字", icon: Calendar, guestVisible: true },
   { path: "/tarot", label: "塔罗", icon: Layers, guestVisible: true },
+  { path: "/qiuqian", label: "灵签", icon: Flame, guestVisible: true },
   { path: "/agents", label: "Agent", icon: Bot, guestVisible: true },
 ];
 

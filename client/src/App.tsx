@@ -36,6 +36,7 @@ import NameScorePage from "@/pages/name-score";
 import AvatarPage from "@/pages/avatar";
 import AvatarPlazaPage from "@/pages/avatar-plaza";
 import DreamPage from "@/pages/dream";
+import QiuqianPage from "@/pages/qiuqian";
 import ProfilePage from "@/pages/profile";
 import NotificationsPage from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
@@ -76,6 +77,7 @@ function AuthenticatedRoutes() {
         <Route path="/avatar" component={AvatarPage} />
         <Route path="/avatar-plaza" component={AvatarPlazaPage} />
         <Route path="/dream" component={DreamPage} />
+        <Route path="/qiuqian" component={QiuqianPage} />
         <Route path="/profile/:id" component={ProfilePage} />
         <Route path="/notifications" component={NotificationsPage} />
         <Route path="/settings" component={SettingsPage} />
@@ -100,6 +102,7 @@ function GuestRoutes() {
         <Route path="/name-score" component={NameScorePage} />
         <Route path="/bazi" component={BaziPage} />
         <Route path="/tarot" component={TarotPage} />
+        <Route path="/qiuqian" component={QiuqianPage} />
         <Route>
           <Redirect to="/community" />
         </Route>

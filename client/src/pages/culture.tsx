@@ -291,6 +291,7 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
           { view: "bazi" as CultureView, icon: Compass, label: "八字排盘", desc: "十神·藏干·神煞", color: "text-teal-600 dark:text-teal-400", bg: "bg-teal-500/10", linkTo: "/bazi" },
           { view: "solar" as CultureView, icon: Leaf, label: "节气养生", desc: "食物·运动", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
           { view: "name-score" as CultureView, icon: Type, label: "姓名测分", desc: "五格三才", color: "text-rose-500", bg: "bg-rose-500/10", linkTo: "/name-score" },
+          { view: "qiuqian" as CultureView, icon: Flame, label: "求签解签", desc: "AI智慧解签", color: "text-amber-500", bg: "bg-amber-500/10", linkTo: "/qiuqian" },
         ].map((item) => {
           const cardContent = (
             <Card
