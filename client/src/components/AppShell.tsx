@@ -42,6 +42,7 @@ import {
   UserCircle,
   Flame,
   CalendarCheck,
+  Network,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -120,6 +121,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/culture", label: "国粹频道", icon: Scroll, guestVisible: true },
       { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
       { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
+      { path: "/agent-team", label: "Agent Team", icon: Network, guestVisible: false },
     ],
   },
 ];

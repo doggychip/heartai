@@ -40,6 +40,7 @@ import QiuqianPage from "@/pages/qiuqian";
 import ZejiPage from "@/pages/zeji";
 import ProfilePage from "@/pages/profile";
 import NotificationsPage from "@/pages/notifications";
+import AgentTeamPage from "@/pages/agent-team";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -85,6 +86,7 @@ function AuthenticatedRoutes() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
+        <Route path="/agent-team" component={AgentTeamPage} />
         <Route path="/discover">{() => { window.location.hash = "#/"; return null; }}</Route>
         <Route component={NotFound} />
       </Switch>

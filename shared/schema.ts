@@ -457,3 +457,74 @@ export const notifications = pgTable("notifications", {
 });
 
 export type Notification = typeof notifications.$inferSelect;
+
+// ─── Agent Team Orchestration ──────────────────────────────
+// Tracks each agent's role, system prompt, and usage stats
+export const agentTeam = pgTable("agent_team", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentKey: text("agent_key").notNull().unique(),       // "main" | "stella" | "prediction" | "market" | "tech"
+  name: text("name").notNull(),                          // 显示名 e.g. "星曜命理师"
+  role: text("role").notNull(),                           // "orchestrator" | "specialist"
+  domain: text("domain").notNull(),                       // "命理" | "运势" | "市场" | "技术" | "编排"
+  description: text("description").notNull(),
+  systemPrompt: text("system_prompt").notNull(),
+  icon: text("icon").notNull(),                           // lucide icon name
+  color: text("color").notNull(),                         // badge color class
+  totalCalls: integer("total_calls").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  avgLatencyMs: integer("avg_latency_ms").notNull().default(0),
+  lastActiveAt: text("last_active_at"),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export type AgentTeamMember = typeof agentTeam.$inferSelect;
+
+// ─── Agent Dispatch Log (Orchestrator routing records) ─────
+export const agentDispatchLog = pgTable("agent_dispatch_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id"),
+  userMessage: text("user_message").notNull(),
+  intentClassified: text("intent_classified").notNull(),  // "命理" | "运势" | "社区" | "对话" | "技术"
+  dispatchedTo: text("dispatched_to").notNull(),           // agent_key
+  responsePreview: text("response_preview"),               // first 100 chars
+  tokensUsed: integer("tokens_used").notNull().default(0),
+  latencyMs: integer("latency_ms").notNull().default(0),
+  success: boolean("success").notNull().default(true),
+  errorMsg: text("error_msg"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type AgentDispatchRecord = typeof agentDispatchLog.$inferSelect;
+
+// ─── Event Bus (pub/sub cross-agent events) ────────────────
+export const agentEvents = pgTable("agent_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull(),   // "fortune_shift" | "qiuqian_drawn" | "post_created" | "mood_alert" | "bazi_analyzed"
+  publisherAgent: text("publisher_agent").notNull(),  // agent_key that published
+  payload: text("payload").notNull(),                  // JSON string
+  subscriberAgents: text("subscriber_agents").notNull(), // JSON array of agent_keys that consumed
+  status: text("status").notNull().default("pending"),  // "pending" | "processing" | "completed" | "failed"
+  resultSummary: text("result_summary"),
+  userId: varchar("user_id"),
+  createdAt: text("created_at").notNull(),
+  processedAt: text("processed_at"),
+});
+
+export type AgentEvent = typeof agentEvents.$inferSelect;
+
+// ─── Agent Team Types ──────────────────────────────────────
+export type AgentTeamTopology = {
+  orchestrator: AgentTeamMember;
+  specialists: AgentTeamMember[];
+  connections: Array<{ from: string; to: string; label: string }>;
+};
+
+export type AgentTeamStats = {
+  totalDispatches: number;
+  todayDispatches: number;
+  totalEvents: number;
+  avgLatency: number;
+  agentUsage: Array<{ agentKey: string; name: string; calls: number; tokens: number }>;
+  recentEvents: AgentEvent[];
+  recentDispatches: AgentDispatchRecord[];
+};

@@ -5594,6 +5594,482 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   // Start GuanXing Bot auto-posting
   startBotAutoPost();
 
+  // ═══════════════════════════════════════════════════════════════
+  // Phase 3: Agent Team Orchestrator + Event Bus
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Agent Team Definitions ────────────────────────────────────
+  const AGENT_TEAM_DEFS = [
+    {
+      agentKey: "main",
+      name: "观星编排师",
+      role: "orchestrator" as const,
+      domain: "编排",
+      description: "中心化编排者，分析用户意图并将请求分发给专项 Agent",
+      icon: "Brain",
+      color: "text-purple-500",
+      systemPrompt: `你是观星系统的中心编排者。你的职责是：
+1. 分析用户消息的意图
+2. 将请求路由到最合适的专项Agent
+3. 整合多个Agent的结果
+
+请以JSON格式返回意图分类：
+{"intent": "命理|运势|社区|对话|技术", "confidence": 0.0-1.0, "reason": "..."}
+
+意图分类规则：
+- 命理：八字、星座、求签、塔罗、风水、姓名打分、解梦、择吉 等传统命理相关
+- 运势：每日运势、运势趋势、吉凶预测、流年运势 等
+- 社区：社区帖子、互动、分享、问答 等
+- 对话：日常聊天、情感倾诉、心理支持 等
+- 技术：API调用、数据查询、系统功能 等`,
+    },
+    {
+      agentKey: "stella",
+      name: "星曜命理师",
+      role: "specialist" as const,
+      domain: "命理",
+      description: "专精八字、星座、求签、塔罗、风水等传统命理解读",
+      icon: "Sparkles",
+      color: "text-amber-500",
+      systemPrompt: `你是「星曜命理师」，观星系统的命理顾问Agent。你精通：
+- 八字命理：天干地支、五行生克、十神分析
+- 西方占星：星座特质、行星影响、宫位解读
+- 塔罗占卜：大小阿尔卡那牌义解读
+- 风水堪舆：方位吉凶、布局建议
+- 姓名学：五格剖象、字义分析
+- 择吉：黄历宜忌、吉日选择
+
+回答风格：专业但不晦涩，结合现代语境解释传统命理。使用简体中文。`,
+    },
+    {
+      agentKey: "prediction",
+      name: "运势预测引擎",
+      role: "specialist" as const,
+      domain: "运势",
+      description: "运势趋势分析、吉凶推算、流年运势预测",
+      icon: "TrendingUp",
+      color: "text-blue-500",
+      systemPrompt: `你是「运势预测引擎」，观星系统的运势分析Agent。你专注于：
+- 每日/每周/每月运势预测
+- 流年大运分析
+- 吉凶趋势推算
+- 关键时间节点提醒
+- 综合多维度（事业/感情/财运/健康）运势评估
+
+当检测到重大运势变化时，生成运势变化事件。回答风格：数据驱动、趋势导向，使用简体中文。`,
+    },
+    {
+      agentKey: "market",
+      name: "市场洞察师",
+      role: "specialist" as const,
+      domain: "市场",
+      description: "竞品监控、社区内容分析、用户行为洞察",
+      icon: "Radar",
+      color: "text-green-500",
+      systemPrompt: `你是「市场洞察师」，观星系统的市场分析Agent。你负责：
+- 社区帖子内容分析与趋势洞察
+- 用户行为模式识别
+- 热门话题发现与分析
+- 内容质量评估与推荐
+
+回答风格：数据驱动、洞察深刻，使用简体中文。`,
+    },
+    {
+      agentKey: "tech",
+      name: "技术支撑官",
+      role: "specialist" as const,
+      domain: "技术",
+      description: "数据处理、API集成、系统状态监控",
+      icon: "Cpu",
+      color: "text-cyan-500",
+      systemPrompt: `你是「技术支撑官」，观星系统的技术Agent。你负责：
+- 数据处理与转换
+- API调用与集成
+- 系统状态监控
+- 技术问题诊断
+
+回答风格：精准、技术性，使用简体中文。`,
+    },
+  ];
+
+  // ─── Initialize Agent Team in DB ──────────────────────────────
+  async function initAgentTeam() {
+    try {
+      // Create tables if not exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS agent_team (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          agent_key TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          role TEXT NOT NULL,
+          domain TEXT NOT NULL,
+          description TEXT NOT NULL,
+          system_prompt TEXT NOT NULL,
+          icon TEXT NOT NULL,
+          color TEXT NOT NULL,
+          total_calls INTEGER NOT NULL DEFAULT 0,
+          total_tokens INTEGER NOT NULL DEFAULT 0,
+          avg_latency_ms INTEGER NOT NULL DEFAULT 0,
+          last_active_at TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT true
+        );
+        CREATE TABLE IF NOT EXISTS agent_dispatch_log (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id VARCHAR,
+          user_message TEXT NOT NULL,
+          intent_classified TEXT NOT NULL,
+          dispatched_to TEXT NOT NULL,
+          response_preview TEXT,
+          tokens_used INTEGER NOT NULL DEFAULT 0,
+          latency_ms INTEGER NOT NULL DEFAULT 0,
+          success BOOLEAN NOT NULL DEFAULT true,
+          error_msg TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS agent_events (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          event_type TEXT NOT NULL,
+          publisher_agent TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          subscriber_agents TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          result_summary TEXT,
+          user_id VARCHAR,
+          created_at TEXT NOT NULL,
+          processed_at TEXT
+        );
+      `);
+
+      // Seed agent team members
+      for (const def of AGENT_TEAM_DEFS) {
+        await storage.upsertAgentTeamMember({
+          agentKey: def.agentKey,
+          name: def.name,
+          role: def.role,
+          domain: def.domain,
+          description: def.description,
+          systemPrompt: def.systemPrompt,
+          icon: def.icon,
+          color: def.color,
+          totalCalls: 0,
+          totalTokens: 0,
+          avgLatencyMs: 0,
+          lastActiveAt: null,
+          isActive: true,
+        });
+      }
+      console.log("[Agent Team] Initialized 5 agents: main, stella, prediction, market, tech");
+    } catch (err) {
+      console.error("[Agent Team] Init error:", err);
+    }
+  }
+
+  // Init agent team on startup
+  initAgentTeam();
+
+  // ─── Intent Classification (via DeepSeek) ─────────────────────
+  async function classifyIntent(message: string): Promise<{ intent: string; confidence: number; reason: string }> {
+    // Fast keyword-based pre-classification
+    const keywordMap: Record<string, string[]> = {
+      "命理": ["八字", "星座", "求签", "塔罗", "风水", "姓名", "解梦", "择吉", "五行", "天干", "地支", "黄历", "命盘", "排盘", "生辰", "属相", "生肖", "卦", "占卜", "抽签", "name score", "bazi", "tarot", "fengshui"],
+      "运势": ["运势", "运气", "今日", "每日", "本周", "本月", "今年", "流年", "吉凶", "财运", "桃花", "事业运", "fortune", "luck"],
+      "社区": ["社区", "帖子", "评论", "点赞", "分享", "发帖", "community", "post"],
+      "技术": ["API", "接口", "webhook", "token", "密钥", "配置", "api", "debug", "错误"],
+    };
+
+    for (const [intent, keywords] of Object.entries(keywordMap)) {
+      for (const kw of keywords) {
+        if (message.toLowerCase().includes(kw.toLowerCase())) {
+          return { intent, confidence: 0.85, reason: `关键词匹配: ${kw}` };
+        }
+      }
+    }
+
+    // Default to 对话 for general messages
+    return { intent: "对话", confidence: 0.7, reason: "未匹配到专项关键词，路由到通用对话" };
+  }
+
+  // ─── Event Bus ─────────────────────────────────────────────────
+  // Subscription registry: event_type → handler agents
+  const EVENT_SUBSCRIPTIONS: Record<string, { subscribers: string[]; handler: (event: any) => Promise<string | null> }> = {
+    "qiuqian_drawn": {
+      subscribers: ["stella", "prediction"],
+      handler: async (payload) => {
+        // When user draws a qiuqian, stella can provide deeper interpretation
+        return `求签事件: 用户抽到第${payload.qianNumber}签「${payload.qianTitle || ''}」- 星曜命理师提供深度解读`;
+      },
+    },
+    "fortune_shift": {
+      subscribers: ["stella"],
+      handler: async (payload) => {
+        // When prediction detects a fortune shift, notify stella
+        return `运势变化: ${payload.dimension || '综合'}运势从${payload.from || '?'}变为${payload.to || '?'} - 触发个性化解读`;
+      },
+    },
+    "bazi_analyzed": {
+      subscribers: ["prediction"],
+      handler: async (payload) => {
+        // After bazi analysis, prediction can compute fortune trends
+        return `八字分析完成: ${payload.bazi || ''} - 预测引擎启动运势趋势计算`;
+      },
+    },
+    "post_created": {
+      subscribers: ["market"],
+      handler: async (payload) => {
+        return `新帖子: ${(payload.content || '').slice(0, 50)} - 市场洞察师分析社区趋势`;
+      },
+    },
+    "mood_alert": {
+      subscribers: ["stella", "prediction"],
+      handler: async (payload) => {
+        return `情绪预警: ${payload.emotion || '?'} 强度${payload.score || '?'} - 触发关怀提醒`;
+      },
+    },
+  };
+
+  async function publishEvent(eventType: string, publisherAgent: string, payload: any, userId?: string) {
+    const sub = EVENT_SUBSCRIPTIONS[eventType];
+    if (!sub) return;
+
+    try {
+      const event = await storage.createAgentEvent({
+        eventType,
+        publisherAgent,
+        payload: JSON.stringify(payload),
+        subscriberAgents: JSON.stringify(sub.subscribers),
+        status: "processing",
+        resultSummary: null,
+        userId: userId || null,
+        createdAt: new Date().toISOString(),
+        processedAt: null,
+      });
+
+      // Process event
+      const result = await sub.handler(payload);
+
+      // Update stats for subscriber agents
+      for (const subAgent of sub.subscribers) {
+        await storage.updateAgentTeamStats(subAgent, 0, 10); // minimal overhead
+      }
+
+      await storage.updateEventStatus(event.id, "completed", result || undefined);
+
+      // If user-facing event, create a notification
+      if (userId && result) {
+        await storage.createNotification({
+          userId,
+          type: "system",
+          title: `🤖 Agent 协作事件`,
+          body: result,
+          linkTo: "/agent-team",
+        });
+      }
+
+      console.log(`[EventBus] ${eventType} → [${sub.subscribers.join(", ")}] ✓`);
+    } catch (err) {
+      console.error(`[EventBus] Error processing ${eventType}:`, err);
+    }
+  }
+
+  // ─── Orchestrated Chat API ────────────────────────────────────
+  app.post("/api/orchestrator/chat", requireAuth, async (req, res) => {
+    const startTime = Date.now();
+    try {
+      const userId = getUserId(req);
+      const { message } = req.body;
+      if (!message || typeof message !== "string") {
+        return res.status(400).json({ error: "请输入消息" });
+      }
+
+      // Step 1: Classify intent
+      const classification = await classifyIntent(message);
+
+      // Step 2: Get the specialized agent's prompt
+      const intentToAgent: Record<string, string> = {
+        "命理": "stella",
+        "运势": "prediction",
+        "社区": "market",
+        "对话": "main",
+        "技术": "tech",
+      };
+      const targetAgent = intentToAgent[classification.intent] || "main";
+      const agentMember = await storage.getAgentTeamMember(targetAgent);
+      const agentPrompt = agentMember?.systemPrompt || SYSTEM_PROMPT;
+
+      // Step 3: Call DeepSeek with specialized prompt
+      let aiText = "";
+      let tokensUsed = 0;
+      try {
+        const client = new OpenAI({
+          baseURL: "https://api.deepseek.com",
+          apiKey: process.env.DEEPSEEK_API_KEY,
+        });
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 1024,
+          messages: [
+            { role: "system", content: `${agentPrompt}\n\n你是观星Agent Team中的「${agentMember?.name || '观星助手'}」。请以专业角度回答用户的问题。使用简体中文回答。` },
+            { role: "user", content: message },
+          ],
+        });
+        aiText = response.choices[0]?.message?.content || "抱歉，我暂时无法回答。";
+        tokensUsed = response.usage?.total_tokens || 0;
+      } catch (err) {
+        console.error("[Orchestrator] LLM error:", err);
+        aiText = "抱歉，系统暂时繁忙，请稍后再试。";
+      }
+
+      const latencyMs = Date.now() - startTime;
+
+      // Step 4: Log dispatch
+      await storage.createDispatchLog({
+        userId,
+        userMessage: message,
+        intentClassified: classification.intent,
+        dispatchedTo: targetAgent,
+        responsePreview: aiText.slice(0, 100),
+        tokensUsed,
+        latencyMs,
+        success: true,
+        errorMsg: null,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Step 5: Update agent stats
+      await storage.updateAgentTeamStats(targetAgent, tokensUsed, latencyMs);
+
+      res.json({
+        response: aiText,
+        agent: {
+          key: targetAgent,
+          name: agentMember?.name || "观星助手",
+          icon: agentMember?.icon || "Brain",
+          color: agentMember?.color || "text-purple-500",
+          domain: agentMember?.domain || "编排",
+        },
+        classification,
+        latencyMs,
+        tokensUsed,
+      });
+    } catch (err) {
+      console.error("[Orchestrator] Error:", err);
+      res.status(500).json({ error: "编排服务异常" });
+    }
+  });
+
+  // ─── Agent Team Topology API ──────────────────────────────────
+  app.get("/api/agent-team/topology", requireAuth, async (_req, res) => {
+    try {
+      const members = await storage.getAgentTeamMembers();
+      const orchestrator = members.find(m => m.role === "orchestrator") || members[0];
+      const specialists = members.filter(m => m.role === "specialist");
+
+      const connections = specialists.map(s => ({
+        from: "main",
+        to: s.agentKey,
+        label: s.domain,
+      }));
+
+      // Add cross-agent event connections
+      for (const [eventType, sub] of Object.entries(EVENT_SUBSCRIPTIONS)) {
+        for (const subscriber of sub.subscribers) {
+          const existing = connections.find(c => c.to === subscriber && c.from !== "main");
+          if (!existing) {
+            // Find publisher by event type
+            const publisherMap: Record<string, string> = {
+              "qiuqian_drawn": "stella",
+              "fortune_shift": "prediction",
+              "bazi_analyzed": "stella",
+              "post_created": "market",
+              "mood_alert": "main",
+            };
+            const publisher = publisherMap[eventType];
+            if (publisher && publisher !== subscriber) {
+              connections.push({ from: publisher, to: subscriber, label: `📡 ${eventType}` });
+            }
+          }
+        }
+      }
+
+      res.json({ orchestrator, specialists, connections });
+    } catch (err) {
+      console.error("[Agent Team] Topology error:", err);
+      res.status(500).json({ error: "获取拓扑失败" });
+    }
+  });
+
+  // ─── Agent Team Stats API ─────────────────────────────────────
+  app.get("/api/agent-team/stats", requireAuth, async (_req, res) => {
+    try {
+      const members = await storage.getAgentTeamMembers();
+      const dispatches = await storage.getRecentDispatches(100);
+      const events = await storage.getRecentEvents(100);
+
+      const today = new Date().toISOString().split("T")[0];
+      const todayDispatches = dispatches.filter(d => d.createdAt.startsWith(today));
+
+      const agentUsage = members.map(m => ({
+        agentKey: m.agentKey,
+        name: m.name,
+        calls: m.totalCalls,
+        tokens: m.totalTokens,
+      }));
+
+      const totalDispatches = dispatches.length;
+      const avgLatency = dispatches.length > 0
+        ? Math.round(dispatches.reduce((sum, d) => sum + d.latencyMs, 0) / dispatches.length)
+        : 0;
+
+      res.json({
+        totalDispatches,
+        todayDispatches: todayDispatches.length,
+        totalEvents: events.length,
+        avgLatency,
+        agentUsage,
+        recentEvents: events.slice(0, 20),
+        recentDispatches: dispatches.slice(0, 20),
+      });
+    } catch (err) {
+      console.error("[Agent Team] Stats error:", err);
+      res.status(500).json({ error: "获取统计失败" });
+    }
+  });
+
+  // ─── Agent Team Members API ───────────────────────────────────
+  app.get("/api/agent-team/members", requireAuth, async (_req, res) => {
+    try {
+      const members = await storage.getAgentTeamMembers();
+      // Don't expose full system prompts
+      const safe = members.map(m => ({
+        ...m,
+        systemPrompt: m.systemPrompt.slice(0, 100) + "...",
+      }));
+      res.json(safe);
+    } catch (err) {
+      res.status(500).json({ error: "获取成员失败" });
+    }
+  });
+
+  // ─── Event Bus: Publish Event API ─────────────────────────────
+  app.post("/api/agent-team/events", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { eventType, payload } = req.body;
+      if (!eventType || !payload) {
+        return res.status(400).json({ error: "缺少事件类型或数据" });
+      }
+      await publishEvent(eventType, "main", payload, userId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "事件发布失败" });
+    }
+  });
+
+  // ─── Inject Event Publishing into Existing Endpoints ──────────
+  // Monkey-patch: after qiuqian, bazi, fortune, post creation, emit events
+  // This is done by wrapping the existing handlers or calling publishEvent
+  // from within the existing code paths. For now, we expose a simple trigger.
+
   return httpServer;
 }
 

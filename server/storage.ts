@@ -14,10 +14,12 @@ import {
   type AvatarAction, type InsertAvatarAction,
   type AvatarChat, type AvatarChatMessage,
   type Notification,
+  type AgentTeamMember, type AgentDispatchRecord, type AgentEvent,
   users, conversations, messages, moodEntries, assessments, assessmentResults,
   communityPosts, postLikes, postComments, agentFollows,
   avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages,
   notifications,
+  agentTeam, agentDispatchLog, agentEvents,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
@@ -129,6 +131,21 @@ export interface IStorage {
   getUnreadNotificationCount(userId: string): Promise<number>;
   createNotification(data: { userId: string; type: string; title: string; body: string; linkTo?: string; fromUserId?: string }): Promise<Notification>;
   markNotificationsRead(userId: string): Promise<void>;
+
+  // Agent Team
+  getAgentTeamMembers(): Promise<AgentTeamMember[]>;
+  getAgentTeamMember(agentKey: string): Promise<AgentTeamMember | undefined>;
+  upsertAgentTeamMember(data: Omit<AgentTeamMember, 'id'>): Promise<AgentTeamMember>;
+  updateAgentTeamStats(agentKey: string, tokensUsed: number, latencyMs: number): Promise<void>;
+
+  // Agent Dispatch Log
+  createDispatchLog(data: Omit<AgentDispatchRecord, 'id'>): Promise<AgentDispatchRecord>;
+  getRecentDispatches(limit?: number): Promise<AgentDispatchRecord[]>;
+
+  // Agent Events
+  createAgentEvent(data: Omit<AgentEvent, 'id'>): Promise<AgentEvent>;
+  getRecentEvents(limit?: number): Promise<AgentEvent[]>;
+  updateEventStatus(id: string, status: string, resultSummary?: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -659,6 +676,72 @@ export class DatabaseStorage implements IStorage {
     await db.update(notifications)
       .set({ isRead: true })
       .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+  }
+
+  // ─── Agent Team ──────────────────────────────────────────────
+
+  async getAgentTeamMembers(): Promise<AgentTeamMember[]> {
+    return db.select().from(agentTeam).orderBy(asc(agentTeam.agentKey));
+  }
+
+  async getAgentTeamMember(agentKey: string): Promise<AgentTeamMember | undefined> {
+    const [member] = await db.select().from(agentTeam).where(eq(agentTeam.agentKey, agentKey)).limit(1);
+    return member;
+  }
+
+  async upsertAgentTeamMember(data: Omit<AgentTeamMember, 'id'>): Promise<AgentTeamMember> {
+    const existing = await this.getAgentTeamMember(data.agentKey);
+    if (existing) {
+      const [updated] = await db.update(agentTeam).set(data).where(eq(agentTeam.agentKey, data.agentKey)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(agentTeam).values(data as any).returning();
+    return created;
+  }
+
+  async updateAgentTeamStats(agentKey: string, tokensUsed: number, latencyMs: number): Promise<void> {
+    await db.execute(sql`
+      UPDATE agent_team SET
+        total_calls = total_calls + 1,
+        total_tokens = total_tokens + ${tokensUsed},
+        avg_latency_ms = CASE WHEN total_calls = 0 THEN ${latencyMs} ELSE (avg_latency_ms * total_calls + ${latencyMs}) / (total_calls + 1) END,
+        last_active_at = ${new Date().toISOString()}
+      WHERE agent_key = ${agentKey}
+    `);
+  }
+
+  // ─── Agent Dispatch Log ──────────────────────────────────────
+
+  async createDispatchLog(data: Omit<AgentDispatchRecord, 'id'>): Promise<AgentDispatchRecord> {
+    const [record] = await db.insert(agentDispatchLog).values(data as any).returning();
+    return record;
+  }
+
+  async getRecentDispatches(limit = 50): Promise<AgentDispatchRecord[]> {
+    return db.select().from(agentDispatchLog)
+      .orderBy(desc(agentDispatchLog.createdAt))
+      .limit(limit);
+  }
+
+  // ─── Agent Events ────────────────────────────────────────────
+
+  async createAgentEvent(data: Omit<AgentEvent, 'id'>): Promise<AgentEvent> {
+    const [event] = await db.insert(agentEvents).values(data as any).returning();
+    return event;
+  }
+
+  async getRecentEvents(limit = 50): Promise<AgentEvent[]> {
+    return db.select().from(agentEvents)
+      .orderBy(desc(agentEvents.createdAt))
+      .limit(limit);
+  }
+
+  async updateEventStatus(id: string, status: string, resultSummary?: string): Promise<void> {
+    await db.update(agentEvents).set({
+      status,
+      resultSummary: resultSummary || null,
+      processedAt: new Date().toISOString(),
+    }).where(eq(agentEvents.id, id));
   }
 }
 
