@@ -6061,10 +6061,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
       const response = await client.chat.completions.create({
         model: "deepseek-chat",
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [
-          { role: "system", content: "你是观星(GuanXing)的灵魂伴侣分析师，融合八字命理、星座学和心理学来描绘理想伴侣画像。返回严格JSON，不要markdown代码块。内容温暖有趣，给人期待感。" },
-          { role: "user", content: `用户信息:\n${contextParts.join('\n')}\n\n请根据用户的命理和性格特质，描绘Ta的灵魂伴侣画像。返回JSON:\n{\n  "title": "伴侣画像标题（如：温柔守护者/灵魂知己/冒险搭档）",\n  "personality": {\n    "traits": ["特质1", "特质2", "特质3", "特质4"],\n    "description": "100-120字的性格描述"\n  },\n  "compatibility": {\n    "bestZodiac": ["最配星座1", "最配星座2", "最配星座3"],\n    "bestMBTI": ["MBTI1", "MBTI2", "MBTI3"],\n    "bestElement": "最配五行"\n  },\n  "interaction": {\n    "loveLanguage": "Ta主要的爱的语言",\n    "dateStyle": "理想约会方式描述（60字）",\n    "conflictStyle": "处理冲突的方式（40字）"\n  },\n  "meetingGuide": {\n    "where": ["可能相遇的场所1", "场所2", "场所3"],\n    "when": "最可能的相遇时间段",\n    "sign": "缘分来临的征兆（60字）"\n  },\n  "message": "80-100字写给用户的寄语，温暖有力量"\n}` },
+          { role: "system", content: "你是观星(GuanXing)的AI正缘画像分析师，融合八字命理、星座学和心理学来描绘理想伴侣的完整画像。返回严格JSON，不要markdown代码块。内容要具体生动，像给朋友描述一个真实的人。" },
+          { role: "user", content: `用户信息:\n${contextParts.join('\n')}\n\n请根据用户的命理和性格特质，描绘Ta的正缘画像。返回JSON:\n{\n  "title": "画像标题，2-4字（如：温柔守护者/灵魂知己/冒险搭档）",\n  "appearance": {\n    "ageRange": "年龄范围（如：25-30）",\n    "height": "身高描述（如：偏高/中等/娇小）",\n    "bodyType": "体型（如：纤细/健朗/结实）",\n    "face": "脸型特征描述（30字）",\n    "eyes": "眼睛特征描述（20字）",\n    "vibe": "整体气质描述（30字）",\n    "style": "穿衣风格描述（30字）",\n    "firstImpression": "初见印象（40字，如：“第一眼会觉得Ta很安静，但当Ta抬头微笑时…”）"\n  },\n  "personality": {\n    "traits": ["特质1", "特质2", "特质3", "特质4", "特质5"],\n    "description": "100-120字的性格描述，要具体有画面感"\n  },\n  "compatibility": {\n    "score": 85,\n    "bestZodiac": ["最配星座1", "最配星座2", "最配星座3"],\n    "bestMBTI": ["MBTI1", "MBTI2", "MBTI3"],\n    "bestElement": "最配五行",\n    "chemistryNote": "40字说明为什么你们很配"\n  },\n  "interaction": {\n    "loveLanguage": "Ta主要的爱的语言",\n    "dateStyle": "理想约会方式描述（60字）",\n    "conflictStyle": "处理冲突的方式（40字）",\n    "dailyHabit": "Ta的日常小习惯（30字，如：会在你加班时给你热一杯牛奶）"\n  },\n  "meetingGuide": {\n    "where": ["可能相遇的场所1", "场所2", "场所3"],\n    "when": "最可能的相遇时间段",\n    "sign": "缘分来临的征兆（60字）",\n    "scenario": "80字描写你们相遇的场景，像小说一样具体"\n  },\n  "message": "80-100字写给用户的寄语，温暖有力量"\n}` },
         ],
       });
 
@@ -6074,26 +6074,40 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       try { aiData = JSON.parse(cleaned); } catch {}
 
       res.json({
-        userInfo: { birthDate, element: elem, zodiacSign, mbtiType },
+        userInfo: { birthDate, element: elem, zodiacSign, mbtiType, gender },
         title: aiData.title || "命中知己",
+        appearance: aiData.appearance || {
+          ageRange: "25-30",
+          height: "中等",
+          bodyType: "健朗",
+          face: "五官端正，眉目清秀",
+          eyes: "温暖而有神采",
+          vibe: "干净温暖，让人安心",
+          style: "简约有质感",
+          firstImpression: "第一眼会觉得Ta很舒服。",
+        },
         personality: aiData.personality || {
-          traits: ["温柔体贴", "富有智慧", "善解人意", "有趣幽默"],
-          description: "你的灵魂伴侣是一个温暖而有深度的人。",
+          traits: ["温柔体贴", "富有智慧", "善解人意", "有趣幽默", "专注认真"],
+          description: "你的正缘是一个温暖而有深度的人。",
         },
         compatibility: aiData.compatibility || {
+          score: 85,
           bestZodiac: ["天秤座", "双鱼座", "巨蟹座"],
           bestMBTI: ["INFJ", "ENFP", "INTJ"],
           bestElement: "水",
+          chemistryNote: "你们的缘分很深。",
         },
         interaction: aiData.interaction || {
           loveLanguage: "肯定的言辞",
           dateStyle: "安静而有品味的约会。",
           conflictStyle: "理性沟通，给彼此空间。",
+          dailyHabit: "会在你加班时给你热一杯牛奶。",
         },
         meetingGuide: aiData.meetingGuide || {
           where: ["书店", "文化活动", "朋友聚会"],
           when: "今年下半年",
           sign: "当你不再刻意寻找，缘分就会来到。",
+          scenario: "你们的相遇会很自然。",
         },
         message: aiData.message || "相信缘分，最好的总在不经意间到来。",
       });
