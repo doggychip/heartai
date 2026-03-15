@@ -131,6 +131,33 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
     }
   });
 
+  // ─── Avatar Plaza (browse all active avatars) ─────────────
+  app.get("/api/avatar/plaza", async (_req, res) => {
+    try {
+      const allAvatars = await storage.getAllActiveAvatars();
+      const enriched = await Promise.all(allAvatars.map(async (av) => {
+        const user = await storage.getUser(av.userId);
+        return {
+          id: av.id,
+          userId: av.userId,
+          name: av.name,
+          bio: av.bio,
+          element: av.element,
+          sliderPraise: av.sliderPraise,
+          sliderSerious: av.sliderSerious,
+          sliderWarm: av.sliderWarm,
+          ownerNickname: user?.nickname || user?.username || "未知",
+          isActive: av.isActive,
+        };
+      }));
+      res.json(enriched);
+    } catch (err) {
+      console.error("Avatar plaza error:", err);
+      res.status(500).json({ error: "获取分身广场失败" });
+    }
+  });
+
+
   // ─── Get any user's avatar (public) ─────────────────────────
   app.get("/api/avatar/:userId", async (req, res) => {
     try {

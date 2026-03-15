@@ -434,3 +434,18 @@ export const avatarChatMessages = pgTable("avatar_chat_messages", {
 
 export type AvatarChat = typeof avatarChats.$inferSelect;
 export type AvatarChatMessage = typeof avatarChatMessages.$inferSelect;
+
+// ─── Notifications ────────────────────────────────────────────
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),      // recipient
+  type: text("type").notNull(),               // "like" | "comment" | "avatar_action" | "fortune" | "system"
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  linkTo: text("link_to"),                    // e.g. "/community/postId"
+  fromUserId: varchar("from_user_id"),        // who triggered it (null for system)
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+export type Notification = typeof notifications.$inferSelect;

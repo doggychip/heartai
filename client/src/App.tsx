@@ -34,6 +34,10 @@ import SoulmatePage from "@/pages/soulmate";
 import AlmanacPage from "@/pages/almanac";
 import NameScorePage from "@/pages/name-score";
 import AvatarPage from "@/pages/avatar";
+import AvatarPlazaPage from "@/pages/avatar-plaza";
+import DreamPage from "@/pages/dream";
+import ProfilePage from "@/pages/profile";
+import NotificationsPage from "@/pages/notifications";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -70,6 +74,10 @@ function AuthenticatedRoutes() {
         <Route path="/almanac" component={AlmanacPage} />
         <Route path="/name-score" component={NameScorePage} />
         <Route path="/avatar" component={AvatarPage} />
+        <Route path="/avatar-plaza" component={AvatarPlazaPage} />
+        <Route path="/dream" component={DreamPage} />
+        <Route path="/profile/:id" component={ProfilePage} />
+        <Route path="/notifications" component={NotificationsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />

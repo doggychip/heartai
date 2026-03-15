@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/lib/auth";
@@ -11,7 +13,7 @@ import {
   Users,
   Bot,
   Sun,
-  Moon,
+  Moon as MoonIcon,
   LogOut,
   LogIn,
   User,
@@ -34,6 +36,10 @@ import {
   ChevronRight,
   Grid3X3,
   X,
+  Bell,
+  Moon,
+  Podcast,
+  UserCircle,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -90,12 +96,14 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/wisdom", label: "智慧问答", icon: Lightbulb, guestVisible: false },
       { path: "/chat", label: "AI 对话", icon: MessageCircle, guestVisible: false },
       { path: "/avatar", label: "AI 分身", icon: Zap, guestVisible: false },
+      { path: "/avatar-plaza", label: "分身广场", icon: Podcast, guestVisible: false },
     ],
   },
   {
     label: "自我探索",
     defaultOpen: false,
     items: [
+      { path: "/dream", label: "梦境解析", icon: Moon, guestVisible: false },
       { path: "/emotion-insights", label: "情感频道", icon: Brain, guestVisible: false },
       { path: "/assessments", label: "心理测评", icon: ClipboardList, guestVisible: false },
       { path: "/journal", label: "情绪日记", icon: BookHeart, guestVisible: false },
@@ -202,6 +210,10 @@ function SidebarGroup({ group, isGuest, isActive }: {
   const hasActiveItem = visibleItems.some((item) => isActive(item.path));
   const [open, setOpen] = useState(group.defaultOpen || hasActiveItem);
 
+  useEffect(() => {
+    if (hasActiveItem) setOpen(true);
+  }, [hasActiveItem]);
+
   if (visibleItems.length === 0) return null;
   
   // Single item group (like "首页") — don't show group header
@@ -264,6 +276,38 @@ function SidebarGroup({ group, isGuest, isActive }: {
   );
 }
 
+// ─── Notification Bell ──────────────────────────────────────
+function NotificationBell() {
+  const { user } = useAuth();
+  const { data } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/notifications/unread-count");
+      return res.json();
+    },
+    enabled: !!user,
+    refetchInterval: 30000,
+  });
+  const count = data?.count || 0;
+  return (
+    <Link href="/notifications">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 relative text-muted-foreground"
+        data-testid="button-notifications"
+      >
+        <Bell className="w-4 h-4" />
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+            {count > 9 ? '9+' : count}
+          </span>
+        )}
+      </Button>
+    </Link>
+  );
+}
+
 // ─── Main AppShell ──────────────────────────────────────────
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -297,6 +341,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="font-semibold text-sm">观星</span>
           </div>
           <div className="flex items-center gap-1">
+            {!isGuest && <NotificationBell />}
             {!isGuest && (
               <Link href="/settings">
                 <Button
@@ -316,7 +361,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               onClick={() => setIsDark(!isDark)}
               data-testid="button-theme-toggle"
             >
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {isDark ? <Sun className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
             </Button>
             {user && (
               <Button
@@ -403,15 +448,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setIsDark(!isDark)}
-            data-testid="button-theme-toggle"
-          >
-            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
+          <div className="flex items-center gap-0.5">
+              {!isGuest && <NotificationBell />}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setIsDark(!isDark)}
+                data-testid="button-theme-toggle"
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <MoonIcon className="w-4 h-4" />}
+              </Button>
+            </div>
         </div>
 
         {/* Grouped Navigation */}
@@ -450,12 +498,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {user ? (
             <div className="px-3 pb-2">
               <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-primary/5">
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <User className="w-3.5 h-3.5 text-primary" />
-                </div>
-                <span className="text-xs font-medium truncate flex-1">
-                  {user.nickname || user.username}
-                </span>
+                <Link href={`/profile/${user.id}`}>
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 cursor-pointer hover:bg-primary/20 transition-colors">
+                    <User className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                </Link>
+                <Link href={`/profile/${user.id}`}>
+                  <span className="text-xs font-medium truncate flex-1 cursor-pointer hover:text-primary transition-colors">
+                    {user.nickname || user.username}
+                  </span>
+                </Link>
                 <Button
                   variant="ghost"
                   size="icon"

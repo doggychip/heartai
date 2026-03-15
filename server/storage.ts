@@ -13,9 +13,11 @@ import {
   type AvatarMemory, type InsertAvatarMemory,
   type AvatarAction, type InsertAvatarAction,
   type AvatarChat, type AvatarChatMessage,
+  type Notification,
   users, conversations, messages, moodEntries, assessments, assessmentResults,
   communityPosts, postLikes, postComments, agentFollows,
   avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages,
+  notifications,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
@@ -115,6 +117,15 @@ export interface IStorage {
   getAvatarChatMessages(chatId: string): Promise<AvatarChatMessage[]>;
   createAvatarChatMessage(chatId: string, role: string, content: string): Promise<AvatarChatMessage>;
   getAvatarChatsByVisitor(visitorId: string): Promise<AvatarChat[]>;
+
+  // All avatars (for plaza)
+  getAllActiveAvatars(): Promise<Avatar[]>;
+
+  // Notifications
+  getNotifications(userId: string, limit?: number): Promise<Notification[]>;
+  getUnreadNotificationCount(userId: string): Promise<number>;
+  createNotification(data: { userId: string; type: string; title: string; body: string; linkTo?: string; fromUserId?: string }): Promise<Notification>;
+  markNotificationsRead(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -579,6 +590,50 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(avatarChats)
       .where(eq(avatarChats.visitorId, visitorId))
       .orderBy(desc(avatarChats.createdAt));
+  }
+
+  // ─── All Active Avatars (Plaza) ──────────────────────────────
+
+  async getAllActiveAvatars(): Promise<Avatar[]> {
+    return db.select().from(avatars)
+      .where(eq(avatars.isActive, true))
+      .orderBy(desc(avatars.updatedAt));
+  }
+
+  // ─── Notifications ───────────────────────────────────────────
+
+  async getNotifications(userId: string, limit = 50): Promise<Notification[]> {
+    return db.select().from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
+  }
+
+  async getUnreadNotificationCount(userId: string): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
+    return result?.count ?? 0;
+  }
+
+  async createNotification(data: { userId: string; type: string; title: string; body: string; linkTo?: string; fromUserId?: string }): Promise<Notification> {
+    const [n] = await db.insert(notifications).values({
+      userId: data.userId,
+      type: data.type,
+      title: data.title,
+      body: data.body,
+      linkTo: data.linkTo || null,
+      fromUserId: data.fromUserId || null,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return n;
+  }
+
+  async markNotificationsRead(userId: string): Promise<void> {
+    await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
   }
 }
 

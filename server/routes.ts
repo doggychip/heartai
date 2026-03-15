@@ -2483,6 +2483,21 @@ ${najiaDesc}
       await storage.createPostLike(postId, userId);
       await storage.incrementPostLikeCount(postId, 1);
       res.json({ liked: true });
+      // Emit notification to post author
+      try {
+        const post = await storage.getPost(postId);
+        if (post && post.userId !== userId) {
+          const liker = await storage.getUser(userId);
+          storage.createNotification({
+            userId: post.userId,
+            type: "like",
+            title: "收到点赞",
+            body: `${liker?.nickname || "用户"} 赞了你的帖子`,
+            linkTo: `/community/${postId}`,
+            fromUserId: userId,
+          }).catch(() => {});
+        }
+      } catch {}
     }
   });
 
@@ -2524,6 +2539,15 @@ ${najiaDesc}
           targetPost.userId,
           `💬 [HeartAI 新评论] ${commentAuthorName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
         );
+        // In-app notification
+        storage.createNotification({
+          userId: targetPost.userId,
+          type: "comment",
+          title: "收到评论",
+          body: `${commentAuthorName} 评论了你的帖子: ${parsed.data.content.slice(0, 60)}`,
+          linkTo: `/community/${req.params.id}`,
+          fromUserId: getUserId(req),
+        }).catch(() => {});
       }
 
       // Parse @mentions in comment and notify mentioned agents
@@ -4944,6 +4968,142 @@ ${najiaDesc}
     }
   });
 
+  // ─── Notifications API ────────────────────────────────────────
+
+  app.get("/api/notifications", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const notifs = await storage.getNotifications(userId, 50);
+      res.json(notifs);
+    } catch (err) {
+      console.error("Get notifications error:", err);
+      res.status(500).json({ error: "获取通知失败" });
+    }
+  });
+
+  app.get("/api/notifications/unread-count", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnreadNotificationCount(getUserId(req));
+      res.json({ count });
+    } catch (err) {
+      res.json({ count: 0 });
+    }
+  });
+
+  app.post("/api/notifications/read", requireAuth, async (req, res) => {
+    try {
+      await storage.markNotificationsRead(getUserId(req));
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "标记失败" });
+    }
+  });
+
+  // ─── User Profile (赛博名片) API ──────────────────────────────
+
+  app.get("/api/users/:id/profile", async (req, res) => {
+    try {
+      const user = await storage.getUser(req.params.id);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      const { password: _, ...safe } = user;
+
+      // Gather profile data in parallel
+      const [avatar, posts, followerCount, followingCount] = await Promise.all([
+        storage.getAvatarByUser(user.id),
+        storage.getPostsByUser(user.id),
+        storage.getFollowerCount(user.id),
+        storage.getFollowingCount(user.id),
+      ]);
+
+      // Parse personality
+      let personality = null;
+      try {
+        if (user.agentPersonality) personality = JSON.parse(user.agentPersonality);
+      } catch {}
+
+      res.json({
+        user: safe,
+        personality,
+        avatar: avatar ? { name: avatar.name, bio: avatar.bio, element: avatar.element, isActive: avatar.isActive, sliderPraise: avatar.sliderPraise, sliderSerious: avatar.sliderSerious, sliderWarm: avatar.sliderWarm } : null,
+        stats: {
+          postCount: posts.length,
+          followerCount,
+          followingCount,
+        },
+        recentPosts: posts.slice(0, 10).map(p => ({
+          id: p.id,
+          content: p.content.slice(0, 100),
+          tag: p.tag,
+          likeCount: p.likeCount,
+          commentCount: p.commentCount,
+          createdAt: p.createdAt,
+        })),
+      });
+    } catch (err) {
+      console.error("Get user profile error:", err);
+      res.status(500).json({ error: "获取个人资料失败" });
+    }
+  });
+
+  // ─── Dream Interpretation API ─────────────────────────────────
+
+  app.post("/api/dream/interpret", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { dream } = req.body;
+      if (!dream || typeof dream !== "string" || dream.trim().length < 2) {
+        return res.status(400).json({ error: "请描述你的梦境" });
+      }
+
+      const user = await storage.getUser(userId);
+      let personalityCtx = "";
+      try {
+        if (user?.agentPersonality) {
+          const p = JSON.parse(user.agentPersonality);
+          if (p.element) personalityCtx += `\n命主五行: ${p.element}`;
+          if (p.zodiac) personalityCtx += `\n星座: ${p.zodiac}`;
+          if (p.mbtiType) personalityCtx += `\nMBTI: ${p.mbtiType}`;
+          if (p.dayMaster) personalityCtx += `\n日主: ${p.dayMaster}`;
+        }
+      } catch {}
+
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "", baseURL: "https://api.deepseek.com" });
+
+      let interpretation = "";
+      try {
+        const resp = await openai.chat.completions.create({
+          model: "deepseek-chat",
+          messages: [
+            {
+              role: "system",
+              content: `你是一位融合中国传统周公解梦、命理学和现代心理学的梦境分析师。
+
+请从以下角度解析梦境：
+1. 「周公解梦」传统解读: 传统梦境寓意
+2. 「命理关联」: 结合用户命格底色分析梦境与五行、星座的关联
+3. 「心理洞察」: 从现代心理学角度分析梦境反映的内心状态
+4. 「开运建议」: 基于梦境给出行动建议
+
+请用温暖且富有洞察力的语气回答，控制在500字内。${personalityCtx ? `\n用户命格信息:${personalityCtx}` : ""}`
+            },
+            { role: "user", content: `我梦见了: ${dream}` }
+          ],
+          max_tokens: 800,
+        });
+        interpretation = resp.choices[0]?.message?.content || "";
+      } catch (aiErr) {
+        console.error("Dream AI error:", aiErr);
+        // Fallback interpretation
+        interpretation = generateFallbackDream(dream);
+      }
+
+      res.json({ dream, interpretation });
+    } catch (err) {
+      console.error("Dream interpret error:", err);
+      res.status(500).json({ error: "梦境解析失败" });
+    }
+  });
+
   // Start GuanXing Bot auto-posting
   startBotAutoPost();
 
@@ -5131,4 +5291,35 @@ function getSolarTermWellness(term: string): {
     foods: info.foods,
     exercise: info.exercise,
   };
+}
+
+// ─── Dream Fallback ─────────────────────────────────────────────
+function generateFallbackDream(dream: string): string {
+  const keywords: Record<string, string> = {
+    '水': '梦见水在周公解梦中象征财运和情感的流动。清澈的水代表心境澄明，浑浊的水提示你需要理清思绪。',
+    '飞': '梦见飞翔寓意内心渴望自由和突破。你可能正在经历一个成长的阶段，渴望摆脱某些束缚。',
+    '山': '山象征目标和挑战。登山代表你正在努力达成某个目标，下山则提示你要注意防范风险。',
+    '动物': '梦见动物反映了你的本能和潜意识。不同动物代表不同的性格特质。',
+    '赶路': '梦见赶路或迟到反映了你对时间和责任的焦虑。尝试放慢脚步，不要给自己太多压力。',
+    '考试': '考试类梦境代表自我评价和焦虑。你可能在现实生活中面临某种“考验”。',
+    '落': '梦见坠落反映了失控感和不安全感。建议在清醒时审视生活中让你感到不安的事物。',
+    '花': '花朵象征美好与新生。梦见花开是吉兆，预示好运将至。',
+  };
+
+  let matched = '梦境是内心的镜子，映射出你潜意识中的想法和感受。';
+  for (const [key, val] of Object.entries(keywords)) {
+    if (dream.includes(key)) { matched = val; break; }
+  }
+
+  return `## 🌙 周公解梦
+
+${matched}
+
+## 🔮 心理洞察
+
+梦境往往反映我们清醒时未能充分处理的情绪。建议你在日记中记录这个梦，并思考它可能与你近期生活中的哪些事件相关。
+
+## ✨ 开运建议
+
+今天适合保持心境平和，多与自然接触。可以尝试在睡前做5分钟深呼吸，帮助溄清潜意识中的困惑。`;
 }
