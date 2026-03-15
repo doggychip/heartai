@@ -87,7 +87,7 @@ const FEATURE_GRID = [
   { path: "/fortune", label: "今日运势", icon: Gauge, color: "#e8922e" },
   { path: "/compatibility", label: "缘分雷达", icon: Radar, color: "#ec4899" },
   { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
-  { path: "/soulmate", label: "灵魂伴侣", icon: Heart, color: "#f43f5e" },
+  { path: "/soulmate", label: "正缘画像", icon: Heart, color: "#f43f5e" },
   { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
   { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
   { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },

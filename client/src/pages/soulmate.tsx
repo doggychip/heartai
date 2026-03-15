@@ -20,15 +20,47 @@ import {
   Star,
   Users,
   Compass,
+  User,
+  Shirt,
+  Smile,
+  Coffee,
+  BookOpen,
+  Flame,
 } from "lucide-react";
 
-interface SoulmateResult {
-  userInfo: { birthDate: string; element: string; zodiacSign?: string; mbtiType?: string };
+interface PortraitResult {
+  userInfo: { birthDate: string; element: string; zodiacSign?: string; mbtiType?: string; gender?: string };
   title: string;
+  appearance: {
+    ageRange: string;
+    height: string;
+    bodyType: string;
+    face: string;
+    eyes: string;
+    vibe: string;
+    style: string;
+    firstImpression: string;
+  };
   personality: { traits: string[]; description: string };
-  compatibility: { bestZodiac: string[]; bestMBTI: string[]; bestElement: string };
-  interaction: { loveLanguage: string; dateStyle: string; conflictStyle: string };
-  meetingGuide: { where: string[]; when: string; sign: string };
+  compatibility: {
+    score: number;
+    bestZodiac: string[];
+    bestMBTI: string[];
+    bestElement: string;
+    chemistryNote: string;
+  };
+  interaction: {
+    loveLanguage: string;
+    dateStyle: string;
+    conflictStyle: string;
+    dailyHabit: string;
+  };
+  meetingGuide: {
+    where: string[];
+    when: string;
+    sign: string;
+    scenario: string;
+  };
   message: string;
 }
 
@@ -42,6 +74,88 @@ const MBTI_TYPES = [
   "ISTJ", "ISFJ", "ESTJ", "ESFJ", "ISTP", "ISFP", "ESTP", "ESFP",
 ];
 
+// ─── Score Ring SVG ─────
+function ScoreRing({ score }: { score: number }) {
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 85 ? "#f43f5e" : score >= 70 ? "#f97316" : "#a855f7";
+
+  return (
+    <div className="relative w-28 h-28 mx-auto">
+      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+        <circle cx="50" cy="50" r={radius} fill="none" stroke="currentColor" strokeWidth="4" className="text-border" />
+        <circle
+          cx="50" cy="50" r={radius} fill="none"
+          stroke={color} strokeWidth="5" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold" style={{ color }}>{score}</span>
+        <span className="text-[10px] text-muted-foreground">缘分指数</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Appearance Card ─────
+function AppearanceCard({ appearance }: { appearance: PortraitResult["appearance"] }) {
+  const details = [
+    { icon: User, label: "年龄", value: appearance.ageRange },
+    { icon: User, label: "身高", value: appearance.height },
+    { icon: User, label: "体型", value: appearance.bodyType },
+    { icon: Smile, label: "面容", value: appearance.face },
+    { icon: Eye, label: "眼眸", value: appearance.eyes },
+    { icon: Sparkles, label: "气质", value: appearance.vibe },
+    { icon: Shirt, label: "穿搭", value: appearance.style },
+  ];
+
+  return (
+    <Card className="bg-gradient-to-br from-pink-500/8 via-rose-500/4 to-purple-500/8 border-pink-500/20 overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <User className="w-4 h-4 text-pink-500" /> Ta 的模样
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Quick stats row */}
+        <div className="flex gap-2 flex-wrap">
+          {details.slice(0, 3).map((d) => (
+            <div key={d.label} className="flex-1 min-w-[80px] p-2.5 rounded-lg bg-background/60 text-center">
+              <p className="text-[10px] text-muted-foreground">{d.label}</p>
+              <p className="text-sm font-medium mt-0.5">{d.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Detailed descriptors */}
+        <div className="space-y-2">
+          {details.slice(3).map((d) => {
+            const Icon = d.icon;
+            return (
+              <div key={d.label} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-background/40">
+                <Icon className="w-3.5 h-3.5 text-pink-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <span className="text-[10px] text-muted-foreground">{d.label}</span>
+                  <p className="text-sm leading-snug">{d.value}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* First impression - highlighted */}
+        <div className="p-3 rounded-lg bg-gradient-to-r from-pink-500/10 to-rose-500/10 border border-pink-500/15">
+          <p className="text-[10px] text-pink-500 font-medium mb-1">✦ 初见印象</p>
+          <p className="text-sm leading-relaxed text-foreground/90 italic">"{appearance.firstImpression}"</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SoulmatePage() {
   const { toast } = useToast();
   const { user, updateProfile } = useAuth();
@@ -50,7 +164,7 @@ export default function SoulmatePage() {
   const [mbtiType, setMbtiType] = useState("");
   const [gender, setGender] = useState("");
   const [concerns, setConcerns] = useState("");
-  const [result, setResult] = useState<SoulmateResult | null>(null);
+  const [result, setResult] = useState<PortraitResult | null>(null);
 
   // Auto-populate from user profile
   useEffect(() => {
@@ -91,50 +205,66 @@ export default function SoulmatePage() {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="soulmate-result-page">
         <div className="max-w-2xl mx-auto p-6 space-y-5">
+          {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">灵魂伴侣画像</h1>
+            <h1 className="text-xl font-bold">正缘画像</h1>
             <Button variant="outline" size="sm" onClick={restart} data-testid="button-soulmate-restart">
               <RotateCcw className="w-4 h-4 mr-1" /> 重新分析
             </Button>
           </div>
 
-          {/* Hero - Soulmate Title */}
+          {/* Hero Card */}
           <Card className="bg-gradient-to-br from-pink-500/10 via-rose-500/5 to-purple-500/10 border-pink-500/20 overflow-hidden">
-            <CardContent className="py-8 text-center relative">
-              <div className="absolute inset-0 opacity-5">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Heart key={i} className="absolute text-pink-500" style={{
-                    width: `${12 + i * 4}px`, height: `${12 + i * 4}px`,
-                    left: `${15 + i * 14}%`, top: `${20 + (i % 3) * 25}%`,
-                    opacity: 0.3 + i * 0.1,
+            <CardContent className="py-6 relative">
+              {/* Floating hearts */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Heart key={i} className="absolute text-pink-500/10" style={{
+                    width: `${10 + i * 4}px`, height: `${10 + i * 4}px`,
+                    left: `${10 + i * 18}%`, top: `${15 + (i % 3) * 28}%`,
                   }} />
                 ))}
               </div>
-              <Heart className="w-10 h-10 text-pink-500 mx-auto mb-3" />
-              <h2 className="text-lg font-bold">{result.title}</h2>
-              <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-                {result.userInfo.zodiacSign && (
-                  <Badge variant="outline" className="text-[10px]">{result.userInfo.zodiacSign}</Badge>
-                )}
-                {result.userInfo.mbtiType && (
-                  <Badge variant="outline" className="text-[10px]">{result.userInfo.mbtiType}</Badge>
-                )}
-                <Badge variant="secondary" className="text-[10px]">{result.userInfo.element}命</Badge>
+
+              <div className="flex flex-col sm:flex-row items-center gap-5 relative z-10">
+                {/* Score Ring */}
+                <ScoreRing score={result.compatibility.score} />
+
+                {/* Title + tags */}
+                <div className="flex-1 text-center sm:text-left">
+                  <h2 className="text-lg font-bold flex items-center justify-center sm:justify-start gap-2">
+                    <Heart className="w-5 h-5 text-pink-500" />
+                    {result.title}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">{result.compatibility.chemistryNote}</p>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 mt-2.5 flex-wrap">
+                    <Badge variant="secondary" className="text-[10px]">{result.userInfo.element}命</Badge>
+                    {result.userInfo.zodiacSign && (
+                      <Badge variant="outline" className="text-[10px]">{result.userInfo.zodiacSign}</Badge>
+                    )}
+                    {result.userInfo.mbtiType && (
+                      <Badge variant="outline" className="text-[10px]">{result.userInfo.mbtiType}</Badge>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* Appearance Portrait Card */}
+          <AppearanceCard appearance={result.appearance} />
 
           {/* Personality Traits */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500" /> Ta 的性格特质
+                <Star className="w-4 h-4 text-amber-500" /> Ta 的性格
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
                 {result.personality.traits.map((trait, i) => (
-                  <Badge key={i} className="text-xs bg-pink-500/10 text-pink-600 dark:text-pink-400 border-0">
+                  <Badge key={i} className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-0">
                     {trait}
                   </Badge>
                 ))}
@@ -184,9 +314,15 @@ export default function SoulmatePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="p-3 rounded-lg bg-accent/30">
-                <p className="text-[10px] text-muted-foreground mb-1">爱的语言</p>
-                <p className="text-sm font-medium">{result.interaction.loveLanguage}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 rounded-lg bg-accent/30">
+                  <p className="text-[10px] text-muted-foreground mb-1">爱的语言</p>
+                  <p className="text-sm font-medium">{result.interaction.loveLanguage}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-accent/30">
+                  <p className="text-[10px] text-muted-foreground mb-1">日常小习惯</p>
+                  <p className="text-sm text-foreground/80">{result.interaction.dailyHabit}</p>
+                </div>
               </div>
               <div className="p-3 rounded-lg bg-accent/30">
                 <p className="text-[10px] text-muted-foreground mb-1">理想约会</p>
@@ -199,7 +335,7 @@ export default function SoulmatePage() {
             </CardContent>
           </Card>
 
-          {/* Meeting Guide */}
+          {/* Meeting Guide + Scenario */}
           <Card className="bg-gradient-to-br from-violet-500/5 to-pink-500/5 border-violet-500/15">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -235,19 +371,34 @@ export default function SoulmatePage() {
             </CardContent>
           </Card>
 
-          {/* Message */}
+          {/* Scenario - Meeting Story */}
+          <Card className="border-pink-500/15 overflow-hidden">
+            <div className="h-1 bg-gradient-to-r from-violet-500 via-pink-500 to-rose-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-pink-500" /> 相遇场景
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm leading-relaxed text-foreground/85 italic">
+                "{result.meetingGuide.scenario}"
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Final Message */}
           <Card className="border-pink-500/20">
             <CardContent className="py-5 text-center">
-              <Heart className="w-5 h-5 text-pink-500 mx-auto mb-2" />
+              <Flame className="w-5 h-5 text-pink-500 mx-auto mb-2" />
               <p className="text-sm leading-relaxed text-foreground/80 italic">
                 「{result.message}」
               </p>
             </CardContent>
           </Card>
 
-          <div className="border-t border-border pt-3">
+          <div className="border-t border-border pt-3 pb-8">
             <p className="text-[10px] text-center text-muted-foreground">
-              ⚠️ 免责声明：灵魂伴侣画像仅供娱乐和自我探索参考，不构成任何现实建议。每段缘分都值得珍惜。
+              ⚠️ 免责声明：正缘画像融合八字命理、星座学与心理学，仅供娱乐和自我探索参考，不构成任何现实建议。
             </p>
           </div>
         </div>
@@ -262,10 +413,10 @@ export default function SoulmatePage() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Heart className="w-5 h-5 text-pink-500" />
-            灵魂伴侣画像
+            AI 正缘画像
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            AI 根据你的命理与性格，描绘命中注定的 Ta
+            融合八字命理与星座学，为你描绘命中注定的 Ta 的完整模样
           </p>
         </div>
 
@@ -342,9 +493,9 @@ export default function SoulmatePage() {
               data-testid="button-soulmate-submit"
             >
               {mutation.isPending ? (
-                <><Sparkles className="w-4 h-4 mr-2 animate-spin" /> 正在描绘灵魂伴侣...</>
+                <><Sparkles className="w-4 h-4 mr-2 animate-spin" /> AI 正在描绘正缘...</>
               ) : (
-                <><Heart className="w-4 h-4 mr-2" /> 生成灵魂伴侣画像</>
+                <><Heart className="w-4 h-4 mr-2" /> 生成正缘画像</>
               )}
             </Button>
           </CardContent>
