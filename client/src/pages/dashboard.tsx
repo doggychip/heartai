@@ -48,6 +48,7 @@ interface FortuneData {
   aiInsight: string;
   date: string;
   zodiac?: string;
+  isPersonalized?: boolean;
 }
 
 interface DashboardData {
@@ -220,7 +221,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-500" />
-                <span className="text-sm font-semibold">今日心情</span>
+                <span className="text-sm font-semibold">今日运势</span>
+                {f.isPersonalized && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-medium">命理分析</span>
+                )}
                 <span className="text-2xl font-black ml-1" style={{
                   color: f.totalScore >= 75 ? "hsl(35, 85%, 55%)" : f.totalScore >= 40 ? "hsl(235, 65%, 55%)" : "hsl(330, 55%, 55%)"
                 }}>{f.totalScore}<span className="text-sm font-normal text-muted-foreground ml-0.5">分</span></span>

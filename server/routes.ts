@@ -4938,6 +4938,219 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   });
 
   // ─── 今日运势 API ───────────────────────────────────────────────
+  // ─── 五行生克命理引擎 ────────────────────────────────────
+  // Wuxing (Five Elements) relationship engine for personalized fortune
+  const WUXING_ELEMENTS = ['木', '火', '土', '金', '水'] as const;
+  type WuxingElement = typeof WUXING_ELEMENTS[number];
+
+  // 天干 → 五行 mapping
+  const STEM_ELEMENT: Record<string, WuxingElement> = {
+    '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土',
+    '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
+  };
+  // 天干 阴阳
+  const STEM_YINYANG: Record<string, '阳' | '阴'> = {
+    '甲': '阳', '乙': '阴', '丙': '阳', '丁': '阴', '戊': '阳',
+    '己': '阴', '庚': '阳', '辛': '阴', '壬': '阳', '癸': '阴',
+  };
+  // 地支 → 五行 (main qi)
+  const BRANCH_ELEMENT: Record<string, WuxingElement> = {
+    '子': '水', '丑': '土', '寅': '木', '卯': '木', '辰': '土', '巳': '火',
+    '午': '火', '未': '土', '申': '金', '酉': '金', '戌': '土', '亥': '水',
+  };
+  // 地支六合
+  const BRANCH_LIUHE: Record<string, string> = {
+    '子': '丑', '丑': '子', '寅': '亥', '卯': '戌', '辰': '酉', '巳': '申',
+    '午': '未', '未': '午', '申': '巳', '酉': '辰', '戌': '卯', '亥': '寅',
+  };
+  // 地支相冲
+  const BRANCH_CHONG: Record<string, string> = {
+    '子': '午', '丑': '未', '寅': '申', '卯': '酉', '辰': '戌', '巳': '亥',
+    '午': '子', '未': '丑', '申': '寅', '酉': '卯', '戌': '辰', '亥': '巳',
+  };
+  // 地支三合局 (three-harmony combinations)
+  const BRANCH_SANHE: string[][] = [
+    ['申', '子', '辰'], // 水局
+    ['寅', '午', '戌'], // 火局
+    ['巳', '酉', '丑'], // 金局
+    ['亥', '卯', '未'], // 木局
+  ];
+  // 地支相刑
+  const BRANCH_XING: Record<string, string[]> = {
+    '寅': ['巳', '申'], '巳': ['寅', '申'], '申': ['寅', '巳'],
+    '丑': ['未', '戌'], '未': ['丑', '戌'], '戌': ['丑', '未'],
+    '子': ['卯'], '卯': ['子'],
+    '辰': ['辰'], '午': ['午'], '酉': ['酉'], '亥': ['亥'],
+  };
+  // 天干五合
+  const STEM_WUHE: Record<string, string> = {
+    '甲': '己', '己': '甲', '乙': '庚', '庚': '乙',
+    '丙': '辛', '辛': '丙', '丁': '壬', '壬': '丁', '戊': '癸', '癸': '戊',
+  };
+
+  // 五行生克关系: source → target relationship
+  function getWuxingRelation(me: WuxingElement, other: WuxingElement): '比肩' | '生我' | '我生' | '克我' | '我克' {
+    if (me === other) return '比肩';
+    const idx = WUXING_ELEMENTS.indexOf(me);
+    const oIdx = WUXING_ELEMENTS.indexOf(other);
+    // 相生: 木→火→土→金→水→木 (idx+1 mod 5)
+    if ((idx + 1) % 5 === oIdx) return '我生';
+    if ((oIdx + 1) % 5 === idx) return '生我';
+    // 相克: 木→土→水→火→金→木 (idx+2 mod 5)
+    if ((idx + 2) % 5 === oIdx) return '我克';
+    return '克我';
+  }
+
+  // Calculate personalized fortune score based on user's bazi and today's bazi
+  function calculatePersonalizedFortune(userBirthDate: string, userBirthHour: number | null, todayDate: Date) {
+    // Parse user birth info
+    const birthLsr = lunisolar(userBirthDate);
+    const todayLsr = lunisolar(todayDate);
+
+    // User's Day Master (日主) — the core of bazi
+    const userDayStem = birthLsr.char8.day.stem.toString();
+    const userDayBranch = birthLsr.char8.day.branch.toString();
+    const userDayElement = STEM_ELEMENT[userDayStem] || '木';
+    const userDayYinyang = STEM_YINYANG[userDayStem] || '阳';
+
+    // User's year pillar (affects social/interpersonal)
+    const userYearStem = birthLsr.char8.year.stem.toString();
+    const userYearBranch = birthLsr.char8.year.branch.toString();
+    // User's month pillar (affects career/study)
+    const userMonthStem = birthLsr.char8.month.stem.toString();
+    const userMonthBranch = birthLsr.char8.month.branch.toString();
+
+    // Today's pillars
+    const todayDayStem = todayLsr.char8.day.stem.toString();
+    const todayDayBranch = todayLsr.char8.day.branch.toString();
+    const todayDayElement = STEM_ELEMENT[todayDayStem] || '木';
+    const todayMonthStem = todayLsr.char8.month.stem.toString();
+    const todayMonthBranch = todayLsr.char8.month.branch.toString();
+    const todayYearStem = todayLsr.char8.year.stem.toString();
+    const todayYearBranch = todayLsr.char8.year.branch.toString();
+
+    // ── Core relationship: user day master vs today's day stem ──
+    const coreRelation = getWuxingRelation(userDayElement, todayDayElement);
+
+    // Base scores by relationship type
+    // 生我 = resource/support (印), 比肩 = peers/competition, 我生 = output/expression (食伤),
+    // 我克 = wealth/control (财), 克我 = pressure/authority (官杀)
+    const BASE_SCORES: Record<string, { love: number; wealth: number; career: number; study: number; social: number }> = {
+      '生我': { love: 78, wealth: 72, career: 82, study: 85, social: 75 },   // 印星: 学习强, 事业稳
+      '比肩': { love: 70, wealth: 65, career: 75, study: 72, social: 82 },   // 比劫: 社交强, 财运弱
+      '我生': { love: 82, wealth: 70, career: 72, study: 78, social: 80 },   // 食伤: 爱情/表达强
+      '我克': { love: 68, wealth: 85, career: 78, study: 68, social: 72 },   // 财星: 财运强, 学习弱
+      '克我': { love: 65, wealth: 75, career: 85, study: 75, social: 68 },   // 官杀: 事业强, 爱情/社交承压
+    };
+    let scores = { ...BASE_SCORES[coreRelation] };
+
+    // ── Modifier 1: 天干合 (Stem Harmony) — boosts all ──
+    if (STEM_WUHE[userDayStem] === todayDayStem) {
+      scores.love += 8;
+      scores.career += 5;
+      scores.social += 6;
+    }
+    // ── Modifier 2: 地支六合 (Branch Six-Harmony) — love & social ──
+    if (BRANCH_LIUHE[userDayBranch] === todayDayBranch) {
+      scores.love += 10;
+      scores.social += 7;
+    }
+    // ── Modifier 3: 地支相冲 (Branch Clash) — destabilizes ──
+    if (BRANCH_CHONG[userDayBranch] === todayDayBranch) {
+      scores.love -= 8;
+      scores.career -= 5;
+      scores.wealth -= 4;
+      scores.social -= 6;
+    }
+    // ── Modifier 4: 地支三合 (Three-Harmony) — career & wealth ──
+    for (const combo of BRANCH_SANHE) {
+      if (combo.includes(userDayBranch) && combo.includes(todayDayBranch)) {
+        scores.career += 7;
+        scores.wealth += 5;
+        break;
+      }
+    }
+    // ── Modifier 5: 地支相刑 (Branch Punishment) — stress ──
+    if (BRANCH_XING[userDayBranch]?.includes(todayDayBranch)) {
+      scores.love -= 5;
+      scores.social -= 7;
+      scores.study -= 3;
+    }
+    // ── Modifier 6: Month pillar resonance ──
+    const monthRelation = getWuxingRelation(userDayElement, STEM_ELEMENT[todayMonthStem] || '木');
+    if (monthRelation === '生我') { scores.study += 4; scores.career += 3; }
+    if (monthRelation === '我克') { scores.wealth += 4; }
+    if (monthRelation === '克我') { scores.career += 3; scores.love -= 2; }
+
+    // ── Modifier 7: 阴阳 harmony ──
+    const todayYinyang = STEM_YINYANG[todayDayStem] || '阳';
+    if (userDayYinyang !== todayYinyang) {
+      // Yin-Yang complementary — slight boost to love & social
+      scores.love += 3;
+      scores.social += 2;
+    }
+
+    // ── Modifier 8: User month pillar vs today — career/study relevance ──
+    const userMonthElement = STEM_ELEMENT[userMonthStem] || '木';
+    const monthDayRel = getWuxingRelation(userMonthElement, todayDayElement);
+    if (monthDayRel === '生我') { scores.career += 4; }
+    if (monthDayRel === '我生') { scores.study += 3; }
+
+    // ── Modifier 9: Year pillar — social/interpersonal context ──
+    if (BRANCH_LIUHE[userYearBranch] === todayYearBranch) {
+      scores.social += 5;
+    }
+    if (BRANCH_CHONG[userYearBranch] === todayYearBranch) {
+      scores.social -= 4;
+    }
+
+    // Clamp all scores to 35-98 range
+    for (const k of Object.keys(scores) as (keyof typeof scores)[]) {
+      scores[k] = Math.max(35, Math.min(98, scores[k]));
+    }
+
+    // Total score = weighted average
+    const totalScore = Math.round(
+      scores.love * 0.18 + scores.wealth * 0.22 + scores.career * 0.25 +
+      scores.study * 0.15 + scores.social * 0.20
+    );
+
+    // Lucky color based on 喜用神 (favorable element)
+    // The element that supports/generates the day master is the lucky element
+    const luckyElementMap: Record<WuxingElement, { color: string; direction: string; number: number }> = {
+      '木': { color: '青绿色', direction: '东方', number: 3 },
+      '火': { color: '红色', direction: '南方', number: 7 },
+      '土': { color: '黄色', direction: '中宫', number: 5 },
+      '金': { color: '白色', direction: '西方', number: 4 },
+      '水': { color: '黑/蓝色', direction: '北方', number: 1 },
+    };
+    // 喜用神: element that generates day master
+    const xiyongIdx = (WUXING_ELEMENTS.indexOf(userDayElement) - 1 + 5) % 5;
+    const xiyongElement = WUXING_ELEMENTS[xiyongIdx];
+    const luckyInfo = luckyElementMap[xiyongElement];
+
+    // Build analysis context for AI
+    const analysisContext = {
+      userDayStem, userDayBranch, userDayElement, userDayYinyang,
+      todayDayStem, todayDayBranch, todayDayElement,
+      coreRelation,
+      hasStemHarmony: STEM_WUHE[userDayStem] === todayDayStem,
+      hasBranchHarmony: BRANCH_LIUHE[userDayBranch] === todayDayBranch,
+      hasBranchClash: BRANCH_CHONG[userDayBranch] === todayDayBranch,
+      hasBranchPunishment: BRANCH_XING[userDayBranch]?.includes(todayDayBranch) || false,
+      xiyongElement,
+    };
+
+    return {
+      totalScore: Math.max(35, Math.min(98, totalScore)),
+      dimensions: scores,
+      luckyColor: luckyInfo.color,
+      luckyNumber: luckyInfo.number,
+      luckyDirection: luckyInfo.direction,
+      analysisContext,
+    };
+  }
+
   app.get("/api/fortune/today", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -4948,7 +5161,12 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       const today = new Date();
       const dateStr = today.toISOString().split("T")[0];
 
-      // Use lunisolar for today's traditional info
+      // Get user profile for personalized calculation
+      const user = await storage.getUser(userId);
+      const userBirthDate = user?.birthDate || null;
+      const userBirthHour = user?.birthHour ?? null;
+
+      // Lunar info
       let lunarInfo = "";
       let luckDirection = "";
       try {
@@ -4961,7 +5179,19 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         } catch { luckDirection = '东南'; }
       } catch { lunarInfo = ''; }
 
-      // Deterministic fallback generator
+      // ── Personalized calculation (if user has birth date) ──
+      let calculated: ReturnType<typeof calculatePersonalizedFortune> | null = null;
+      let isPersonalized = false;
+      if (userBirthDate) {
+        try {
+          calculated = calculatePersonalizedFortune(userBirthDate, userBirthHour, today);
+          isPersonalized = true;
+        } catch (calcErr) {
+          console.error("Fortune calculation error:", (calcErr as any)?.message || calcErr);
+        }
+      }
+
+      // Deterministic fallback for users without birth data
       const genFallback = () => {
         const dayHash = dateStr.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
         const uHash = userId.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
@@ -4978,21 +5208,40 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           luckyColor: ['红色', '蓝色', '绿色', '紫色', '金色'][h % 5],
           luckyNumber: (h % 9) + 1,
           luckyDirection: luckDirection || '东南',
-          aiInsight: '今天整体运势平稳，适合做一些计划中的事情。保持积极的心态，注意适度休息。',
+          aiInsight: '请在设置中填写出生日期，即可获取基于你个人命盘的专属运势分析。',
           date: dateStr,
+          isPersonalized: false,
         };
       };
 
-      // Generate fortune via AI (with graceful fallback)
+      // AI enrichment with personalized context
       try {
         const seed = `${dateStr}-${userId.slice(0, 8)}`;
         const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+
+        // Build personalized prompt context
+        let personalContext = '';
+        if (calculated) {
+          const ctx = calculated.analysisContext;
+          personalContext = `\n\n【命理分析结果】\n` +
+            `用户日主: ${ctx.userDayStem}${ctx.userDayBranch}(${ctx.userDayElement}${ctx.userDayYinyang})\n` +
+            `今日流日: ${ctx.todayDayStem}${ctx.todayDayBranch}(${ctx.todayDayElement})\n` +
+            `日主与流日关系: ${ctx.coreRelation}(${ctx.coreRelation === '生我' ? '印星/贵人' : ctx.coreRelation === '比肩' ? '比劫/朋友' : ctx.coreRelation === '我生' ? '食伤/才华' : ctx.coreRelation === '我克' ? '财星/财运' : '官杀/事业'})\n` +
+            `喜用神五行: ${ctx.xiyongElement}\n` +
+            (ctx.hasStemHarmony ? '天干相合 ✓ (和谐)\n' : '') +
+            (ctx.hasBranchHarmony ? '地支六合 ✓ (人缘旺)\n' : '') +
+            (ctx.hasBranchClash ? '地支相冲 ⚠ (变动)\n' : '') +
+            (ctx.hasBranchPunishment ? '地支相刑 ⚠ (摩擦)\n' : '') +
+            `\n已计算分数: 总分${calculated.totalScore}, 爱情${calculated.dimensions.love}, 财富${calculated.dimensions.wealth}, 事业${calculated.dimensions.career}, 学习${calculated.dimensions.study}, 人际${calculated.dimensions.social}\n` +
+            `请基于以上命理分析写运势解读，要结合五行生克关系，不要泛泛而谈。直接说"你"。`;
+        }
+
         const response = await client.chat.completions.create({
           model: "deepseek-chat",
           max_tokens: 600,
           messages: [
-            { role: "system", content: `你是观星(GuanXing)的每日运势AI。根据日期生成运势数据。返回严格JSON，不要markdown标记。种子: ${seed}` },
-            { role: "user", content: `日期: ${dateStr}, 农历: ${lunarInfo || '未知'}\n\n生成今日运势JSON：\n{\n  "totalScore": 75,\n  "dimensions": { "love": 72, "wealth": 68, "career": 80, "study": 75, "social": 78 },\n  "luckyColor": "淡蓝色",\n  "luckyNumber": 7,\n  "luckyDirection": "${luckDirection || '东南'}",\n  "aiInsight": "100-150字的今日运势解读和建议"\n}\n\n要求：totalScore在55-92之间，各维度在45-95之间，要有差异感。insight要具体、有指导性。` },
+            { role: "system", content: `你是观星(GuanXing)的命理运势AI。${isPersonalized ? '基于用户八字命盘和流日天干地支的五行生克关系，生成个性化运势解读。' : '根据日期生成运势数据。'}返回严格JSON，不要markdown标记。种子: ${seed}` },
+            { role: "user", content: `日期: ${dateStr}, 农历: ${lunarInfo || '未知'}${personalContext}\n\n${isPersonalized ? '基于以上命理分析，' : ''}生成今日运势JSON：\n{\n  ${isPersonalized ? `"totalScore": ${calculated!.totalScore},\n  "dimensions": { "love": ${calculated!.dimensions.love}, "wealth": ${calculated!.dimensions.wealth}, "career": ${calculated!.dimensions.career}, "study": ${calculated!.dimensions.study}, "social": ${calculated!.dimensions.social} },` : `"totalScore": 75,\n  "dimensions": { "love": 72, "wealth": 68, "career": 80, "study": 75, "social": 78 },`}\n  "luckyColor": "${calculated?.luckyColor || '淡蓝色'}",\n  "luckyNumber": ${calculated?.luckyNumber || 7},\n  "luckyDirection": "${calculated?.luckyDirection || luckDirection || '东南'}",\n  "aiInsight": "${isPersonalized ? '100-150字的个性化运势解读，必须引用五行关系和日主特点，给出针对性建议' : '100-150字的今日运势解读和建议'}"\n}\n\n${isPersonalized ? '要求：使用已计算的分数，只需生成aiInsight运势解读文字。要引用具体的命理关系（如日主属X，今日Y来X...），不要泛泛而谈。直接用"你"称呼用户。' : '要求：totalScore在55-92之间，各维度在45-95之间，要有差异感。insight要具体、有指导性。'}` },
           ],
         });
 
@@ -5001,12 +5250,46 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         try {
           const fortune = JSON.parse(cleaned);
           fortune.date = dateStr;
+          fortune.isPersonalized = isPersonalized;
+          // If personalized, enforce our calculated scores (AI only provides insight text)
+          if (calculated) {
+            fortune.totalScore = calculated.totalScore;
+            fortune.dimensions = calculated.dimensions;
+            fortune.luckyColor = calculated.luckyColor;
+            fortune.luckyNumber = calculated.luckyNumber;
+            fortune.luckyDirection = calculated.luckyDirection;
+          }
           return res.json(fortune);
         } catch {
+          if (calculated) {
+            return res.json({
+              ...calculated.dimensions,
+              totalScore: calculated.totalScore,
+              dimensions: calculated.dimensions,
+              luckyColor: calculated.luckyColor,
+              luckyNumber: calculated.luckyNumber,
+              luckyDirection: calculated.luckyDirection,
+              aiInsight: `今日流日${calculated.analysisContext.todayDayStem}${calculated.analysisContext.todayDayBranch}，与你的日主${calculated.analysisContext.userDayStem}(${calculated.analysisContext.userDayElement})呈${calculated.analysisContext.coreRelation}关系。${calculated.analysisContext.coreRelation === '生我' ? '贵人运旺，适合学习进修和寻求帮助。' : calculated.analysisContext.coreRelation === '我克' ? '财运活跃，把握机会但注意风险。' : calculated.analysisContext.coreRelation === '克我' ? '事业运强，有挑战但能提升自我。' : calculated.analysisContext.coreRelation === '我生' ? '才华横溢，表达力强，适合创作和社交。' : '能量平稳，与人合作会有好的结果。'}`,
+              date: dateStr,
+              isPersonalized: true,
+            });
+          }
           return res.json(genFallback());
         }
       } catch (aiErr) {
-        console.error("Fortune AI error (using fallback):", (aiErr as any)?.message || aiErr);
+        console.error("Fortune AI error (using calculated/fallback):", (aiErr as any)?.message || aiErr);
+        if (calculated) {
+          return res.json({
+            totalScore: calculated.totalScore,
+            dimensions: calculated.dimensions,
+            luckyColor: calculated.luckyColor,
+            luckyNumber: calculated.luckyNumber,
+            luckyDirection: calculated.luckyDirection,
+            aiInsight: `今日流日${calculated.analysisContext.todayDayStem}${calculated.analysisContext.todayDayBranch}，与你的日主${calculated.analysisContext.userDayStem}(${calculated.analysisContext.userDayElement})呈${calculated.analysisContext.coreRelation}关系。保持积极心态，顺势而为。`,
+            date: dateStr,
+            isPersonalized: true,
+          });
+        }
         return res.json(genFallback());
       }
     } catch (err) {
