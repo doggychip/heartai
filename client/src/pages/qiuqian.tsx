@@ -206,11 +206,15 @@ function QianWenCard({ result }: { result: QianResult }) {
     .map(s => s.trim())
     .filter(Boolean);
 
-  // Split baseMeaning into interpretive items for 解曰 section
-  const meaningParts = result.qian.baseMeaning
-    .split(/[，。；、\n]+/)
+  // Use AI overallReading for 解曰 section (dynamic, not static baseMeaning)
+  // Truncate to ~60 chars for the paper slip, full version shown below in AI cards
+  const aiReading = result.overallReading || result.qian.baseMeaning;
+  // Split into short phrases for vertical layout (max ~4 phrases)
+  const readingSentences = aiReading
+    .split(/[，。！？；\n]+/)
     .map(s => s.trim())
-    .filter(s => s.length > 0);
+    .filter(s => s.length > 0)
+    .slice(0, 4);
 
   const rankNumber = numberToChinese(result.qian.number);
 
@@ -243,7 +247,7 @@ function QianWenCard({ result }: { result: QianResult }) {
         {/* ── Body: Poem + Number/Rank ── */}
         <div className="relative px-4 pt-4 pb-3">
           <div className="flex">
-            {/* Right side: Sign number + rank (vertical text) */}
+            {/* Left side: Sign number + rank (vertical text) */}
             <div
               className="flex-shrink-0 pr-3 border-r border-red-500/30 dark:border-red-400/20 flex flex-col items-center justify-start pt-1 gap-1"
               style={{ writingMode: "vertical-rl", fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
@@ -275,8 +279,8 @@ function QianWenCard({ result }: { result: QianResult }) {
           </div>
         </div>
 
-        {/* ── 解曰 Section ── */}
-        <div className="mx-3 border-t-2 border-red-600/60 dark:border-red-500/50 pt-3 pb-4 px-1">
+        {/* ── 住持解签 Section (AI-generated, replaces static 解曰) ── */}
+        <div className="mx-3 border-t-2 border-red-600/60 dark:border-red-500/50 pt-3 pb-4 px-2">
           <div className="flex items-start gap-2">
             {/* 解曰 label — vertical */}
             <div
@@ -286,21 +290,14 @@ function QianWenCard({ result }: { result: QianResult }) {
               <span className="text-base font-bold text-red-700 dark:text-red-400 tracking-[0.3em]">解曰</span>
             </div>
 
-            {/* Interpretation items — flowing vertical columns */}
-            <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1 justify-center">
-              {meaningParts.map((part, i) => (
-                <span
-                  key={i}
-                  className="text-sm font-semibold text-red-800/80 dark:text-red-300/80 tracking-wide"
-                  style={{
-                    writingMode: "vertical-rl",
-                    fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif",
-                    lineHeight: "1.6",
-                  }}
-                >
-                  {part}
-                </span>
-              ))}
+            {/* AI interpretation — horizontal flowing text for readability */}
+            <div className="flex-1 pl-1">
+              <p
+                className="text-sm font-medium text-red-800/80 dark:text-red-300/80 leading-relaxed tracking-wide"
+                style={{ fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
+              >
+                {readingSentences.join("，")}。
+              </p>
             </div>
           </div>
         </div>

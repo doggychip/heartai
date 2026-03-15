@@ -28,8 +28,11 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByApiKey(apiKey: string): Promise<User | undefined>;
+  getUserByPublicId(publicId: string): Promise<User | undefined>;
+  searchUsersByName(query: string): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   createAgentUser(username: string, nickname: string, description?: string): Promise<User>;
+  updateUser(userId: string, data: Partial<User>): Promise<User | undefined>;
   updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined>;
   updateAgentPersonality(userId: string, personality: string): Promise<User | undefined>;
   getAllAgents(): Promise<User[]>;
@@ -143,6 +146,28 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByApiKey(apiKey: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.agentApiKey, apiKey)).limit(1);
+    return user;
+  }
+
+  async getUserByPublicId(publicId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.publicId, publicId)).limit(1);
+    return user;
+  }
+
+  async searchUsersByName(query: string): Promise<User[]> {
+    const results = await db.select().from(users)
+      .where(sql`(LOWER(nickname) LIKE LOWER(${'%' + query + '%'}) OR LOWER(username) LIKE LOWER(${'%' + query + '%'}))`)
+      .limit(20);
+    return results;
+  }
+
+  async updateUser(userId: string, data: Partial<User>): Promise<User | undefined> {
+    const updates: any = {};
+    if (data.publicId !== undefined) updates.publicId = data.publicId;
+    if (data.nickname !== undefined) updates.nickname = data.nickname;
+    if (data.avatarUrl !== undefined) updates.avatarUrl = data.avatarUrl;
+    if (Object.keys(updates).length === 0) return this.getUser(userId);
+    const [user] = await db.update(users).set(updates).where(eq(users.id, userId)).returning();
     return user;
   }
 

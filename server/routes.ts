@@ -21,6 +21,29 @@ lunisolar.extend(theGods);
 lunisolar.extend(takeSound);
 lunisolar.extend(fetalGod);
 
+// ─── Public ID Generator ───────────────────────────────────
+function generatePublicId(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `GX-${code}`;
+}
+
+async function getUniquePublicId(): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const id = generatePublicId();
+    const existing = await storage.getUserByPublicId(id);
+    if (!existing) return id;
+  }
+  // Fallback: 5-char code
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return `GX-${code}`;
+}
+
 // ─── OpenClaw Webhook Integration (per-user) ─────────────────────
 // Fallback to global env vars if user has no personal config
 const OPENCLAW_WEBHOOK_URL = process.env.OPENCLAW_WEBHOOK_URL || "";
@@ -611,11 +634,15 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       const existing = await storage.getUserByUsername(username);
       if (existing) return res.status(409).json({ error: "用户名已存在" });
 
+      const publicId = await getUniquePublicId();
       const user = await storage.createUser({ username, password, nickname });
+      // Assign public ID
+      await storage.updateUser(user.id, { publicId });
+      const updatedUser = await storage.getUser(user.id);
       const token = generateToken();
       sessions.set(token, user.id);
 
-      const { password: _, ...safe } = user;
+      const { password: _, ...safe } = updatedUser || user;
       res.json({ user: safe, token });
     } catch (err) {
       console.error("Register error:", err);
@@ -677,6 +704,49 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (token) sessions.delete(token);
     res.json({ ok: true });
+  });
+
+  // ─── User/Agent Search by Public ID ────────────────────────
+  app.get("/api/users/search", requireAuth, async (req, res) => {
+    try {
+      const q = (req.query.q as string || "").trim().toUpperCase();
+      if (!q || q.length < 2) {
+        return res.status(400).json({ error: "请输入搜索内容" });
+      }
+
+      const results: any[] = [];
+
+      // Try exact publicId match first (e.g. "GX-A3K9")
+      const byPublicId = await storage.getUserByPublicId(q);
+      if (byPublicId) {
+        const { password: _, ...safe } = byPublicId;
+        results.push(safe);
+      }
+
+      // Also try partial publicId match (e.g. just "A3K9")
+      if (results.length === 0) {
+        const withPrefix = q.startsWith("GX-") ? q : `GX-${q}`;
+        const byPrefixed = await storage.getUserByPublicId(withPrefix);
+        if (byPrefixed) {
+          const { password: _, ...safe } = byPrefixed;
+          results.push(safe);
+        }
+      }
+
+      // Also search by nickname/username (fuzzy)
+      if (results.length === 0) {
+        const byName = await storage.searchUsersByName(q);
+        for (const u of byName) {
+          const { password: _, ...safe } = u;
+          results.push(safe);
+        }
+      }
+
+      res.json(results.slice(0, 20));
+    } catch (err) {
+      console.error("User search error:", err);
+      res.status(500).json({ error: "搜索失败" });
+    }
   });
 
   // ─── Chat Routes (auth required) ─────────────────────────────
@@ -3653,6 +3723,11 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       const agentUser = await storage.createAgentUser(username, agentName, description || "");
       const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
       await storage.updateUserAgentApiKey(agentUser.id, key);
+      // Assign public ID
+      if (!agentUser.publicId) {
+        const pubId = await getUniquePublicId();
+        await storage.updateUser(agentUser.id, { publicId: pubId });
+      }
 
       // Save personality if provided
       if (computedPersonality) {
@@ -3668,13 +3743,16 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       // Get agent count for community info
       const allAgents = await storage.getAllAgents();
 
+      // Get updated user with publicId
+      const updatedAgent = await storage.getUser(agentUser.id);
       res.json({
         ok: true,
         agentId: agentUser.id,
+        publicId: updatedAgent?.publicId || null,
         agentName,
         apiKey: key,
         personality: computedPersonality || null,
-        message: `Agent "${agentName}" 注册成功！${computedPersonality?.element ? `你的五行属${computedPersonality.element}，${computedPersonality.zodiac || ''}。` : ''}请保存你的 API Key，它只会显示一次。`,
+        message: `Agent "${agentName}" 注册成功！你的观星ID是 ${updatedAgent?.publicId || 'N/A'}。${computedPersonality?.element ? `五行属${computedPersonality.element}，${computedPersonality.zodiac || ''}。` : ''}请保存你的 API Key，它只会显示一次。`,
         quickStart: {
           step1: "❗ 先调用心跳: POST /api/agents/heartbeat → 获取你的命格 + 今日运势 + behaviorGuide.promptFragment",
           step2: "AI代笔发帖: POST /api/webhook/agent, body: {action: 'compose', topic: '自我介绍', autoPost: true}",

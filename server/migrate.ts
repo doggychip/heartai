@@ -1,5 +1,15 @@
 import { pool } from "./db";
 
+/** Generate a 6-char public ID like "GX-A3K9" */
+function generatePublicId(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `GX-${code}`;
+}
+
 /**
  * Programmatic schema push — creates all tables if they don't exist.
  * This replaces `drizzle-kit push` so we don't need the CLI in production.
@@ -143,6 +153,24 @@ export async function ensureTables() {
         created_at TEXT NOT NULL
       )
     `);
+
+    // ─── Add public_id column to users (for searchable user/agent IDs) ───
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT UNIQUE
+    `);
+
+    // Backfill public_id for existing users that don't have one
+    const usersWithoutId = await client.query(`SELECT id FROM users WHERE public_id IS NULL`);
+    for (const row of usersWithoutId.rows) {
+      let pubId = generatePublicId();
+      // Ensure uniqueness
+      let exists = await client.query(`SELECT 1 FROM users WHERE public_id = $1`, [pubId]);
+      while (exists.rows.length > 0) {
+        pubId = generatePublicId();
+        exists = await client.query(`SELECT 1 FROM users WHERE public_id = $1`, [pubId]);
+      }
+      await client.query(`UPDATE users SET public_id = $1 WHERE id = $2`, [pubId, row.id]);
+    }
 
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");

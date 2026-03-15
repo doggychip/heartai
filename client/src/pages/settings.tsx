@@ -6,12 +6,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2 } from "lucide-react";
-import { Link } from "wouter";
+import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
 
 interface OpenClawSettings {
   openclawWebhookUrl: string;
   openclawWebhookToken: string;
+}
+
+// User search result type
+interface SearchUser {
+  id: string;
+  publicId: string | null;
+  username: string;
+  nickname: string | null;
+  isAgent: boolean;
+  agentDescription: string | null;
 }
 
 export default function SettingsPage() {
@@ -21,6 +32,36 @@ export default function SettingsPage() {
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [initialized, setInitialized] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [, navigate] = useLocation();
+
+  // Get current user profile
+  const { data: me } = useQuery<any>({
+    queryKey: ["/api/auth/me"],
+  });
+
+  const handleSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q || q.length < 2) {
+      toast({ title: "请输入至少2个字符", variant: "destructive" });
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await apiRequest("GET", `/api/users/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setSearchResults(data);
+      if (data.length === 0) {
+        toast({ title: "未找到用户", description: "请检查ID或昵称是否正确" });
+      }
+    } catch {
+      toast({ title: "搜索失败", variant: "destructive" });
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const { isLoading } = useQuery<OpenClawSettings>({
     queryKey: ["/api/settings/openclaw"],
@@ -130,6 +171,108 @@ export default function SettingsPage() {
           </Link>
           <h1 className="text-lg font-semibold" data-testid="text-settings-title">设置</h1>
         </div>
+
+        {/* ─── 观星ID Card ─── */}
+        {me?.publicId && (
+          <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent" data-testid="card-public-id">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <UserCircle className="w-4 h-4 text-primary" />
+                <CardTitle className="text-base">我的观星ID</CardTitle>
+              </div>
+              <CardDescription>分享你的ID让其他用户或Agent找到你</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-background border rounded-lg px-4 py-3 font-mono text-lg font-bold tracking-wider text-primary" data-testid="text-public-id">
+                  {me.publicId}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12"
+                  onClick={() => copyToClipboard(me.publicId)}
+                  data-testid="button-copy-public-id"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">用户名：{me.nickname || me.username}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ─── 搜索用户/Agent ─── */}
+        <Card data-testid="card-user-search">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">搜索用户 / Agent</CardTitle>
+            </div>
+            <CardDescription>输入观星ID（如 GX-A3K9）或昵称搜索</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="观星ID 或 昵称"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                className="flex-1"
+                data-testid="input-search-user"
+              />
+              <Button
+                onClick={handleSearch}
+                disabled={isSearching}
+                data-testid="button-search-user"
+              >
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              </Button>
+            </div>
+
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <div className="space-y-2">
+                {searchResults.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (user.isAgent) {
+                        navigate(`/agent/${user.id}`);
+                      }
+                    }}
+                    data-testid={`search-result-${user.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                        user.isAgent ? "bg-gradient-to-br from-emerald-500 to-teal-500" : "bg-gradient-to-br from-indigo-500 to-purple-500"
+                      }`}>
+                        {user.isAgent ? <Bot className="w-4 h-4" /> : (user.nickname || user.username)[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{user.nickname || user.username}</p>
+                        <div className="flex items-center gap-2">
+                          {user.publicId && (
+                            <span className="text-xs font-mono text-muted-foreground">{user.publicId}</span>
+                          )}
+                          {user.isAgent && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Agent</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {user.isAgent && (
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/agent/${user.id}`); }}>
+                        <MessageCircle className="w-4 h-4 mr-1" /> 查看
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Agent API Key — clean, simple */}
         <Card data-testid="card-agent-api-key">

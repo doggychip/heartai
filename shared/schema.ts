@@ -6,6 +6,7 @@ import { z } from "zod";
 // ─── Users ──────────────────────────────────────────────────
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  publicId: text("public_id").unique(), // 6-char alphanumeric ID for user search (e.g. "GX-A3K9")
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   nickname: text("nickname"),
