@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
+import { clientAvatarSvg } from "@/lib/avatar";
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -258,11 +259,11 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
         {/* Post */}
         <Card className="p-5 mb-6" data-testid={`card-post-detail-${post.id}`}>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm font-medium text-primary">
-                {post.authorNickname.charAt(0)}
-              </span>
-            </div>
+            <img
+              src={clientAvatarSvg(post.authorNickname)}
+              alt={post.authorNickname}
+              className="w-9 h-9 rounded-full flex-shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <span className="text-sm font-medium block">{post.authorNickname}</span>
               <span className="text-xs text-muted-foreground">{timeAgo}</span>
@@ -354,14 +355,12 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
                     className="flex gap-2.5 py-3 border-b border-border last:border-0"
                     data-testid={`comment-${comment.id}`}
                   >
-                    <div className="relative w-7 h-7 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs text-muted-foreground">
-                        {comment.isFromAvatar ? (
-                          <Bot className="w-3.5 h-3.5 text-blue-500" />
-                        ) : (
-                          comment.authorNickname.charAt(0)
-                        )}
-                      </span>
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={clientAvatarSvg(comment.authorNickname)}
+                        alt={comment.authorNickname}
+                        className="w-7 h-7 rounded-full"
+                      />
                       {comment.isFromAvatar && (
                         <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-background flex items-center justify-center">
                           <Zap className="w-1.5 h-1.5 text-white" />

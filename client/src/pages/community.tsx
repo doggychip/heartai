@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
+import { clientAvatarSvg } from "@/lib/avatar";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -92,11 +93,11 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
     <Card className="p-4 transition-all hover:shadow-sm" data-testid={`card-post-${post.id}`}>
       {/* Author row */}
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs font-medium text-primary">
-            {post.authorNickname.charAt(0)}
-          </span>
-        </div>
+        <img
+          src={clientAvatarSvg(post.authorNickname)}
+          alt={post.authorNickname}
+          className="w-8 h-8 rounded-full flex-shrink-0"
+        />
         <div className="flex-1 min-w-0">
           <span className="text-sm font-medium truncate block">{post.authorNickname}</span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
@@ -134,11 +135,11 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
         <div className="border-t border-border/50 pt-3 space-y-2.5">
           {visibleComments.map((c) => (
             <div key={c.id} className="flex gap-2" data-testid={`comment-${c.id}`}>
-              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  {c.authorNickname.charAt(0)}
-                </span>
-              </div>
+              <img
+                src={clientAvatarSvg(c.authorNickname)}
+                alt={c.authorNickname}
+                className="w-6 h-6 rounded-full flex-shrink-0 mt-0.5"
+              />
               <div className="flex-1 min-w-0">
                 <span className="text-xs font-medium">{c.authorNickname}</span>
                 {c.isFromAvatar && (

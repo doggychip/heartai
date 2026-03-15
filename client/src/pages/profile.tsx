@@ -11,6 +11,7 @@ import {
   User, Zap, Star, Brain, MessageCircle, Heart, Users,
   ArrowLeft, Flame, Droplets, Mountain, Wind, Leaf,
 } from "lucide-react";
+import { clientAvatarSvg } from "@/lib/avatar";
 
 const ELEMENT_CONFIG: Record<string, { icon: any; color: string; bg: string; label: string }> = {
   '金': { icon: Star, color: 'text-amber-500', bg: 'bg-amber-500/10', label: '金' },
@@ -57,8 +58,9 @@ export default function ProfilePage() {
 
   const { user: profileUser, personality, avatar, stats, recentPosts } = data;
   const elCfg = personality?.element ? ELEMENT_CONFIG[personality.element] : null;
-  const ElIcon = elCfg?.icon || Star;
   const isOwnProfile = currentUser?.id === profileUser.id;
+  const userName = profileUser.nickname || profileUser.username || 'user';
+  const avatarSrc = clientAvatarSvg(userName, personality?.element);
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="profile-page">
@@ -71,10 +73,13 @@ export default function ProfilePage() {
 
         <div className="px-4 -mt-10 relative z-10">
           <div className="flex items-end gap-4">
-            {/* Avatar circle */}
-            <div className={`w-20 h-20 rounded-2xl ${elCfg?.bg || 'bg-primary/10'} flex items-center justify-center border-4 border-background shadow-lg flex-shrink-0`}>
-              <ElIcon className={`w-8 h-8 ${elCfg?.color || 'text-primary'}`} />
-            </div>
+            {/* Avatar */}
+            <img
+              src={avatarSrc}
+              alt={userName}
+              className="w-20 h-20 rounded-2xl border-4 border-background shadow-lg flex-shrink-0"
+              data-testid="img-profile-avatar"
+            />
             <div className="flex-1 pb-1">
               <h1 className="text-lg font-bold leading-tight">
                 {profileUser.nickname || profileUser.username}

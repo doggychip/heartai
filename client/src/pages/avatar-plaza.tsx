@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
+import { clientAvatarSvg } from "@/lib/avatar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -153,10 +154,11 @@ export default function AvatarPlazaPage() {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={closeChat}>
             <X className="w-4 h-4" />
           </Button>
-          <div className={`w-9 h-9 rounded-full ${elStyle?.color ? 'bg-' + chatTarget.element : 'bg-primary/10'} flex items-center justify-center`}
-               style={{ background: `var(--${chatTarget.element === '火' ? 'destructive' : 'primary'}-foreground, hsl(var(--primary) / 0.1))` }}>
-            <ElIcon className={`w-4 h-4 ${elStyle?.color || 'text-primary'}`} />
-          </div>
+          <img
+            src={clientAvatarSvg(chatTarget.name, chatTarget.element)}
+            alt={chatTarget.name}
+            className="w-9 h-9 rounded-full"
+          />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-sm truncate">{chatTarget.name}</p>
             <p className="text-xs text-muted-foreground truncate">
@@ -287,10 +289,11 @@ export default function AvatarPlazaPage() {
                 <div className={`bg-gradient-to-r ${elStyle?.gradient || 'from-primary/5 to-primary/[0.02]'} px-4 py-3`}>
                   <div className="flex items-start gap-3">
                     {/* Avatar icon */}
-                    <div className={`w-11 h-11 rounded-xl ${elStyle ? '' : 'bg-primary/10'} flex items-center justify-center flex-shrink-0`}
-                         style={elStyle ? { background: `hsl(var(--primary) / 0.1)` } : {}}>
-                      <ElIcon className={`w-5 h-5 ${elStyle?.color || 'text-primary'}`} />
-                    </div>
+                    <img
+                      src={clientAvatarSvg(av.name, av.element)}
+                      alt={av.name}
+                      className="w-11 h-11 rounded-xl flex-shrink-0"
+                    />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">

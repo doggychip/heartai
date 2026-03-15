@@ -13,63 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { clientAvatarSvg } from "@/lib/avatar";
 import {
   Zap, Brain, MessageCircle, ThumbsUp, Eye, SkipForward, Send,
   RefreshCw, Power, PowerOff, Plus, Trash2, Sparkles, Activity,
   Database, ShieldCheck, User, Bell,
 } from "lucide-react";
 
-// ─── Client-side SVG avatar generator (mirrors server avatar-gen.ts) ───
-const AVATAR_PALETTES: [string,string][] = [
-  ["#6366f1","#818cf8"],["#8b5cf6","#a78bfa"],["#ec4899","#f472b6"],
-  ["#ef4444","#f87171"],["#f97316","#fb923c"],["#eab308","#facc15"],
-  ["#22c55e","#4ade80"],["#14b8a6","#2dd4bf"],["#06b6d4","#22d3ee"],
-  ["#3b82f6","#60a5fa"],["#a855f7","#c084fc"],["#d946ef","#e879f9"],
-  ["#f43f5e","#fb7185"],["#0ea5e9","#38bdf8"],["#10b981","#34d399"],
-];
-const EL_COLORS: Record<string,[string,string]> = {
-  "金":["#d4a843","#e8c252"],"木":["#22a55e","#3cc57a"],
-  "水":["#2563eb","#4b8cf7"],"火":["#e63946","#f06070"],"土":["#b87333","#cc8844"],
-};
-function hashS(s:string){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0;}return Math.abs(h);}
-function seededR(hash:number,index:number){const x=Math.sin(hash*9301+index*49297+233280)*49297;return x-Math.floor(x);}
-function genFace(h:number){
-  const ey=h%4,mo=h%3,ant=h%3===0,ear=h%2===0;
-  let s='';
-  const heads=[`<rect x="24" y="22" width="52" height="52" rx="16" fill="white" opacity="0.2"/>`,
-    `<circle cx="50" cy="48" r="26" fill="white" opacity="0.2"/>`,
-    `<rect x="26" y="18" width="48" height="56" rx="18" fill="white" opacity="0.2"/>`,
-    `<rect x="20" y="24" width="60" height="48" rx="14" fill="white" opacity="0.2"/>`];
-  s+=heads[h%heads.length];
-  const Y=42;
-  if(ey===0){s+=`<circle cx="40" cy="${Y}" r="4.5" fill="white"/><circle cx="60" cy="${Y}" r="4.5" fill="white"/><circle cx="41.5" cy="${Y-0.5}" r="1.8" fill="rgba(0,0,0,0.5)"/><circle cx="61.5" cy="${Y-0.5}" r="1.8" fill="rgba(0,0,0,0.5)"/>`;}
-  else if(ey===1){s+=`<circle cx="40" cy="${Y}" r="3" fill="white"/><circle cx="60" cy="${Y}" r="3" fill="white"/>`;}
-  else if(ey===2){s+=`<path d="M36 ${Y} Q40 ${Y-4} 44 ${Y}" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/><path d="M56 ${Y} Q60 ${Y-4} 64 ${Y}" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;}
-  else{s+=`<text x="40" y="${Y+4}" text-anchor="middle" fill="white" font-size="10">✦</text><text x="60" y="${Y+4}" text-anchor="middle" fill="white" font-size="10">✦</text>`;}
-  const mY=56;
-  if(mo===0)s+=`<path d="M43 ${mY} Q50 ${mY+6} 57 ${mY}" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  else if(mo===1)s+=`<circle cx="50" cy="${mY+2}" r="3" fill="white" opacity="0.6"/>`;
-  else s+=`<line x1="44" y1="${mY+2}" x2="56" y2="${mY+2}" stroke="white" stroke-width="2" stroke-linecap="round"/>`;
-  if(ant){s+=`<line x1="50" y1="22" x2="50" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/><circle cx="50" cy="10" r="3" fill="white" opacity="0.8"/>`;}
-  if(ear){s+=`<circle cx="20" cy="44" r="5" fill="white" opacity="0.2"/><circle cx="80" cy="44" r="5" fill="white" opacity="0.2"/>`;}
-  if(h%5===0){s+=`<circle cx="34" cy="52" r="4" fill="white" opacity="0.15"/><circle cx="66" cy="52" r="4" fill="white" opacity="0.15"/>`;}
-  return s;
-}
-function genPattern(h:number){
-  const p=h%6;let s='';
-  if(p===0){for(let i=0;i<5;i++){s+=`<circle cx="${(10+seededR(h,i*2)*80).toFixed(1)}" cy="${(10+seededR(h,i*2+1)*80).toFixed(1)}" r="${(2+seededR(h,i+10)*4).toFixed(1)}" fill="white" opacity="0.08"/>`;}
-  }else if(p===1){s+=`<line x1="0" y1="100" x2="100" y2="0" stroke="white" stroke-width="0.5" opacity="0.1"/><line x1="20" y1="100" x2="100" y2="20" stroke="white" stroke-width="0.5" opacity="0.06"/>`;}
-  else if(p===2){s+=`<circle cx="0" cy="0" r="30" fill="white" opacity="0.06"/><circle cx="100" cy="100" r="20" fill="white" opacity="0.06"/>`;}
-  else if(p===3){s+=`<rect x="0" y="80" width="100" height="20" fill="white" opacity="0.04"/>`;}
-  else if(p===4){s+=`<text x="85" y="18" fill="white" opacity="0.12" font-size="12">✦</text><text x="10" y="90" fill="white" opacity="0.08" font-size="8">✦</text>`;}
-  return s;
-}
-function clientAvatarSvg(name:string,element?:string|null){
-  const h=hashS(`${name}`);
-  const colors=element&&EL_COLORS[element]?EL_COLORS[element]:AVATAR_PALETTES[h%AVATAR_PALETTES.length];
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:${colors[1]}"/><stop offset="100%" style="stop-color:${colors[0]}"/></linearGradient></defs><rect width="100" height="100" rx="22" fill="url(#bg)"/>${genPattern(h>>4)}${genFace(h)}</svg>`;
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
-}
 
 const ELEMENT_EMOJI: Record<string, string> = { '金': '✨', '木': '🌿', '水': '💧', '火': '🔥', '土': '⛰️' };
 const ELEMENT_STYLE: Record<string, string> = {
