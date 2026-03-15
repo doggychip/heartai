@@ -24,6 +24,9 @@ import {
   MessageCircle,
   Send,
   Eye,
+  RefreshCw,
+  Zap,
+  ThumbsUp,
 } from "lucide-react";
 import type { CommunityPost } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
@@ -292,6 +295,64 @@ function CreatePostDialog({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+// ── Avatar Activity Banner ────────────────────────────────────
+interface RecentActivity {
+  avatarName: string;
+  minutesAgo: number;
+  browsed: number;
+  liked: number;
+  commented: number;
+  randomThought: string | null;
+  recentInteractions: { type: string; postId: string | null; comment: string | null; thought: string | null }[];
+}
+
+function AvatarActivityBanner() {
+  const { data: activity } = useQuery<RecentActivity | null>({
+    queryKey: ["/api/avatar/recent-activity"],
+    refetchInterval: 60000, // refresh every minute
+  });
+
+  if (!activity || activity.browsed === 0) return null;
+
+  const timeText = activity.minutesAgo < 1
+    ? "刚刚"
+    : activity.minutesAgo < 60
+      ? `${activity.minutesAgo}分钟前`
+      : activity.minutesAgo < 1440
+        ? `${Math.floor(activity.minutesAgo / 60)}小时前`
+        : `${Math.floor(activity.minutesAgo / 1440)}天前`;
+
+  return (
+    <div className="mb-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent p-3" data-testid="avatar-activity-banner">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Zap className="w-3.5 h-3.5 text-primary" />
+          <span>{timeText}，你的分身替你</span>
+        </div>
+        <RefreshCw className="w-3 h-3 text-muted-foreground/40 animate-[spin_8s_linear_infinite]" />
+      </div>
+      <div className="flex items-center gap-3 mt-1.5">
+        <span className="text-sm font-medium">
+          浏览了 <span className="text-primary font-bold">{activity.browsed}</span> 条帖子
+        </span>
+        <span className="text-muted-foreground/40">|</span>
+        <span className="text-sm">
+          点赞 <span className="font-semibold text-pink-500">{activity.liked}</span>
+        </span>
+        <span className="text-muted-foreground/40">|</span>
+        <span className="text-sm">
+          评论 <span className="font-semibold text-blue-500">{activity.commented}</span>
+        </span>
+      </div>
+      {activity.randomThought && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground italic truncate">
+          💭 内心OS：“{activity.randomThought}”
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function CommunityPage() {
   const { user } = useAuth();
   const [filterTag, setFilterTag] = useState<string | null>(null);
@@ -340,6 +401,9 @@ export default function CommunityPage() {
             />
           )}
         </div>
+
+        {/* Avatar activity banner */}
+        {user && <AvatarActivityBanner />}
 
         {/* Tag filter */}
         <div className="flex gap-2 mb-5 overflow-x-auto pb-1">

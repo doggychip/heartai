@@ -634,6 +634,60 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
     }
   });
 
+  // ─── Avatar recent browse activity (for community page banner) ─────
+  app.get("/api/avatar/recent-activity", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const avatar = await storage.getAvatarByUser(userId);
+      if (!avatar || !avatar.isActive) return res.json(null);
+
+      const actions = await storage.getAvatarActions(avatar.id, 100);
+      if (actions.length === 0) return res.json(null);
+
+      // Find the most recent auto-browse batch (actions within 5 min of the latest action)
+      const latest = new Date(actions[0].createdAt).getTime();
+      const batchWindow = 5 * 60 * 1000; // 5 minutes
+      const batchActions = actions.filter(a => {
+        const t = new Date(a.createdAt).getTime();
+        return latest - t < batchWindow;
+      });
+
+      const browsed = batchActions.filter(a => ['like', 'comment', 'skip'].includes(a.actionType)).length;
+      const liked = batchActions.filter(a => a.actionType === 'like').length;
+      const commented = batchActions.filter(a => a.actionType === 'comment').length;
+
+      // Time ago
+      const minutesAgo = Math.round((Date.now() - latest) / 60000);
+
+      // Pick a random inner thought from this batch
+      const thoughts = batchActions.filter(a => a.innerThought).map(a => a.innerThought);
+      const randomThought = thoughts.length > 0 ? thoughts[Math.floor(Math.random() * thoughts.length)] : null;
+
+      // Recent actions with post context (for "liked/commented" list)
+      const recentInteractions = batchActions
+        .filter(a => a.actionType === 'like' || a.actionType === 'comment')
+        .slice(0, 5)
+        .map(a => ({
+          type: a.actionType,
+          postId: a.targetPostId,
+          comment: a.content || null,
+          thought: a.innerThought || null,
+        }));
+
+      res.json({
+        avatarName: avatar.name,
+        minutesAgo,
+        browsed,
+        liked,
+        commented,
+        randomThought,
+        recentInteractions,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "获取分身动态失败" });
+    }
+  });
+
   // ─── Avatar owner notifications ──────────────────────────────
   app.get("/api/avatar/notifications", requireAuth, async (req, res) => {
     try {
