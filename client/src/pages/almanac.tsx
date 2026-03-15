@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import {
   ArrowLeft,
   Swords,
   BookOpen,
+  RotateCcw,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -80,6 +81,197 @@ function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+// ─── Live Clock Component ──────────────────────────────
+function LiveClock() {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+
+  return (
+    <div className="text-center">
+      <div className="flex items-baseline justify-center gap-0.5">
+        <span className="text-5xl font-black tracking-tight tabular-nums">{h}</span>
+        <span className="text-4xl font-light opacity-60 animate-pulse">:</span>
+        <span className="text-5xl font-black tracking-tight tabular-nums">{m}</span>
+        <span className="text-2xl font-medium opacity-50 ml-1 tabular-nums">{s}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Location Display ──────────────────────────────────
+function LocationDisplay() {
+  const [location, setLocation] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=zh`,
+            { headers: { 'User-Agent': 'GuanXing/1.0' } }
+          );
+          const data = await resp.json();
+          const city = data.address?.city || data.address?.town || data.address?.county || data.address?.state || '';
+          const district = data.address?.suburb || data.address?.district || '';
+          setLocation(district ? `${city} ${district}` : city);
+        } catch {
+          setLocation(null);
+        }
+      },
+      () => setLocation(null),
+      { timeout: 5000 }
+    );
+  }, []);
+
+  if (!location) return null;
+  return (
+    <div className="flex items-center justify-center gap-1 text-xs opacity-70">
+      <MapPin className="w-3 h-3" />
+      <span>{location}</span>
+    </div>
+  );
+}
+
+// ─── Horizontal Date Strip ─────────────────────────────
+function DateStrip({
+  selectedDate,
+  onSelect,
+}: {
+  selectedDate: Date;
+  onSelect: (d: Date) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const todayRef = useRef<HTMLButtonElement>(null);
+  const [viewMonth, setViewMonth] = useState(() => {
+    return new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  });
+
+  // Generate days for the view month
+  const year = viewMonth.getFullYear();
+  const month = viewMonth.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const days: Date[] = [];
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(new Date(year, month, i));
+  }
+
+  const today = new Date();
+  const todayStr = formatDate(today);
+  const selectedStr = formatDate(selectedDate);
+
+  // Scroll selected date into view
+  useEffect(() => {
+    setTimeout(() => {
+      const el = scrollRef.current?.querySelector('[data-selected="true"]') as HTMLElement;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }, 100);
+  }, [selectedStr, viewMonth]);
+
+  // Sync viewMonth when selectedDate changes to a different month
+  useEffect(() => {
+    if (selectedDate.getMonth() !== viewMonth.getMonth() || selectedDate.getFullYear() !== viewMonth.getFullYear()) {
+      setViewMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
+    }
+  }, [selectedDate]);
+
+  const prevMonth = () => {
+    setViewMonth(new Date(year, month - 1, 1));
+    onSelect(new Date(year, month - 1, Math.min(selectedDate.getDate(), new Date(year, month, 0).getDate())));
+  };
+  const nextMonth = () => {
+    setViewMonth(new Date(year, month + 1, 1));
+    onSelect(new Date(year, month + 1, Math.min(selectedDate.getDate(), new Date(year, month + 2, 0).getDate())));
+  };
+
+  const isViewingToday = selectedStr === todayStr;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="p-1.5 hover:bg-white/10 rounded-lg transition" data-testid="btn-prev-month">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-bold min-w-[80px] text-center">
+            {year}年{month + 1}月
+          </span>
+          <button onClick={nextMonth} className="p-1.5 hover:bg-white/10 rounded-lg transition" data-testid="btn-next-month">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        {!isViewingToday && (
+          <button
+            onClick={() => {
+              const t = new Date();
+              setViewMonth(new Date(t.getFullYear(), t.getMonth(), 1));
+              onSelect(t);
+            }}
+            className="flex items-center gap-1 text-xs px-2.5 py-1 bg-white/20 hover:bg-white/30 rounded-full transition"
+            data-testid="btn-go-today"
+          >
+            <RotateCcw className="w-3 h-3" />
+            今天
+          </button>
+        )}
+      </div>
+
+      <div ref={scrollRef} className="flex gap-1 overflow-x-auto pb-1 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+        {days.map((day) => {
+          const ds = formatDate(day);
+          const isSelected = ds === selectedStr;
+          const isToday = ds === todayStr;
+          const dow = day.getDay();
+          const isWeekend = dow === 0 || dow === 6;
+
+          return (
+            <button
+              key={ds}
+              ref={isToday ? todayRef : undefined}
+              data-selected={isSelected}
+              onClick={() => onSelect(day)}
+              className={`flex-shrink-0 flex flex-col items-center gap-0.5 py-1.5 px-2.5 rounded-xl transition-all min-w-[44px] ${
+                isSelected
+                  ? 'bg-white text-red-700 shadow-md scale-105'
+                  : isToday
+                  ? 'bg-white/20 text-white'
+                  : 'hover:bg-white/10 text-white/80'
+              }`}
+              data-testid={`date-${day.getDate()}`}
+            >
+              <span className={`text-[10px] ${isSelected ? 'text-red-500' : isWeekend ? 'text-amber-200' : 'opacity-60'}`}>
+                {WEEKDAYS[dow]}
+              </span>
+              <span className={`text-base font-bold ${isSelected ? 'text-red-700' : ''}`}>
+                {day.getDate()}
+              </span>
+              {isToday && !isSelected && (
+                <div className="w-1 h-1 rounded-full bg-amber-300" />
+              )}
+              {isToday && isSelected && (
+                <div className="w-1 h-1 rounded-full bg-red-500" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Almanac Page ─────────────────────────────────
 export default function AlmanacPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedHour, setExpandedHour] = useState<number | null>(null);
@@ -95,74 +287,71 @@ export default function AlmanacPage() {
     queryFn: () => apiRequest("GET", `/api/calendar/multi?date=${dateStr}`).then(r => r.json()),
   });
 
-  const prevDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d);
-  };
-  const nextDay = () => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + 1);
-    setSelectedDate(d);
-  };
-  const goToday = () => setSelectedDate(new Date());
-
   const isToday = formatDate(new Date()) === dateStr;
-
   const seasonEmoji: Record<string, string> = { '春': '🌸', '夏': '☀️', '秋': '🍂', '冬': '❄️' };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50/50 via-orange-50/30 to-red-50/20 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 via-red-600 to-amber-700 text-white shadow-lg">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link href="/culture">
-            <button className="p-1 hover:bg-white/20 rounded-lg transition" data-testid="btn-back-culture">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          </Link>
-          <Scroll className="w-5 h-5 opacity-80" />
-          <h1 className="text-lg font-bold tracking-wide">万年黄历</h1>
+      {/* ─── Hero Header with Clock + Location + Date Strip ─── */}
+      <div className="bg-gradient-to-b from-red-700 via-red-600 to-amber-600 text-white relative overflow-hidden">
+        {/* Decorative circles */}
+        <div className="absolute top-[-60px] right-[-40px] w-48 h-48 rounded-full border border-white/10" />
+        <div className="absolute bottom-[-30px] left-[-20px] w-32 h-32 rounded-full border border-white/10" />
+        <div className="absolute top-4 left-8 w-2 h-2 rounded-full bg-amber-300/30" />
+        <div className="absolute top-16 right-16 w-3 h-3 rounded-full bg-amber-200/20" />
+
+        <div className="relative max-w-2xl mx-auto px-4">
+          {/* Top bar */}
+          <div className="flex items-center justify-between py-3">
+            <Link href="/culture">
+              <button className="p-1.5 hover:bg-white/20 rounded-lg transition flex items-center gap-1.5" data-testid="btn-back-culture">
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm">国粹</span>
+              </button>
+            </Link>
+            <div className="flex items-center gap-1.5">
+              <Scroll className="w-4 h-4 opacity-80" />
+              <span className="text-sm font-bold">万年黄历</span>
+            </div>
+            <div className="w-16" /> {/* Spacer for centering */}
+          </div>
+
+          {/* Location */}
+          <div className="mt-1">
+            <LocationDisplay />
+          </div>
+
+          {/* Live Clock */}
+          <div className="py-3">
+            <LiveClock />
+            <div className="text-center mt-1.5 space-y-0.5">
+              <div className="text-sm opacity-80">
+                {selectedDate.getFullYear()}年{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日 星期{WEEKDAYS[selectedDate.getDay()]}
+              </div>
+              {almanac && (
+                <div className="text-xs opacity-60">
+                  农历{almanac.lunar.monthName}{almanac.lunar.dayName} {almanac.bazi.year.pillar}年
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Horizontal Date Strip */}
+          <div className="pb-3">
+            <DateStrip selectedDate={selectedDate} onSelect={setSelectedDate} />
+          </div>
         </div>
       </div>
 
+      {/* ─── Content ─────────────────────────────────────────── */}
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
 
-        {/* Date Navigator */}
-        <Card className="overflow-hidden border-amber-200/60 dark:border-amber-900/40">
-          <div className="bg-gradient-to-r from-red-700 via-red-600 to-amber-600 p-4 text-white text-center relative">
-            <div className="flex items-center justify-between">
-              <button onClick={prevDay} className="p-2 hover:bg-white/20 rounded-full transition" data-testid="btn-prev-day">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <div className="flex-1">
-                <div className="text-sm opacity-80">
-                  {selectedDate.getFullYear()}年{selectedDate.getMonth() + 1}月
-                </div>
-                <div className="text-5xl font-black my-1 tracking-tight">{selectedDate.getDate()}</div>
-                <div className="text-sm opacity-80">
-                  {multiCal?.weekday || ''}
-                  {almanac?.solarTerm ? ` · ${almanac.solarTerm}` : ''}
-                </div>
-              </div>
-              <button onClick={nextDay} className="p-2 hover:bg-white/20 rounded-full transition" data-testid="btn-next-day">
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-            {!isToday && (
-              <button onClick={goToday} className="mt-2 text-xs bg-white/20 px-3 py-1 rounded-full hover:bg-white/30 transition" data-testid="btn-today">
-                回到今天
-              </button>
-            )}
-          </div>
-
-          {/* Lunar + Bazi Info Row */}
-          {almanacLoading ? (
-            <div className="p-4 space-y-2">
-              <Skeleton className="h-4 w-48" /><Skeleton className="h-4 w-64" />
-            </div>
-          ) : almanac ? (
-            <div className="p-4 space-y-3">
+        {/* Lunar + Bazi Info */}
+        {almanacLoading ? (
+          <Card className="p-4"><Skeleton className="h-24" /></Card>
+        ) : almanac ? (
+          <Card className="overflow-hidden border-amber-200/60 dark:border-amber-900/40">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/10 p-4 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Moon className="w-4 h-4 text-amber-600" />
@@ -174,6 +363,11 @@ export default function AlmanacPage() {
                   </Badge>
                   {almanac.season && (
                     <span className="text-xs text-gray-500">{seasonEmoji[almanac.season] || ''}{almanac.season}</span>
+                  )}
+                  {almanac.solarTerm && (
+                    <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-100 text-xs">
+                      {almanac.solarTerm}
+                    </Badge>
                   )}
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -222,8 +416,8 @@ export default function AlmanacPage() {
                 )}
               </div>
             </div>
-          ) : null}
-        </Card>
+          </Card>
+        ) : null}
 
         {/* 宜忌 */}
         {almanacLoading ? (
