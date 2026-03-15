@@ -2331,14 +2331,8 @@ ${najiaDesc}
         { number: 100, rank: '中上', title: '归去来兮', poem: '归去来兮田园乐，种豆南山挂松萝。富贵功名浮云似，不如归去享天和。', 解: '返璞归真，知足常乐。' },
       ];
 
-      // 基于问题+类别+时间的伪随机选签（同一时辰同一问题同一类别会得到相同签）
-      const seed = `${qianCategory}-${question || 'default'}-${new Date().toISOString().slice(0, 13)}`;
-      let hash = 0;
-      for (let i = 0; i < seed.length; i++) {
-        hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-        hash = hash & hash;
-      }
-      const qianIndex = Math.abs(hash) % 100;
+      // 每次求签都随机抽取，不再使用固定seed导致同类别结果重复
+      const qianIndex = Math.floor(Math.random() * 100);
       const qian = QIAN_POOL[qianIndex];
 
       // 获取用户八字/MBTI信息用于个性化解签

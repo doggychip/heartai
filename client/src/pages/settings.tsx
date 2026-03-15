@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle } from "lucide-react";
+import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle, Star, Calendar } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 
@@ -25,8 +26,25 @@ interface SearchUser {
   agentDescription: string | null;
 }
 
+const MBTI_TYPES = [
+  "INTJ", "INTP", "ENTJ", "ENTP",
+  "INFJ", "INFP", "ENFJ", "ENFP",
+  "ISTJ", "ISFJ", "ESTJ", "ESFJ",
+  "ISTP", "ISFP", "ESTP", "ESFP",
+];
+
+const ZODIAC_SIGNS = [
+  "白羊座", "金牛座", "双子座", "巨蟹座",
+  "狮子座", "处女座", "天秤座", "天蝎座",
+  "射手座", "摩羯座", "水瓶座", "双鱼座",
+];
+
+const HOUR_NAMES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
+const HOUR_VALS = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23];
+
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user, updateProfile } = useAuth();
   const [showToken, setShowToken] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [url, setUrl] = useState("");
@@ -36,6 +54,41 @@ export default function SettingsPage() {
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [, navigate] = useLocation();
+
+  // Profile fields
+  const [profileBirthDate, setProfileBirthDate] = useState("");
+  const [profileBirthHour, setProfileBirthHour] = useState<string>("");
+  const [profileMbti, setProfileMbti] = useState("");
+  const [profileZodiac, setProfileZodiac] = useState("");
+  const [profileInit, setProfileInit] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  useEffect(() => {
+    if (user && !profileInit) {
+      setProfileBirthDate(user.birthDate || "");
+      setProfileBirthHour(user.birthHour != null ? String(user.birthHour) : "");
+      setProfileMbti(user.mbtiType || "");
+      setProfileZodiac(user.zodiacSign || "");
+      setProfileInit(true);
+    }
+  }, [user, profileInit]);
+
+  const saveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      await updateProfile({
+        birthDate: profileBirthDate || undefined,
+        birthHour: profileBirthHour ? parseInt(profileBirthHour) : undefined,
+        mbtiType: profileMbti || undefined,
+        zodiacSign: profileZodiac || undefined,
+      });
+      toast({ title: "保存成功", description: "个人命理信息已更新" });
+    } catch {
+      toast({ title: "保存失败", variant: "destructive" });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   // Get current user profile
   const { data: me } = useQuery<any>({
@@ -201,6 +254,87 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* ─── 个人命理信息 ─── */}
+        <Card data-testid="card-profile-astrology">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Star className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">个人命理信息</CardTitle>
+            </div>
+            <CardDescription>填写后，求签、八字、运势等功能将自动填充，无需重复输入</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1"><Calendar className="w-3 h-3" /> 出生日期</Label>
+                <Input
+                  type="date"
+                  value={profileBirthDate}
+                  onChange={(e) => setProfileBirthDate(e.target.value)}
+                  className="h-9 text-sm"
+                  data-testid="input-profile-birth-date"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">出生时辰</Label>
+                <Select value={profileBirthHour} onValueChange={setProfileBirthHour}>
+                  <SelectTrigger className="h-9 text-sm" data-testid="select-profile-birth-hour">
+                    <SelectValue placeholder="选择时辰" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOUR_NAMES.map((name, i) => (
+                      <SelectItem key={i} value={String(HOUR_VALS[i])}>
+                        {name}时 ({HOUR_VALS[i] - 1}:00-{HOUR_VALS[i]}:59)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">MBTI 人格</Label>
+                <Select value={profileMbti} onValueChange={setProfileMbti}>
+                  <SelectTrigger className="h-9 text-sm" data-testid="select-profile-mbti">
+                    <SelectValue placeholder="选择MBTI" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MBTI_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">星座</Label>
+                <Select value={profileZodiac} onValueChange={setProfileZodiac}>
+                  <SelectTrigger className="h-9 text-sm" data-testid="select-profile-zodiac">
+                    <SelectValue placeholder="选择星座" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ZODIAC_SIGNS.map((z) => (
+                      <SelectItem key={z} value={z}>{z}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={saveProfile}
+              disabled={profileSaving}
+              data-testid="button-save-profile"
+            >
+              {profileSaving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Save className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              保存
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* ─── 搜索用户/Agent ─── */}
         <Card data-testid="card-user-search">

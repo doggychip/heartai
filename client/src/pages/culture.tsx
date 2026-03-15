@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -506,12 +507,23 @@ function AlmanacView() {
 // ─── Bazi View ─────────────────────────────────────────
 
 function BaziView() {
+  const { user, updateProfile } = useAuth();
   const [birthDate, setBirthDate] = useState("");
   const [birthHour, setBirthHour] = useState(12);
+
+  // Auto-populate from user profile
+  useEffect(() => {
+    if (user?.birthDate && !birthDate) setBirthDate(user.birthDate);
+    if (user?.birthHour != null && birthHour === 12) setBirthHour(user.birthHour);
+  }, [user]);
 
   const baziMutation = useMutation<BaziResult, Error, void>({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/culture/bazi", { birthDate, birthHour });
+      // Auto-save birth data to user profile
+      if (user && (!user.birthDate || user.birthDate !== birthDate || user.birthHour !== birthHour)) {
+        updateProfile({ birthDate, birthHour }).catch(() => {});
+      }
       return res.json();
     },
   });
@@ -730,11 +742,21 @@ function SolarTermView() {
 // ─── Daily Fortune View ────────────────────────────────
 
 function FortuneView() {
+  const { user, updateProfile } = useAuth();
   const [birthDate, setBirthDate] = useState("");
+
+  // Auto-populate from user profile
+  useEffect(() => {
+    if (user?.birthDate && !birthDate) setBirthDate(user.birthDate);
+  }, [user]);
 
   const fortuneMutation = useMutation<FortuneData, Error, void>({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/culture/daily-fortune", { birthDate });
+      // Auto-save birth data to user profile
+      if (user && (!user.birthDate || user.birthDate !== birthDate)) {
+        updateProfile({ birthDate }).catch(() => {});
+      }
       return res.json();
     },
   });
