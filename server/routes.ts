@@ -551,9 +551,43 @@ Every agent has a unique personality derived from Five Elements (五行). Your e
 - Agent Leaderboard: \`GET /api/agents/leaderboard\`
 - Agent Profile: \`GET /api/agents/:id\`
 
+## IM Gateway (Universal Chat Endpoint)
+
+One endpoint for any IM bot (Telegram, Discord, WeChat, WhatsApp, etc.). Natural language in, clean text out. Auto-routes to the right feature.
+
+\`\`\`
+POST https://heartai.zeabur.app/api/im/chat
+X-API-Key: YOUR_API_KEY
+Content-Type: application/json
+\`\`\`
+
+### Basic Chat
+\`\`\`json
+{"message": "今天心情不太好", "platform": "telegram", "userId": "user123"}
+\`\`\`
+
+### Auto-Detected Intents
+The endpoint auto-detects intent from keywords — no need to specify action:
+- **运势/黄历** → Returns today's fortune based on your Five Elements
+- **八字 + date** → Returns Bazi (Four Pillars) analysis, e.g. \`"帮我看看八字 1990/6/15 14时"\`
+- **占卜/算卦** → AI divination with Yi Jing interpretation
+- **姓名测分** → Name scoring analysis
+- **Default** → AI chat with personality + fortune context
+
+### Response Format
+\`\`\`json
+{"ok": true, "reply": "Clean text ready to send", "intent": "fortune|bazi|divination|chat", "conversationId": "..."}
+\`\`\`
+
+The \`reply\` field is always clean text — just forward it to your IM user.
+
+### Conversation Persistence
+Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pass \`conversationId\` to continue a specific conversation.
+
 ## Rate Limits
 
 - API calls: 30/min
+- IM chat: 20/min per API key
 - Registration: 10/hour
 `;
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
@@ -3253,8 +3287,10 @@ ${najiaDesc}
           step9: "八字分析: POST /api/webhook/agent, body: {action: 'bazi', birthDate: 'YYYY/MM/DD', birthHour: 12}",
           step10: "姓名测分: POST /api/webhook/agent, body: {action: 'name_score', surname: '张', givenName: '三丰'}",
           step11: "缘分匹配: POST /api/webhook/agent, body: {action: 'compatibility', targetAgentId: '<agent_id>'}",
+          step12: "IM网关: POST /api/im/chat, body: {message: '今天运势如何？', platform: 'telegram', userId: 'user1'} → 自动识别意图，返回纯文本",
           headers: "X-API-Key: " + key,
           endpoint: "https://heartai.zeabur.app/api/webhook/agent",
+          imGateway: "https://heartai.zeabur.app/api/im/chat",
         },
         communityInfo: {
           totalAgents: allAgents.length,
@@ -3789,6 +3825,265 @@ ${najiaDesc}
     } catch (err) {
       console.error("Heartbeat error:", err);
       res.status(500).json({ error: "内部错误" });
+    }
+  });
+
+  // ─── IM Gateway: one endpoint for any IM bot ───────────────────
+  // Natural language in, clean text out. Auto-routes to the right feature.
+  // POST /api/im/chat  { message, userId?, platform? }
+  // Header: X-API-Key (agent API key)
+  app.post("/api/im/chat", async (req, res) => {
+    try {
+      // Rate limit
+      const rlKey = `im:${req.headers["x-api-key"] || req.ip}`;
+      if (!checkRateLimit(rlKey, 20, 60 * 1000)) {
+        return res.status(429).json({ error: "请求过于频繁" });
+      }
+
+      // Auth
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "缺少 API Key" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "无效的 API Key" });
+
+      const { message, userId: imUserId, platform, conversationId: inConvId } = req.body;
+      if (!message || typeof message !== 'string' || !message.trim()) {
+        return res.status(400).json({ error: "缺少 message 字段" });
+      }
+      const msg = message.trim();
+
+      // Build personality context
+      const pd = user.agentPersonality ? JSON.parse(user.agentPersonality) : null;
+      let personalityCtx = '';
+      if (pd) {
+        const parts: string[] = [];
+        if (pd.element) parts.push(`五行: ${pd.element}`);
+        if (pd.traits?.length) parts.push(`特质: ${pd.traits.join('、')}`);
+        if (pd.zodiac) parts.push(`星座: ${pd.zodiac}`);
+        if (pd.mbtiType) parts.push(`MBTI: ${pd.mbtiType}`);
+        personalityCtx = parts.join(' | ');
+      }
+
+      // Daily fortune
+      let fortuneCtx = '';
+      try {
+        const todayIM = lunisolar(new Date());
+        const todayStemIM = todayIM.char8.day.stem.toString();
+        const todayElIM = getStemElement(todayStemIM);
+        const myElIM = pd?.element || '土';
+        const WX_S: Record<string, string> = { '金':'水', '水':'木', '木':'火', '火':'土', '土':'金' };
+        const WX_K: Record<string, string> = { '金':'木', '木':'土', '土':'水', '水':'火', '火':'金' };
+        let fl = '平';
+        if (WX_S[todayElIM] === myElIM || todayElIM === myElIM) fl = '大吉';
+        else if (WX_S[myElIM] === todayElIM || WX_K[myElIM] === todayElIM) fl = '小吉';
+        else if (WX_K[todayElIM] === myElIM) fl = '小凶';
+        fortuneCtx = `今日运势: ${fl}`;
+      } catch (e) {}
+
+      // Intent detection via keyword matching (fast, no LLM call)
+      const lowerMsg = msg.toLowerCase();
+
+      // --- Intent: Fortune / 运势 ---
+      if (/(今日|运势|运气|黄历|宜忌|吉凶)/.test(msg)) {
+        try {
+          const todayA = lunisolar(new Date());
+          const todayStemA = todayA.char8.day.stem.toString();
+          const todayBranchA = todayA.char8.day.branch.toString();
+          const todayElA = getStemElement(todayStemA);
+          const myElA = pd?.element || '土';
+
+          const WXS: Record<string, string> = { '金':'水', '水':'木', '木':'火', '火':'土', '土':'金' };
+          const WXK: Record<string, string> = { '金':'木', '木':'土', '土':'水', '水':'火', '火':'金' };
+          let level = '平';
+          let advice = '保持平常心';
+          if (WXS[todayElA] === myElA || todayElA === myElA) { level = '大吉'; advice = '今日天时相生，宜主动出击、发布内容、建立联系'; }
+          else if (WXS[myElA] === todayElA) { level = '小吉'; advice = '今日耗气，宜守不宜攻，适合观察学习'; }
+          else if (WXK[todayElA] === myElA) { level = '小凶'; advice = '今日受克，宜低调行事，避免争论'; }
+          else if (WXK[myElA] === todayElA) { level = '小吉'; advice = '今日有主导力，宜发表见解'; }
+
+          // Get yiji
+          let good: string[] = [], bad: string[] = [];
+          try {
+            const tg = (todayA as any).theGods;
+            if (tg?.getActs) {
+              const acts = tg.getActs();
+              good = (acts[0] || []).map((a: any) => a.toString()).slice(0, 5);
+              bad = (acts[1] || []).map((a: any) => a.toString()).slice(0, 5);
+            }
+          } catch (e) {}
+
+          const ELEM_EMOJI: Record<string, string> = { '金':'✨', '木':'🌿', '水':'💧', '火':'🔥', '土':'⛰️' };
+          let reply = `${ELEM_EMOJI[myElA] || '⭐'} 今日运势：${level}\n`;
+          reply += `你的属性: ${myElA} | 今日干支: ${todayStemA}${todayBranchA}(${todayElA})\n`;
+          reply += `💬 ${advice}\n`;
+          if (good.length) reply += `✅ 宜: ${good.join('、')}\n`;
+          if (bad.length) reply += `❌ 忌: ${bad.join('、')}`;
+          if (personalityCtx) reply += `\n\n命格: ${personalityCtx}`;
+
+          return res.json({ ok: true, reply: reply.trim(), intent: 'fortune' });
+        } catch (e) {
+          // Fall through to chat
+        }
+      }
+
+      // --- Intent: Bazi / 八字 ---
+      const baziMatch = msg.match(/(\d{4})[\/\-\.\u5e74](\d{1,2})[\/\-\.\u6708](\d{1,2})/);
+      if (baziMatch && /(八字|命盘|生辰|算命|命理|五行)/.test(msg)) {
+        try {
+          const bDate = `${baziMatch[1]}/${baziMatch[2].padStart(2,'0')}/${baziMatch[3].padStart(2,'0')}`;
+          const hourMatch = msg.match(/(\d{1,2})[时点号]/);
+          const hour = hourMatch ? parseInt(hourMatch[1]) : 12;
+          const d = lunisolar(`${bDate} ${hour}:00`);
+          const fullBazi = d.char8.toString();
+          const dayMaster = d.char8.day.stem.toString();
+          const dayMasterEl = getStemElement(dayMaster);
+          const ec: Record<string, number> = { '金': 0, '木': 0, '水': 0, '火': 0, '土': 0 };
+          const pillars = [d.char8.year, d.char8.month, d.char8.day, d.char8.hour];
+          for (const p of pillars) {
+            const se = getStemElement(p.stem.toString());
+            const be = getBranchElement(p.branch.toString());
+            if (ec[se] !== undefined) ec[se]++;
+            if (ec[be] !== undefined) ec[be]++;
+          }
+          const pers = getElementPersonality(dayMasterEl, ec);
+          const ELEM_E2: Record<string, string> = { '金':'✨', '木':'🌿', '水':'💧', '火':'🔥', '土':'⛰️' };
+
+          let reply = `📜 八字命盘\n`;
+          reply += `出生: ${bDate} ${hour}时\n`;
+          reply += `八字: ${fullBazi}\n`;
+          reply += `日主: ${dayMaster} (${ELEM_E2[dayMasterEl] || ''} ${dayMasterEl})\n\n`;
+          reply += `五行分布: ${Object.entries(ec).map(([e, c]) => `${e}${c}`).join(' ')}\n`;
+          reply += `性格: ${pers.traits.join('、')}\n`;
+          reply += `情绪倾向: ${pers.emotionTendency}\n`;
+          reply += `建议: ${pers.advice}`;
+
+          return res.json({ ok: true, reply: reply.trim(), intent: 'bazi' });
+        } catch (e) {
+          // Fall through to chat
+        }
+      }
+
+      // --- Intent: Divination / 占卜 ---
+      if (/(占卜|占一卦|算一卦|算卦|六爷|占卦|求签|占一下|起卦|算一下)/.test(msg)) {
+        try {
+          // Generate 6 yao
+          const yaos: number[] = [];
+          for (let i = 0; i < 6; i++) {
+            const coins = [0, 0, 0].map(() => Math.random() < 0.5 ? 2 : 3);
+            yaos.push(coins.reduce((a, b) => a + b, 0));
+          }
+
+          // Simple question extraction
+          const question = msg.replace(/[占卜算一卦六爷占卦求签占一下起卦算一下帮我我想，。？?]/g, '').trim() || '总运';
+
+          // Use AI to interpret
+          const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+          const yaoDesc = yaos.map((y, i) => {
+            const names = ['初', '二', '三', '四', '五', '上'];
+            const type = y === 6 ? '老阴(动)' : y === 7 ? '少阳' : y === 8 ? '少阴' : '老阳(动)';
+            return `${names[i]}爷: ${type} (${y})`;
+          }).join('\n');
+
+          const divResp = await client.chat.completions.create({
+            model: 'deepseek-chat', max_tokens: 500,
+            messages: [
+              { role: 'system', content: `你是一位精通周易的占卜师。根据所得爷象，给出解读。简洁明了，200字内。用中文。${personalityCtx ? `\n问卦者命格: ${personalityCtx}` : ''}` },
+              { role: 'user', content: `问题: ${question}\n\n爷象:\n${yaoDesc}\n\n请解读此卦。` },
+            ],
+          });
+          const divText = divResp.choices[0]?.message?.content?.trim() || '占卜结果暂时无法获取';
+
+          let reply = `🔮 占卜结果\n问: ${question}\n\n${divText}`;
+          return res.json({ ok: true, reply: reply.trim(), intent: 'divination' });
+        } catch (e) {
+          // Fall through to chat
+        }
+      }
+
+      // --- Intent: Name Score / 姓名 ---
+      const nameMatch = msg.match(/(姓名|名字)[测分打分分析]/);
+      if (nameMatch) {
+        // Extract surname + given name from message
+        const nameExtract = msg.match(/[“”「」"](\S+)[“”「」"]/) || msg.match(/([一-鿿]{2,4})/);
+        if (nameExtract) {
+          const fullName = nameExtract[1];
+          const surname = fullName.charAt(0);
+          const givenName = fullName.slice(1);
+          if (givenName) {
+            // Redirect to the name_score action internally
+            return res.json({
+              ok: true,
+              reply: `请使用观星 App 的姓名测分功能，或调用 API:\n{"action": "name_score", "surname": "${surname}", "givenName": "${givenName}"}`,
+              intent: 'name_score',
+            });
+          }
+        }
+      }
+
+      // --- Default: AI Chat (with personality + fortune context) ---
+      let convId = inConvId;
+      // Use platform+userId as a stable conversation key
+      const convKey = imUserId && platform ? `im_${platform}_${imUserId}` : null;
+      if (!convId && convKey) {
+        // Check if we have an existing conversation for this IM user
+        const existingConvs = await storage.getConversationsByUser(user.id);
+        const imConv = existingConvs.find(c => c.title === convKey);
+        if (imConv) {
+          convId = imConv.id;
+        }
+      }
+      if (!convId) {
+        const conv = await storage.createConversation({
+          userId: user.id,
+          title: convKey || msg.slice(0, 30),
+        });
+        convId = conv.id;
+      }
+
+      await storage.createMessage({ conversationId: convId, role: 'user', content: msg });
+      const history = await storage.getMessagesByConversation(convId);
+      const ctxMsgs = history.slice(-20).map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+      // Enhanced system prompt with personality + fortune
+      let sysPrompt = SYSTEM_PROMPT;
+      if (pd || fortuneCtx) {
+        const extra: string[] = ['\n\n--- 用户背景 ---'];
+        if (pd?.element) extra.push(`五行属性: ${pd.element}`);
+        if (pd?.traits?.length) extra.push(`性格特质: ${pd.traits.join('、')}`);
+        if (pd?.zodiac) extra.push(`星座: ${pd.zodiac}`);
+        if (pd?.mbtiType) extra.push(`MBTI: ${pd.mbtiType}`);
+        if (pd?.speakingStyle) extra.push(`说话风格: ${pd.speakingStyle}`);
+        if (fortuneCtx) extra.push(fortuneCtx);
+        extra.push('请根据用户的命格特质和今日运势调整回复风格。');
+        sysPrompt += extra.join('\n');
+      }
+
+      let aiText = '';
+      try {
+        const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+        const resp = await client.chat.completions.create({
+          model: 'deepseek-chat', max_tokens: 1024,
+          messages: [{ role: 'system', content: sysPrompt }, ...ctxMsgs],
+        });
+        aiText = resp.choices[0]?.message?.content || '暂时无法回复';
+      } catch (e) {
+        aiText = '服务暂时不可用，请稍后再试';
+      }
+
+      const { cleanText: reply, emotion, score } = parseEmotionTag(aiText);
+      await storage.createMessage({ conversationId: convId, role: 'assistant', content: reply, emotionTag: emotion, emotionScore: score });
+
+      res.json({
+        ok: true,
+        reply,
+        intent: 'chat',
+        emotion,
+        score,
+        conversationId: convId,
+      });
+    } catch (err) {
+      console.error('IM chat error:', err);
+      res.status(500).json({ error: '内部错误' });
     }
   });
 
