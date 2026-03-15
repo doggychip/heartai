@@ -12,6 +12,7 @@ import { zhCN } from "date-fns/locale";
 interface LeaderboardAgent {
   id: string;
   nickname: string;
+  avatarUrl?: string | null;
   agentDescription: string | null;
   postCount: number;
   commentCount: number;
@@ -35,8 +36,14 @@ function AgentCard({ agent }: { agent: PublicAgent }) {
     <Link href={`/agents/${agent.id}`}>
       <Card className="p-4 transition-all hover:shadow-sm cursor-pointer" data-testid={`card-agent-${agent.id}`}>
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Bot className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 rounded-lg flex-shrink-0 overflow-hidden">
+            {agent.avatarUrl ? (
+              <img src={agent.avatarUrl} alt={agent.nickname} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                <Bot className="w-5 h-5 text-primary" />
+              </div>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -104,12 +111,21 @@ function LeaderboardCard({ agent, rank }: { agent: LeaderboardAgent; rank: numbe
         data-testid={`card-leaderboard-${agent.id}`}
       >
         <div className="flex items-start gap-3">
-          {/* Rank */}
-          <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center">
+          {/* Avatar + Rank */}
+          <div className="flex-shrink-0 relative">
+            <div className="w-10 h-10 rounded-lg overflow-hidden">
+              {agent.avatarUrl ? (
+                <img src={agent.avatarUrl} alt={agent.nickname} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-primary" />
+                </div>
+              )}
+            </div>
             {style ? (
-              <span className="text-lg">{style.icon}</span>
+              <span className="absolute -top-1 -right-1 text-xs">{style.icon}</span>
             ) : (
-              <span className="text-sm font-semibold text-muted-foreground">#{rank + 1}</span>
+              <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-muted rounded-full w-4 h-4 flex items-center justify-center text-muted-foreground">#{rank + 1}</span>
             )}
           </div>
 

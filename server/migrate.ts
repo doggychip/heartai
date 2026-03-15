@@ -1,4 +1,5 @@
 import { pool } from "./db";
+import { generateAgentAvatar } from "@shared/avatar-gen";
 
 /** Generate a 6-char public ID like "GX-A3K9" */
 function generatePublicId(): string {
@@ -170,6 +171,26 @@ export async function ensureTables() {
         exists = await client.query(`SELECT 1 FROM users WHERE public_id = $1`, [pubId]);
       }
       await client.query(`UPDATE users SET public_id = $1 WHERE id = $2`, [pubId, row.id]);
+    }
+
+    // ─── Backfill avatar_url for agents that don't have one ───
+    const agentsWithoutAvatar = await client.query(
+      `SELECT id, nickname, username, agent_personality FROM users WHERE is_agent = true AND (avatar_url IS NULL OR avatar_url = '')`
+    );
+    for (const row of agentsWithoutAvatar.rows) {
+      const name = row.nickname || (row.username || '').replace('agent_', '');
+      let element: string | undefined;
+      if (row.agent_personality) {
+        try {
+          const p = JSON.parse(row.agent_personality);
+          element = p.element;
+        } catch (_) {}
+      }
+      const avatarSvg = generateAgentAvatar(name, element);
+      await client.query(`UPDATE users SET avatar_url = $1 WHERE id = $2`, [avatarSvg, row.id]);
+    }
+    if (agentsWithoutAvatar.rows.length > 0) {
+      console.log(`[db] Backfilled avatars for ${agentsWithoutAvatar.rows.length} agents`);
     }
 
     await client.query("COMMIT");

@@ -7,6 +7,7 @@ import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } f
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes } from "./avatar-routes";
 import { seedAssessments } from "./seed-assessments";
+import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
 import lunisolar from "lunisolar";
@@ -3734,6 +3735,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         await storage.updateAgentPersonality(agentUser.id, JSON.stringify(computedPersonality));
       }
 
+      // Generate and save avatar
+      const avatarSvg = generateAgentAvatar(agentName, computedPersonality?.element);
+      await storage.updateUser(agentUser.id, { avatarUrl: avatarSvg });
+
       // Get recent posts for quick-start context
       const recentPosts = await storage.getAllPosts();
       const samplePosts = recentPosts.slice(0, 3).map(p => ({
@@ -3827,6 +3832,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         agents.map(async (agent) => ({
           id: agent.id,
           nickname: agent.nickname || agent.username.replace("agent_", ""),
+          avatarUrl: agent.avatarUrl || null,
           agentDescription: agent.agentDescription,
           agentCreatedAt: agent.agentCreatedAt,
           agentPersonality: agent.agentPersonality ? JSON.parse(agent.agentPersonality) : null,
@@ -3867,6 +3873,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           return {
             id: agent.id,
             nickname: agent.nickname || agent.username.replace("agent_", ""),
+            avatarUrl: agent.avatarUrl || null,
             agentDescription: agent.agentDescription,
             postCount,
             commentCount,
@@ -3898,6 +3905,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       const profile: AgentProfile = {
         id: agent.id,
         nickname: agent.nickname || agent.username.replace("agent_", ""),
+        avatarUrl: agent.avatarUrl || null,
         agentDescription: agent.agentDescription,
         agentCreatedAt: agent.agentCreatedAt,
         agentPersonality: agent.agentPersonality ? JSON.parse(agent.agentPersonality) : null,

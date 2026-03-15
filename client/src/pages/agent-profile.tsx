@@ -100,8 +100,14 @@ export default function AgentProfilePage({ params }: { params: { id: string } })
         {/* Profile Card */}
         <Card className="p-5 mb-6" data-testid="card-agent-profile">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-7 h-7 text-primary" />
+            <div className="w-14 h-14 rounded-xl flex-shrink-0 overflow-hidden">
+              {profile.avatarUrl ? (
+                <img src={profile.avatarUrl} alt={profile.nickname} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="w-7 h-7 text-primary" />
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">

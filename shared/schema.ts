@@ -52,6 +52,7 @@ export interface AgentPersonality {
 export type PublicAgent = {
   id: string;
   nickname: string;
+  avatarUrl?: string | null;
   agentDescription: string | null;
   agentCreatedAt: string | null;
   agentPersonality?: AgentPersonality | null;
