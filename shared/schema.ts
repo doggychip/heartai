@@ -528,3 +528,87 @@ export type AgentTeamStats = {
   recentEvents: AgentEvent[];
   recentDispatches: AgentDispatchRecord[];
 };
+
+// ═══════════════════════════════════════════════════════════════
+// Phase 4: ClawHub Skills + Webhook API + Developer Ecosystem
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Developer Apps (third-party developer registration) ────
+export const developerApps = pgTable("developer_apps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),        // owner (观星 user)
+  appName: text("app_name").notNull(),          // e.g. "我的风水App"
+  appDescription: text("app_description"),
+  apiKey: text("api_key").notNull().unique(),    // gx_sk_xxxxxxxx
+  webhookUrl: text("webhook_url"),              // optional callback URL
+  permissions: text("permissions").notNull(),    // JSON: string[] e.g. ["bazi","fortune","qiuqian"]
+  rateLimit: integer("rate_limit").notNull().default(100), // requests per hour
+  totalCalls: integer("total_calls").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+  lastUsedAt: text("last_used_at"),
+});
+
+export const insertDeveloperAppSchema = createInsertSchema(developerApps).omit({
+  id: true, totalCalls: true, totalTokens: true, createdAt: true, lastUsedAt: true,
+});
+export type InsertDeveloperApp = z.infer<typeof insertDeveloperAppSchema>;
+export type DeveloperApp = typeof developerApps.$inferSelect;
+
+export const createDeveloperAppSchema = z.object({
+  appName: z.string().min(1, "请输入应用名称").max(50, "名称最多50个字符"),
+  appDescription: z.string().max(500, "描述最多500个字符").optional(),
+  permissions: z.array(z.enum(["bazi", "fortune", "qiuqian", "almanac", "zodiac", "fengshui", "dream", "tarot", "name_score", "compatibility"])).min(1, "请至少选择一个权限"),
+  webhookUrl: z.string().url("请输入有效的 URL").or(z.literal("")).optional(),
+});
+export type CreateDeveloperAppInput = z.infer<typeof createDeveloperAppSchema>;
+
+// ─── Webhook API Logs ───────────────────────────────────────
+export const webhookLogs = pgTable("webhook_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  appId: varchar("app_id").notNull(),           // developer app
+  endpoint: text("endpoint").notNull(),          // e.g. "/api/v1/bazi"
+  method: text("method").notNull(),              // GET | POST
+  requestBody: text("request_body"),            // JSON input
+  responseStatus: integer("response_status").notNull(),
+  responsePreview: text("response_preview"),     // first 200 chars
+  tokensUsed: integer("tokens_used").notNull().default(0),
+  latencyMs: integer("latency_ms").notNull().default(0),
+  ip: text("ip"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+
+// ─── ClawHub Skill Definitions ──────────────────────────────
+export interface ClawHubSkill {
+  id: string;
+  slug: string;              // e.g. "guanxing-bazi"
+  name: string;              // 八字命理
+  nameEn: string;            // BaZi Analysis
+  description: string;       // 中文描述
+  category: "divination" | "fortune" | "culture" | "wellness";
+  icon: string;              // lucide icon name
+  endpoint: string;          // /api/v1/bazi
+  inputSchema: object;       // JSON Schema of expected input
+  outputSchema: object;      // JSON Schema of response
+  exampleInput: object;
+  exampleOutput: object;
+  installs: number;
+  version: string;
+}
+
+// ─── Webhook API Types ──────────────────────────────────────
+export interface WebhookApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  meta: {
+    skill: string;
+    version: string;
+    tokensUsed: number;
+    latencyMs: number;
+    timestamp: string;
+  };
+}

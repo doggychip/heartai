@@ -6070,6 +6070,884 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   // This is done by wrapping the existing handlers or calling publishEvent
   // from within the existing code paths. For now, we expose a simple trigger.
 
+  // ═══════════════════════════════════════════════════════════════
+  // Phase 4: ClawHub Skills + Webhook API + Developer Ecosystem
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Initialize Phase 4 Tables ────────────────────────────────
+  async function initPhase4Tables() {
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS developer_apps (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id VARCHAR NOT NULL,
+          app_name TEXT NOT NULL,
+          app_description TEXT,
+          api_key TEXT NOT NULL UNIQUE,
+          webhook_url TEXT,
+          permissions TEXT NOT NULL,
+          rate_limit INTEGER NOT NULL DEFAULT 100,
+          total_calls INTEGER NOT NULL DEFAULT 0,
+          total_tokens INTEGER NOT NULL DEFAULT 0,
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_at TEXT NOT NULL,
+          last_used_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS webhook_logs (
+          id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+          app_id VARCHAR NOT NULL,
+          endpoint TEXT NOT NULL,
+          method TEXT NOT NULL,
+          request_body TEXT,
+          response_status INTEGER NOT NULL,
+          response_preview TEXT,
+          tokens_used INTEGER NOT NULL DEFAULT 0,
+          latency_ms INTEGER NOT NULL DEFAULT 0,
+          ip TEXT,
+          created_at TEXT NOT NULL
+        );
+      `);
+      console.log("[Phase 4] Developer ecosystem tables initialized");
+    } catch (err) {
+      console.error("[Phase 4] Table init error:", err);
+    }
+  }
+  initPhase4Tables();
+
+  // ─── Generate API Key ─────────────────────────────────────────
+  function generateApiKey(): string {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let key = "gx_sk_";
+    for (let i = 0; i < 32; i++) {
+      key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
+  }
+
+  // ─── Webhook API Key Auth Middleware ───────────────────────────
+  async function webhookAuth(req: any, res: any, next: any) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+        error: "Missing API key. Use 'Authorization: Bearer gx_sk_xxx' header.",
+        meta: { skill: "auth", version: "1.0", tokensUsed: 0, latencyMs: 0, timestamp: new Date().toISOString() },
+      });
+    }
+
+    const apiKey = authHeader.replace("Bearer ", "").trim();
+    const app = await storage.getDeveloperAppByApiKey(apiKey);
+
+    if (!app) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API key.",
+        meta: { skill: "auth", version: "1.0", tokensUsed: 0, latencyMs: 0, timestamp: new Date().toISOString() },
+      });
+    }
+
+    if (!app.isActive) {
+      return res.status(403).json({
+        success: false,
+        error: "This app has been deactivated.",
+        meta: { skill: "auth", version: "1.0", tokensUsed: 0, latencyMs: 0, timestamp: new Date().toISOString() },
+      });
+    }
+
+    // Attach app to request
+    (req as any).developerApp = app;
+    next();
+  }
+
+  // ─── Permission Check Helper ──────────────────────────────────
+  function checkPermission(app: any, skill: string): boolean {
+    try {
+      const perms = JSON.parse(app.permissions);
+      return Array.isArray(perms) && perms.includes(skill);
+    } catch {
+      return false;
+    }
+  }
+
+  // ─── ClawHub Skill Catalog ────────────────────────────────────
+  const CLAWHUB_SKILLS: any[] = [
+    {
+      id: "guanxing-bazi",
+      slug: "guanxing-bazi",
+      name: "八字命理",
+      nameEn: "BaZi Analysis",
+      description: "根据出生年月日时，进行传统八字命理分析，解读天干地支、五行生克、十神关系",
+      category: "divination",
+      icon: "Calendar",
+      endpoint: "/api/v1/bazi",
+      inputSchema: {
+        type: "object",
+        properties: {
+          birthDate: { type: "string", description: "出生日期 YYYY-MM-DD" },
+          birthHour: { type: "number", description: "出生时辰 0-23" },
+          name: { type: "string", description: "姓名（可选）" },
+        },
+        required: ["birthDate"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          bazi: { type: "string", description: "八字" },
+          wuxing: { type: "object", description: "五行分析" },
+          analysis: { type: "string", description: "详细解读" },
+        },
+      },
+      exampleInput: { birthDate: "1995-03-15", birthHour: 14, name: "张三" },
+      exampleOutput: { bazi: "乙亥 己卯 丙午 乙未", wuxing: { 金: 0, 木: 4, 水: 1, 火: 2, 土: 1 }, analysis: "日主丙火..." },
+      installs: 1280,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-fortune",
+      slug: "guanxing-fortune",
+      name: "每日运势",
+      nameEn: "Daily Fortune",
+      description: "基于用户星座/八字/五行，生成个性化每日运势报告（事业、感情、财运、健康）",
+      category: "fortune",
+      icon: "Gauge",
+      endpoint: "/api/v1/fortune",
+      inputSchema: {
+        type: "object",
+        properties: {
+          zodiac: { type: "string", description: "星座 e.g. 白羊座" },
+          birthDate: { type: "string", description: "出生日期 YYYY-MM-DD（可选，提升准确度）" },
+        },
+        required: ["zodiac"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          overall: { type: "number", description: "综合运势 1-5" },
+          career: { type: "number" }, love: { type: "number" },
+          wealth: { type: "number" }, health: { type: "number" },
+          advice: { type: "string", description: "今日建议" },
+          luckyColor: { type: "string" }, luckyNumber: { type: "number" },
+        },
+      },
+      exampleInput: { zodiac: "白羊座", birthDate: "1995-03-25" },
+      exampleOutput: { overall: 4, career: 4, love: 3, wealth: 5, health: 4, advice: "今日适合冒险...", luckyColor: "红色", luckyNumber: 7 },
+      installs: 2450,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-qiuqian",
+      slug: "guanxing-qiuqian",
+      name: "求签问卦",
+      nameEn: "Divine Lot Drawing",
+      description: "传统求签问卦，支持观音灵签、关帝灵签，AI深度解签",
+      category: "divination",
+      icon: "Flame",
+      endpoint: "/api/v1/qiuqian",
+      inputSchema: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "求签问题" },
+          type: { type: "string", enum: ["guanyin", "guandi"], description: "签类型" },
+        },
+        required: ["question"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          qianNumber: { type: "number" },
+          qianTitle: { type: "string" },
+          qianType: { type: "string", description: "上上/上/中/下/下下" },
+          poem: { type: "string" },
+          interpretation: { type: "string" },
+        },
+      },
+      exampleInput: { question: "我今年事业发展如何？", type: "guanyin" },
+      exampleOutput: { qianNumber: 23, qianTitle: "怀珠入市", qianType: "上", poem: "明珠暗投...", interpretation: "此签寓意..." },
+      installs: 1830,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-almanac",
+      slug: "guanxing-almanac",
+      name: "黄历查询",
+      nameEn: "Chinese Almanac",
+      description: "黄历宜忌、吉时查询、日柱分析，适合择日选时",
+      category: "culture",
+      icon: "CalendarCheck",
+      endpoint: "/api/v1/almanac",
+      inputSchema: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "查询日期 YYYY-MM-DD（默认今天）" },
+        },
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          lunarDate: { type: "string" }, ganzhi: { type: "string" },
+          yi: { type: "array", items: { type: "string" } },
+          ji: { type: "array", items: { type: "string" } },
+          jishi: { type: "array" },
+        },
+      },
+      exampleInput: { date: "2026-03-15" },
+      exampleOutput: { lunarDate: "二月初一", ganzhi: "丙午年 辛卯月 壬辰日", yi: ["祭祀", "出行"], ji: ["动土", "开仓"], jishi: [] },
+      installs: 960,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-zodiac",
+      slug: "guanxing-zodiac",
+      name: "星座解读",
+      nameEn: "Zodiac Reading",
+      description: "深度星座性格分析、星座配对、行星影响解读",
+      category: "fortune",
+      icon: "Star",
+      endpoint: "/api/v1/zodiac",
+      inputSchema: {
+        type: "object",
+        properties: {
+          zodiac: { type: "string", description: "星座名称" },
+          aspect: { type: "string", enum: ["personality", "love", "career", "compatibility"], description: "分析维度" },
+        },
+        required: ["zodiac"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          analysis: { type: "string" }, traits: { type: "array" },
+          element: { type: "string" }, ruling_planet: { type: "string" },
+        },
+      },
+      exampleInput: { zodiac: "狮子座", aspect: "personality" },
+      exampleOutput: { analysis: "狮子座天生...", traits: ["领导力", "自信"], element: "火", ruling_planet: "太阳" },
+      installs: 1560,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-dream",
+      slug: "guanxing-dream",
+      name: "梦境解析",
+      nameEn: "Dream Interpretation",
+      description: "AI 结合周公解梦与现代心理学，深度解析梦境含义",
+      category: "wellness",
+      icon: "Moon",
+      endpoint: "/api/v1/dream",
+      inputSchema: {
+        type: "object",
+        properties: {
+          dream: { type: "string", description: "梦境描述" },
+          mood: { type: "string", description: "梦醒时的情绪" },
+        },
+        required: ["dream"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          symbols: { type: "array" }, interpretation: { type: "string" },
+          psychAnalysis: { type: "string" }, advice: { type: "string" },
+        },
+      },
+      exampleInput: { dream: "梦见在高处飞翔", mood: "兴奋" },
+      exampleOutput: { symbols: ["飞翔", "高处"], interpretation: "飞翔象征自由...", psychAnalysis: "潜意识表达...", advice: "保持积极..." },
+      installs: 720,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-tarot",
+      slug: "guanxing-tarot",
+      name: "塔罗占卜",
+      nameEn: "Tarot Reading",
+      description: "大小阿尔卡那 78 张完整塔罗牌义解读，支持多种牌阵",
+      category: "divination",
+      icon: "Layers",
+      endpoint: "/api/v1/tarot",
+      inputSchema: {
+        type: "object",
+        properties: {
+          question: { type: "string", description: "占卜问题" },
+          spread: { type: "string", enum: ["single", "three", "celtic_cross"], description: "牌阵类型" },
+        },
+        required: ["question"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          cards: { type: "array" }, spread: { type: "string" },
+          interpretation: { type: "string" }, advice: { type: "string" },
+        },
+      },
+      exampleInput: { question: "我的感情运势如何？", spread: "three" },
+      exampleOutput: { cards: [{ name: "恋人", reversed: false }], spread: "三张牌", interpretation: "恋人牌正位...", advice: "敞开心扉..." },
+      installs: 1120,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-name-score",
+      slug: "guanxing-name-score",
+      name: "姓名打分",
+      nameEn: "Name Scoring",
+      description: "五格剖象法姓名打分，笔画分析、字义解读、五行配置",
+      category: "divination",
+      icon: "Type",
+      endpoint: "/api/v1/name-score",
+      inputSchema: {
+        type: "object",
+        properties: {
+          surname: { type: "string", description: "姓" },
+          givenName: { type: "string", description: "名" },
+          birthDate: { type: "string", description: "出生日期（可选，用于五行配置分析）" },
+        },
+        required: ["surname", "givenName"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          totalScore: { type: "number" }, breakdown: { type: "object" },
+          analysis: { type: "string" },
+        },
+      },
+      exampleInput: { surname: "张", givenName: "伟" },
+      exampleOutput: { totalScore: 85, breakdown: { tianGe: 12, renGe: 22 }, analysis: "此名..." },
+      installs: 890,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-fengshui",
+      slug: "guanxing-fengshui",
+      name: "风水评估",
+      nameEn: "Feng Shui Assessment",
+      description: "居家/办公空间风水分析，方位吉凶、布局建议、开运物推荐",
+      category: "culture",
+      icon: "Home",
+      endpoint: "/api/v1/fengshui",
+      inputSchema: {
+        type: "object",
+        properties: {
+          direction: { type: "string", description: "朝向" },
+          spaceType: { type: "string", enum: ["home", "office", "shop"], description: "空间类型" },
+          concerns: { type: "string", description: "关注方面" },
+        },
+        required: ["spaceType"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          score: { type: "number" }, analysis: { type: "string" },
+          suggestions: { type: "array" }, luckyItems: { type: "array" },
+        },
+      },
+      exampleInput: { direction: "坐北朝南", spaceType: "home", concerns: "财运" },
+      exampleOutput: { score: 78, analysis: "坐北朝南...", suggestions: ["客厅摆放..."], luckyItems: ["水晶球"] },
+      installs: 650,
+      version: "1.0.0",
+    },
+    {
+      id: "guanxing-compatibility",
+      slug: "guanxing-compatibility",
+      name: "缘分配对",
+      nameEn: "Compatibility Analysis",
+      description: "基于星座、八字、五行的双人缘分深度匹配分析",
+      category: "fortune",
+      icon: "Heart",
+      endpoint: "/api/v1/compatibility",
+      inputSchema: {
+        type: "object",
+        properties: {
+          person1: { type: "object", properties: { zodiac: { type: "string" }, birthDate: { type: "string" } } },
+          person2: { type: "object", properties: { zodiac: { type: "string" }, birthDate: { type: "string" } } },
+        },
+        required: ["person1", "person2"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          score: { type: "number" }, dimensions: { type: "object" },
+          analysis: { type: "string" }, advice: { type: "string" },
+        },
+      },
+      exampleInput: { person1: { zodiac: "白羊座" }, person2: { zodiac: "狮子座" } },
+      exampleOutput: { score: 92, dimensions: { love: 95, career: 88 }, analysis: "火象星座...", advice: "互相包容..." },
+      installs: 1340,
+      version: "1.0.0",
+    },
+  ];
+
+  // ─── ClawHub Skills Catalog API ───────────────────────────────
+  app.get("/api/clawhub/skills", (_req, res) => {
+    res.json(CLAWHUB_SKILLS);
+  });
+
+  app.get("/api/clawhub/skills/:slug", (req, res) => {
+    const skill = CLAWHUB_SKILLS.find(s => s.slug === req.params.slug);
+    if (!skill) return res.status(404).json({ error: "Skill not found" });
+    res.json(skill);
+  });
+
+  // ─── Developer Portal APIs (requires login) ──────────────────
+  // Create developer app
+  app.post("/api/developer/apps", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { appName, appDescription, permissions, webhookUrl } = req.body;
+
+      if (!appName || !permissions || !Array.isArray(permissions)) {
+        return res.status(400).json({ error: "缺少必填字段" });
+      }
+
+      // Check limit (max 5 apps per user)
+      const existing = await storage.getDeveloperAppsByUser(userId);
+      if (existing.length >= 5) {
+        return res.status(400).json({ error: "每个用户最多创建5个应用" });
+      }
+
+      const apiKey = generateApiKey();
+      const app = await storage.createDeveloperApp({
+        userId,
+        appName,
+        appDescription: appDescription || null,
+        apiKey,
+        webhookUrl: webhookUrl || null,
+        permissions: JSON.stringify(permissions),
+        rateLimit: 100,
+        isActive: true,
+      });
+
+      res.json(app);
+    } catch (err) {
+      console.error("[Developer] Create app error:", err);
+      res.status(500).json({ error: "创建应用失败" });
+    }
+  });
+
+  // List my apps
+  app.get("/api/developer/apps", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const apps = await storage.getDeveloperAppsByUser(userId);
+      res.json(apps);
+    } catch (err) {
+      res.status(500).json({ error: "获取应用列表失败" });
+    }
+  });
+
+  // Get app details (with logs)
+  app.get("/api/developer/apps/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const app = await storage.getDeveloperApp(req.params.id);
+      if (!app || app.userId !== userId) {
+        return res.status(404).json({ error: "应用不存在" });
+      }
+      const logs = await storage.getWebhookLogsByApp(app.id, 20);
+      const stats = await storage.getWebhookLogStats(app.id);
+      res.json({ ...app, recentLogs: logs, stats });
+    } catch (err) {
+      res.status(500).json({ error: "获取应用详情失败" });
+    }
+  });
+
+  // Regenerate API key
+  app.post("/api/developer/apps/:id/regenerate-key", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const app = await storage.getDeveloperApp(req.params.id);
+      if (!app || app.userId !== userId) {
+        return res.status(404).json({ error: "应用不存在" });
+      }
+      const newKey = generateApiKey();
+      const updated = await storage.updateDeveloperApp(app.id, { apiKey: newKey });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "重新生成密钥失败" });
+    }
+  });
+
+  // Toggle app active state
+  app.post("/api/developer/apps/:id/toggle", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const app = await storage.getDeveloperApp(req.params.id);
+      if (!app || app.userId !== userId) {
+        return res.status(404).json({ error: "应用不存在" });
+      }
+      const updated = await storage.updateDeveloperApp(app.id, { isActive: !app.isActive });
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ error: "切换状态失败" });
+    }
+  });
+
+  // Delete app
+  app.delete("/api/developer/apps/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const app = await storage.getDeveloperApp(req.params.id);
+      if (!app || app.userId !== userId) {
+        return res.status(404).json({ error: "应用不存在" });
+      }
+      await storage.deleteDeveloperApp(app.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: "删除应用失败" });
+    }
+  });
+
+  // ─── Public Webhook API v1 ────────────────────────────────────
+  // These are the actual skill endpoints that third-party developers call
+
+  // Helper: log webhook call and return formatted response
+  async function logAndRespond(
+    req: any, res: any,
+    skillId: string,
+    handler: () => Promise<any>,
+  ) {
+    const startTime = Date.now();
+    const app = (req as any).developerApp;
+    const endpoint = req.path;
+
+    try {
+      // Check permission
+      const permKey = skillId.replace("guanxing-", "").replace("-", "_");
+      if (!checkPermission(app, permKey)) {
+        const resp = {
+          success: false,
+          error: `无权访问此 Skill: ${skillId}。请在开发者中心添加对应权限。`,
+          meta: { skill: skillId, version: "1.0.0", tokensUsed: 0, latencyMs: 0, timestamp: new Date().toISOString() },
+        };
+        await storage.createWebhookLog({
+          appId: app.id, endpoint, method: req.method,
+          requestBody: JSON.stringify(req.body || {}),
+          responseStatus: 403, responsePreview: resp.error,
+          tokensUsed: 0, latencyMs: Date.now() - startTime,
+          ip: req.ip || null, createdAt: new Date().toISOString(),
+        });
+        return res.status(403).json(resp);
+      }
+
+      const data = await handler();
+      const latencyMs = Date.now() - startTime;
+      const tokensUsed = data._tokensUsed || 0;
+      delete data._tokensUsed;
+
+      const resp = {
+        success: true,
+        data,
+        meta: { skill: skillId, version: "1.0.0", tokensUsed, latencyMs, timestamp: new Date().toISOString() },
+      };
+
+      // Log & increment
+      await storage.createWebhookLog({
+        appId: app.id, endpoint, method: req.method,
+        requestBody: JSON.stringify(req.body || {}),
+        responseStatus: 200, responsePreview: JSON.stringify(data).slice(0, 200),
+        tokensUsed, latencyMs,
+        ip: req.ip || null, createdAt: new Date().toISOString(),
+      });
+      await storage.incrementAppUsage(app.id, tokensUsed);
+
+      return res.json(resp);
+    } catch (err: any) {
+      const latencyMs = Date.now() - startTime;
+      const resp = {
+        success: false,
+        error: err.message || "Internal error",
+        meta: { skill: skillId, version: "1.0.0", tokensUsed: 0, latencyMs, timestamp: new Date().toISOString() },
+      };
+      await storage.createWebhookLog({
+        appId: app.id, endpoint, method: req.method,
+        requestBody: JSON.stringify(req.body || {}),
+        responseStatus: 500, responsePreview: resp.error,
+        tokensUsed: 0, latencyMs,
+        ip: req.ip || null, createdAt: new Date().toISOString(),
+      });
+      return res.status(500).json(resp);
+    }
+  }
+
+  // v1/bazi — BaZi Analysis
+  app.post("/api/v1/bazi", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-bazi", async () => {
+      const { birthDate, birthHour, name } = req.body;
+      if (!birthDate) throw new Error("缺少 birthDate 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `请对以下八字信息进行专业命理分析，返回JSON格式：
+出生日期: ${birthDate}
+${birthHour !== undefined ? `出生时辰: ${birthHour}时` : ""}
+${name ? `姓名: ${name}` : ""}
+
+返回格式: {"bazi": "八字四柱", "wuxing": {"金":N,"木":N,"水":N,"火":N,"土":N}, "dayMaster": "日主", "analysis": "详细分析200字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 800,
+        messages: [{ role: "system", content: "你是专业八字命理分析师，以JSON格式返回分析结果" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { analysis: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/fortune — Daily Fortune
+  app.post("/api/v1/fortune", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-fortune", async () => {
+      const { zodiac, birthDate } = req.body;
+      if (!zodiac) throw new Error("缺少 zodiac 参数");
+
+      const today = new Date().toLocaleDateString("zh-CN");
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `为${zodiac}生成${today}的运势报告，返回JSON:
+${birthDate ? `出生日期: ${birthDate}` : ""}
+{"overall":1-5, "career":1-5, "love":1-5, "wealth":1-5, "health":1-5, "advice":"今日建议50字", "luckyColor":"幸运色", "luckyNumber":N, "keywords":["关键词"]}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 500,
+        messages: [{ role: "system", content: "你是运势预测专家，以JSON格式返回" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { advice: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/qiuqian — Divine Lot Drawing
+  app.post("/api/v1/qiuqian", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-qiuqian", async () => {
+      const { question, type } = req.body;
+      if (!question) throw new Error("缺少 question 参数");
+
+      const qianNumber = Math.floor(Math.random() * 100) + 1;
+      const qianTypes = ["上上", "上", "中上", "中", "中下", "下", "下下"];
+      const qianType = qianTypes[Math.floor(Math.random() * qianTypes.length)];
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `用户求签问: "${question}"
+签号: 第${qianNumber}签 (${type === "guandi" ? "关帝灵签" : "观音灵签"})
+签等: ${qianType}
+
+请返回JSON: {"qianNumber":${qianNumber}, "qianTitle":"签名", "qianType":"${qianType}", "poem":"签诗四句", "interpretation":"详细解签200字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你是资深解签大师" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { qianNumber, qianType, interpretation: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/almanac — Chinese Almanac
+  app.post("/api/v1/almanac", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-almanac", async () => {
+      const { date } = req.body;
+      const targetDate = date || new Date().toISOString().split("T")[0];
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `请查询${targetDate}的黄历信息，返回JSON:
+{"lunarDate":"农历日期", "ganzhi":"干支", "yi":["宜做的事3-5项"], "ji":["忌做的事3-5项"], "chongsha":"冲煞", "jishi":[{"hour":"时辰","luck":"吉/凶"}], "summary":"今日综述50字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 500,
+        messages: [{ role: "system", content: "你是黄历专家" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { summary: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/zodiac — Zodiac Reading
+  app.post("/api/v1/zodiac", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-zodiac", async () => {
+      const { zodiac, aspect } = req.body;
+      if (!zodiac) throw new Error("缺少 zodiac 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `深度分析${zodiac}的${aspect || "personality"}维度，返回JSON:
+{"analysis":"详细分析200字", "traits":["特质1","特质2"], "element":"元素", "rulingPlanet":"守护星", "compatibility":["最配星座"]}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你是西方占星专家" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { analysis: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/dream — Dream Interpretation
+  app.post("/api/v1/dream", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-dream", async () => {
+      const { dream, mood } = req.body;
+      if (!dream) throw new Error("缺少 dream 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `解析这个梦境: "${dream}"
+${mood ? `梦醒情绪: ${mood}` : ""}
+返回JSON: {"symbols":["意象"], "interpretation":"解梦200字", "psychAnalysis":"心理学分析100字", "advice":"建议50字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你精通周公解梦和现代心理学" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { interpretation: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/tarot — Tarot Reading
+  app.post("/api/v1/tarot", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-tarot", async () => {
+      const { question, spread } = req.body;
+      if (!question) throw new Error("缺少 question 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `塔罗占卜问题: "${question}"
+牌阵: ${spread || "single"}
+随机抽牌并解读，返回JSON:
+{"cards":[{"name":"牌名","reversed":false,"meaning":"牌义"}], "spread":"牌阵名", "interpretation":"综合解读200字", "advice":"建议50字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 800,
+        messages: [{ role: "system", content: "你是塔罗大师，熟悉78张大小阿尔卡那" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { interpretation: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/name-score — Name Scoring
+  app.post("/api/v1/name-score", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-name-score", async () => {
+      const { surname, givenName, birthDate } = req.body;
+      if (!surname || !givenName) throw new Error("缺少 surname/givenName 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `姓名打分分析:
+姓: ${surname} 名: ${givenName}
+${birthDate ? `出生日期: ${birthDate}` : ""}
+返回JSON: {"totalScore":0-100, "breakdown":{"tianGe":N,"renGe":N,"diGe":N,"waiGe":N,"zongGe":N}, "wuxingAnalysis":"五行分析", "analysis":"综合评语200字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你是姓名学专家，精通五格剖象法" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { analysis: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/fengshui — Feng Shui Assessment
+  app.post("/api/v1/fengshui", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-fengshui", async () => {
+      const { direction, spaceType, concerns } = req.body;
+      if (!spaceType) throw new Error("缺少 spaceType 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `风水评估:
+空间: ${spaceType === "home" ? "居家" : spaceType === "office" ? "办公室" : "商铺"}
+${direction ? `朝向: ${direction}` : ""}
+${concerns ? `关注: ${concerns}` : ""}
+返回JSON: {"score":0-100, "analysis":"风水分析200字", "suggestions":["建议1","建议2"], "luckyItems":["开运物"], "avoidItems":["忌讳物"]}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你是风水堪舆大师" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { analysis: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
+  // v1/compatibility — Compatibility Analysis
+  app.post("/api/v1/compatibility", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-compatibility", async () => {
+      const { person1, person2 } = req.body;
+      if (!person1 || !person2) throw new Error("缺少 person1/person2 参数");
+
+      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const prompt = `缘分配对分析:
+Person 1: ${JSON.stringify(person1)}
+Person 2: ${JSON.stringify(person2)}
+返回JSON: {"score":0-100, "dimensions":{"love":1-100,"career":1-100,"friendship":1-100}, "analysis":"配对分析200字", "advice":"相处建议100字"}`;
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat", max_tokens: 600,
+        messages: [{ role: "system", content: "你是星座和命理配对专家" }, { role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "{}";
+      let parsed: any;
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch?.[0] || "{}");
+      } catch { parsed = { analysis: text }; }
+      parsed._tokensUsed = response.usage?.total_tokens || 0;
+      return parsed;
+    });
+  });
+
   return httpServer;
 }
 

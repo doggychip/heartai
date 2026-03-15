@@ -15,11 +15,13 @@ import {
   type AvatarChat, type AvatarChatMessage,
   type Notification,
   type AgentTeamMember, type AgentDispatchRecord, type AgentEvent,
+  type DeveloperApp, type InsertDeveloperApp, type WebhookLog,
   users, conversations, messages, moodEntries, assessments, assessmentResults,
   communityPosts, postLikes, postComments, agentFollows,
   avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages,
   notifications,
   agentTeam, agentDispatchLog, agentEvents,
+  developerApps, webhookLogs,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
@@ -146,6 +148,20 @@ export interface IStorage {
   createAgentEvent(data: Omit<AgentEvent, 'id'>): Promise<AgentEvent>;
   getRecentEvents(limit?: number): Promise<AgentEvent[]>;
   updateEventStatus(id: string, status: string, resultSummary?: string): Promise<void>;
+
+  // Developer Apps (Phase 4)
+  getDeveloperApp(id: string): Promise<DeveloperApp | undefined>;
+  getDeveloperAppByApiKey(apiKey: string): Promise<DeveloperApp | undefined>;
+  getDeveloperAppsByUser(userId: string): Promise<DeveloperApp[]>;
+  createDeveloperApp(data: InsertDeveloperApp): Promise<DeveloperApp>;
+  updateDeveloperApp(id: string, data: Partial<DeveloperApp>): Promise<DeveloperApp | undefined>;
+  deleteDeveloperApp(id: string): Promise<void>;
+  incrementAppUsage(appId: string, tokensUsed: number): Promise<void>;
+
+  // Webhook Logs (Phase 4)
+  createWebhookLog(data: Omit<WebhookLog, 'id'>): Promise<WebhookLog>;
+  getWebhookLogsByApp(appId: string, limit?: number): Promise<WebhookLog[]>;
+  getWebhookLogStats(appId: string): Promise<{ totalCalls: number; todayCalls: number; avgLatency: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -742,6 +758,85 @@ export class DatabaseStorage implements IStorage {
       resultSummary: resultSummary || null,
       processedAt: new Date().toISOString(),
     }).where(eq(agentEvents.id, id));
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Phase 4: Developer Apps + Webhook Logs
+  // ═══════════════════════════════════════════════════════════════
+
+  async getDeveloperApp(id: string): Promise<DeveloperApp | undefined> {
+    const [app] = await db.select().from(developerApps).where(eq(developerApps.id, id)).limit(1);
+    return app;
+  }
+
+  async getDeveloperAppByApiKey(apiKey: string): Promise<DeveloperApp | undefined> {
+    const [app] = await db.select().from(developerApps).where(eq(developerApps.apiKey, apiKey)).limit(1);
+    return app;
+  }
+
+  async getDeveloperAppsByUser(userId: string): Promise<DeveloperApp[]> {
+    return db.select().from(developerApps)
+      .where(eq(developerApps.userId, userId))
+      .orderBy(desc(developerApps.createdAt));
+  }
+
+  async createDeveloperApp(data: InsertDeveloperApp): Promise<DeveloperApp> {
+    const [app] = await db.insert(developerApps).values({
+      ...data,
+      totalCalls: 0,
+      totalTokens: 0,
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+    } as any).returning();
+    return app;
+  }
+
+  async updateDeveloperApp(id: string, data: Partial<DeveloperApp>): Promise<DeveloperApp | undefined> {
+    const [updated] = await db.update(developerApps).set(data).where(eq(developerApps.id, id)).returning();
+    return updated;
+  }
+
+  async deleteDeveloperApp(id: string): Promise<void> {
+    await db.delete(developerApps).where(eq(developerApps.id, id));
+  }
+
+  async incrementAppUsage(appId: string, tokensUsed: number): Promise<void> {
+    await db.execute(sql`
+      UPDATE developer_apps SET
+        total_calls = total_calls + 1,
+        total_tokens = total_tokens + ${tokensUsed},
+        last_used_at = ${new Date().toISOString()}
+      WHERE id = ${appId}
+    `);
+  }
+
+  async createWebhookLog(data: Omit<WebhookLog, 'id'>): Promise<WebhookLog> {
+    const [log] = await db.insert(webhookLogs).values(data as any).returning();
+    return log;
+  }
+
+  async getWebhookLogsByApp(appId: string, limit = 50): Promise<WebhookLog[]> {
+    return db.select().from(webhookLogs)
+      .where(eq(webhookLogs.appId, appId))
+      .orderBy(desc(webhookLogs.createdAt))
+      .limit(limit);
+  }
+
+  async getWebhookLogStats(appId: string): Promise<{ totalCalls: number; todayCalls: number; avgLatency: number }> {
+    const allLogs = await db.select().from(webhookLogs)
+      .where(eq(webhookLogs.appId, appId));
+    
+    const today = new Date().toISOString().split("T")[0];
+    const todayLogs = allLogs.filter(l => l.createdAt.startsWith(today));
+    const avgLatency = allLogs.length > 0
+      ? Math.round(allLogs.reduce((sum, l) => sum + l.latencyMs, 0) / allLogs.length)
+      : 0;
+    
+    return {
+      totalCalls: allLogs.length,
+      todayCalls: todayLogs.length,
+      avgLatency,
+    };
   }
 }
 

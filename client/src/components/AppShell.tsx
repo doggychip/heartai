@@ -43,6 +43,8 @@ import {
   Flame,
   CalendarCheck,
   Network,
+  Code,
+  Package,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -122,6 +124,14 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
       { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
       { path: "/agent-team", label: "Agent Team", icon: Network, guestVisible: false },
+    ],
+  },
+  {
+    label: "开发者",
+    defaultOpen: false,
+    items: [
+      { path: "/clawhub", label: "ClawHub Skills", icon: Package, guestVisible: false },
+      { path: "/developer", label: "开发者中心", icon: Code, guestVisible: false },
     ],
   },
 ];
