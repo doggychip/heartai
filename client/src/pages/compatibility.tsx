@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { InviteCompatButton } from "@/pages/invite-compat";
 import {
   Sparkles,
   RotateCcw,
@@ -277,6 +278,16 @@ export default function CompatibilityPage() {
             <CardContent className="py-4">
               <p className="text-[10px] font-medium text-primary mb-1">成长建议</p>
               <p className="text-sm text-foreground/80">{result.growthAdvice}</p>
+            </CardContent>
+          </Card>
+
+          {/* Invite CTA */}
+          <Card className="bg-gradient-to-r from-pink-500/5 to-rose-500/5 border-pink-500/20">
+            <CardContent className="py-4 space-y-3">
+              <p className="text-xs text-center text-muted-foreground">
+                让朋友也来测测你们的缘分吧 💕
+              </p>
+              <InviteCompatButton />
             </CardContent>
           </Card>
 

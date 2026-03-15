@@ -5737,6 +5737,33 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
     }
   });
 
+  // ─── 合盘邀请 — 获取邀请人信息 (公开API) ─────────────────
+  app.get("/api/invite/compat-info/:userId", async (req, res) => {
+    try {
+      const u = await storage.getUser(req.params.userId);
+      if (!u) return res.json({ nickname: "观星用户", element: "" });
+      // Calculate element from birthDate if available
+      let element = "";
+      if (u.birthDate) {
+        try {
+          const lunar = lunisolar(u.birthDate);
+          const dayMaster = lunar.char8?.day?.stem;
+          if (dayMaster) {
+            const stemElement: Record<string, string> = {
+              "甲": "木", "乙": "木", "丙": "火", "丁": "火",
+              "戊": "土", "己": "土", "庚": "金", "辛": "金",
+              "壬": "水", "癸": "水",
+            };
+            element = stemElement[dayMaster.toString()] || "";
+          }
+        } catch {}
+      }
+      res.json({ nickname: u.nickname || u.username, element });
+    } catch (e: any) {
+      res.json({ nickname: "观星用户", element: "" });
+    }
+  });
+
   // ─── 灵魂伴侣画像 API ───────────────────────────────────
   app.post("/api/soulmate/portrait", requireAuth, async (req, res) => {
     try {

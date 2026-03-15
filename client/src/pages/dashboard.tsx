@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
+import { ShareFortuneButton } from "@/pages/share-card";
 import {
   Sparkles,
   Heart,
@@ -231,11 +232,14 @@ export default function DashboardPage() {
                   color: f.totalScore >= 75 ? "hsl(35, 85%, 55%)" : f.totalScore >= 40 ? "hsl(235, 65%, 55%)" : "hsl(330, 55%, 55%)"
                 }}>{f.totalScore}<span className="text-sm font-normal text-muted-foreground ml-0.5">分</span></span>
               </div>
-              <Link href="/fortune">
-                <span className="text-xs text-muted-foreground flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors">
-                  更多 <ChevronRight className="w-3 h-3" />
-                </span>
-              </Link>
+              <div className="flex items-center gap-3">
+                <ShareFortuneButton fortune={f} qian={dashboard?.dailyQian || null} nickname={user?.nickname || "观星用户"} />
+                <Link href="/fortune">
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors">
+                    更多 <ChevronRight className="w-3 h-3" />
+                  </span>
+                </Link>
+              </div>
             </div>
 
             {/* AI insight text */}

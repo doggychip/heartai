@@ -43,6 +43,7 @@ import NotificationsPage from "@/pages/notifications";
 import AgentTeamPage from "@/pages/agent-team";
 import DeveloperPage from "@/pages/developer";
 import ClawHubPage from "@/pages/clawhub";
+import InviteCompatPage from "@/pages/invite-compat";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -91,6 +92,7 @@ function AuthenticatedRoutes() {
         <Route path="/agent-team" component={AgentTeamPage} />
         <Route path="/developer" component={DeveloperPage} />
         <Route path="/clawhub" component={ClawHubPage} />
+        <Route path="/invite/compat/:userId" component={InviteCompatPage} />
         <Route path="/discover">{() => { window.location.hash = "#/"; return null; }}</Route>
         <Route component={NotFound} />
       </Switch>
@@ -114,6 +116,7 @@ function GuestRoutes() {
         <Route path="/qiuqian" component={QiuqianPage} />
         <Route path="/zeji" component={ZejiPage} />
         <Route path="/dream" component={DreamPage} />
+        <Route path="/invite/compat/:userId" component={InviteCompatPage} />
         <Route>
           <Redirect to="/community" />
         </Route>
