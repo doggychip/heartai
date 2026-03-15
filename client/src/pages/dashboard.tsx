@@ -286,23 +286,47 @@ export default function DashboardPage() {
               <p className="text-xs text-foreground/60 mb-3 leading-relaxed line-clamp-2">{f.aiInsight}</p>
             )}
 
-            {/* Dimension bars — horizontal with scores, like 测测 style */}
-            <div className="flex items-end justify-between gap-1">
-              {DIMENSION_CONFIG.map((dim) => {
+            {/* Dimension rings — circular progress with glow */}
+            <div className="flex items-center justify-between">
+              {DIMENSION_CONFIG.map((dim, i) => {
                 const score = f.dimensions[dim.key];
+                const r = 24;
+                const circumference = 2 * Math.PI * r;
+                const strokeDashoffset = circumference - (circumference * Math.min(score, 100)) / 100;
+                const gradId = `ring-grad-${dim.key}`;
                 return (
-                  <div key={dim.key} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs font-semibold" style={{ color: dim.color }}>{score}</span>
-                    <div className="w-full h-14 bg-muted/30 rounded-full overflow-hidden relative flex flex-col justify-end">
-                      <div
-                        className="w-full rounded-full transition-all duration-1000"
-                        style={{
-                          height: `${Math.max(score, 5)}%`,
-                          background: `linear-gradient(to top, ${dim.color}, ${dim.color}88)`,
-                        }}
-                      />
+                  <div key={dim.key} className="flex flex-col items-center gap-1.5">
+                    <div className="relative w-[58px] h-[58px]">
+                      {/* Outer glow */}
+                      <div className="absolute inset-[-3px] rounded-full opacity-20 blur-md" style={{ background: dim.color }} />
+                      <svg className="w-full h-full -rotate-90 relative" viewBox="0 0 58 58">
+                        <defs>
+                          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor={dim.color} stopOpacity="1" />
+                            <stop offset="100%" stopColor={dim.color} stopOpacity="0.6" />
+                          </linearGradient>
+                        </defs>
+                        {/* Track */}
+                        <circle cx="29" cy="29" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-muted/15" />
+                        {/* Progress arc */}
+                        <circle
+                          cx="29" cy="29" r={r}
+                          fill="none"
+                          stroke={`url(#${gradId})`}
+                          strokeWidth="5.5"
+                          strokeLinecap="round"
+                          strokeDasharray={circumference}
+                          strokeDashoffset={strokeDashoffset}
+                          className="transition-all duration-[1.2s] ease-out"
+                          style={{ filter: `drop-shadow(0 0 6px ${dim.color}88)` }}
+                        />
+                      </svg>
+                      {/* Center score */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[15px] font-extrabold" style={{ color: dim.color }}>{score}</span>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{dim.label}</span>
+                    <span className="text-[10px] text-muted-foreground font-medium">{dim.label}</span>
                   </div>
                 );
               })}

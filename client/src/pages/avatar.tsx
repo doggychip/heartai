@@ -114,11 +114,11 @@ function SyncBreakdown({ breakdown }: { breakdown: { memory: number; activity: n
   return (
     <div className="space-y-2">
       {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-2">
-          <span className="text-muted-foreground">{item.icon}</span>
-          <span className="text-[11px] text-muted-foreground w-20 shrink-0">{item.label}</span>
-          <Progress value={(item.value / item.max) * 100} className="flex-1 h-1.5" />
-          <span className="text-[10px] text-muted-foreground w-10 text-right">{item.value}/{item.max}</span>
+        <div key={item.label} className="flex items-center gap-1.5 min-w-0">
+          <span className="text-muted-foreground shrink-0">{item.icon}</span>
+          <span className="text-[11px] text-muted-foreground w-16 shrink-0 truncate">{item.label}</span>
+          <Progress value={(item.value / item.max) * 100} className="flex-1 h-1.5 min-w-0" />
+          <span className="text-[10px] text-muted-foreground w-9 text-right shrink-0">{item.value}/{item.max}</span>
         </div>
       ))}
     </div>
@@ -336,10 +336,10 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
   const syncRate = summary?.syncRate ?? 0;
 
   return (
-    <div className="space-y-4 overflow-hidden">
+    <div className="space-y-4 w-full min-w-0 overflow-hidden">
       {/* Header card with sync rate */}
       <Card className="border-primary/20 overflow-hidden">
-        <CardContent className="pt-4 px-3">
+        <CardContent className="pt-4 px-3 min-w-0">
           <div className="flex items-center gap-3">
             <img src={clientAvatarSvg(avatar.name, avatar.element)} alt={avatar.name}
               className="w-12 h-12 rounded-xl flex-shrink-0" />
@@ -380,15 +380,15 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
                 同步率 — 分身与你的契合程度
               </div>
             </div>
-            <div className="flex gap-1.5 text-center">
+            <div className="grid grid-cols-4 gap-1.5 text-center">
               {[
                 { val: summary?.stats?.totalBrowsed || 0, label: '浏览' },
                 { val: summary?.stats?.likes || 0, label: '点赞' },
                 { val: summary?.stats?.comments || 0, label: '评论' },
                 { val: summary?.memorySlots?.used || 0, label: '记忆' },
               ].map(s => (
-                <div key={s.label} className="flex-1 bg-muted/50 rounded p-1.5">
-                  <div className="text-xs font-bold">{s.val}</div>
+                <div key={s.label} className="bg-muted/50 rounded p-1.5 min-w-0">
+                  <div className="text-xs font-bold truncate">{s.val}</div>
                   <div className="text-[9px] text-muted-foreground">{s.label}</div>
                 </div>
               ))}
@@ -405,12 +405,12 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="activity" className="w-full">
-        <TabsList className="w-full flex h-9">
-          <TabsTrigger value="activity" className="flex-1 text-xs px-1" data-testid="tab-activity">动态</TabsTrigger>
-          <TabsTrigger value="memory" className="flex-1 text-xs px-1" data-testid="tab-memory">记忆</TabsTrigger>
-          <TabsTrigger value="chat" className="flex-1 text-xs px-1" data-testid="tab-chat">对话</TabsTrigger>
-          <TabsTrigger value="settings" className="flex-1 text-xs px-1" data-testid="tab-settings">设置</TabsTrigger>
+      <Tabs defaultValue="activity" className="w-full min-w-0">
+        <TabsList className="w-full grid grid-cols-4 h-9">
+          <TabsTrigger value="activity" className="text-xs px-0" data-testid="tab-activity">动态</TabsTrigger>
+          <TabsTrigger value="memory" className="text-xs px-0" data-testid="tab-memory">记忆</TabsTrigger>
+          <TabsTrigger value="chat" className="text-xs px-0" data-testid="tab-chat">对话</TabsTrigger>
+          <TabsTrigger value="settings" className="text-xs px-0" data-testid="tab-settings">设置</TabsTrigger>
         </TabsList>
 
         {/* Activity feed */}
@@ -687,7 +687,7 @@ export default function AvatarPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto pb-20 px-3 overflow-x-hidden">
+    <div className="max-w-lg mx-auto pb-20 px-3 w-full min-w-0 overflow-x-hidden">
       <AvatarDashboard avatar={data.avatar} memories={data.memories || []} recentActions={data.recentActions || []} />
     </div>
   );
