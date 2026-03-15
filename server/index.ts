@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { ensureTables } from "./migrate";
+import { migrateAvatar } from "./migrate-avatar";
 
 const app = express();
 const httpServer = createServer(app);
@@ -63,6 +64,7 @@ app.use((req, res, next) => {
 (async () => {
   // Create database tables if they don't exist
   await ensureTables();
+  await migrateAvatar();
 
   await registerRoutes(httpServer, app);
 

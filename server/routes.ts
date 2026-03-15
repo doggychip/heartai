@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema } from "@shared/schema";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
+import { registerAvatarRoutes } from "./avatar-routes";
 import { seedAssessments } from "./seed-assessments";
 import { scoreAssessment } from "./scoring";
 import OpenAI from "openai";
@@ -3828,6 +3829,114 @@ ${najiaDesc}
     }
   });
 
+  // ─── Dashboard 聚合 API ─────────────────────────────────────
+  app.get("/api/dashboard", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const today = new Date();
+      const dateStr = today.toISOString().split("T")[0];
+
+      // Parallel fetch all dashboard data
+      const [moodEntries, posts, avatar, avatarActions, user] = await Promise.all([
+        storage.getMoodEntriesByUser(userId).catch(() => []),
+        storage.getAllPosts().catch(() => []),
+        storage.getAvatarByUser(userId).catch(() => null),
+        (async () => {
+          try {
+            const av = await storage.getAvatarByUser(userId);
+            if (!av) return [];
+            return storage.getAvatarActions(av.id, 10);
+          } catch { return []; }
+        })(),
+        storage.getUser(userId).catch(() => null),
+      ]);
+
+      // Recent mood (last 7 entries)
+      const recentMood = (moodEntries as any[])
+        .sort((a: any, b: any) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+        .slice(0, 7)
+        .map((m: any) => ({
+          score: m.moodScore,
+          tags: m.emotionTags,
+          date: m.createdAt?.slice(0, 10),
+        }));
+
+      // Hot posts (top 5 by likes + comments)
+      const enrichedPosts = await Promise.all(
+        (posts as any[])
+          .sort((a: any, b: any) => (b.likeCount + b.commentCount) - (a.likeCount + a.commentCount))
+          .slice(0, 5)
+          .map(async (p: any) => {
+            const author = await storage.getUser(p.userId).catch(() => null);
+            return {
+              id: p.id,
+              content: p.content.slice(0, 80),
+              tag: p.tag,
+              likeCount: p.likeCount,
+              commentCount: p.commentCount,
+              authorName: p.isAnonymous ? "匿名用户" : (author as any)?.nickname || (author as any)?.username || "用户",
+              createdAt: p.createdAt,
+            };
+          })
+      );
+
+      // Avatar summary
+      const avatarSummary = avatar ? {
+        name: (avatar as any).name,
+        isActive: (avatar as any).isActive,
+        recentActions: (avatarActions as any[]).slice(0, 3).map((a: any) => ({
+          type: a.type,
+          innerThought: a.innerThought,
+          createdAt: a.createdAt,
+        })),
+      } : null;
+
+      // Lunar info for today
+      let lunarInfo: any = null;
+      try {
+        const lsr = lunisolar(today);
+        const lunar = lsr.lunar;
+        lunarInfo = {
+          lunarDate: `${lunar.month}月${lunar.day}`,
+          yearName: lsr.char8?.year?.toString() || '',
+          dayName: lsr.char8?.day?.toString() || '',
+        };
+        try {
+          const theGods = lsr.theGods;
+          if (theGods) {
+            lunarInfo.yi = theGods.getDuty12God?.()?.toString() || '';
+          }
+        } catch {}
+      } catch {}
+
+      // User personality summary
+      const personality = user ? {
+        element: (user as any).agentPersonality?.element,
+        mbtiType: (user as any).mbtiType,
+        zodiacSign: (user as any).zodiacSign,
+      } : null;
+
+      res.json({
+        date: dateStr,
+        lunar: lunarInfo,
+        personality,
+        moodTrend: recentMood,
+        hotPosts: enrichedPosts,
+        avatar: avatarSummary,
+        stats: {
+          totalPosts: (posts as any[]).filter((p: any) => p.userId === userId).length,
+          totalMoodEntries: (moodEntries as any[]).length,
+        },
+      });
+    } catch (err) {
+      console.error("Dashboard error:", err);
+      res.status(500).json({ error: "仪表盘数据加载失败" });
+    }
+  });
+
+  // ─── AI 分身 (Avatar) Routes ─────────────────────────────
+  registerAvatarRoutes(app, requireAuth);
+
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.
   // POST /api/im/chat  { message, userId?, platform? }
@@ -4336,46 +4445,58 @@ ${najiaDesc}
         const lunar = lsr.lunar;
         lunarInfo = `${lunar.month}月${lunar.day}`;
         try {
-          luckDirection = lsr.theGods?.getLuckDirection?.('財神') || '东南';
+          const rawDir = lsr.theGods?.getLuckDirection?.('財神');
+          luckDirection = typeof rawDir === 'string' ? rawDir : (rawDir?.toString?.() || '东南');
         } catch { luckDirection = '东南'; }
       } catch { lunarInfo = ''; }
 
-      // Generate fortune via AI
-      const seed = `${dateStr}-${userId.slice(0, 8)}`;
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
-      const response = await client.chat.completions.create({
-        model: "deepseek-chat",
-        max_tokens: 600,
-        messages: [
-          { role: "system", content: `你是观星(GuanXing)的每日运势AI。根据日期生成运势数据。返回严格JSON，不要markdown标记。种子: ${seed}` },
-          { role: "user", content: `日期: ${dateStr}, 农历: ${lunarInfo || '未知'}\n\n生成今日运势JSON：\n{\n  "totalScore": 75,\n  "dimensions": { "love": 72, "wealth": 68, "career": 80, "study": 75, "social": 78 },\n  "luckyColor": "淡蓝色",\n  "luckyNumber": 7,\n  "luckyDirection": "${luckDirection || '东南'}",\n  "aiInsight": "100-150字的今日运势解读和建议"\n}\n\n要求：totalScore在55-92之间，各维度在45-95之间，要有差异感。insight要具体、有指导性。` },
-        ],
-      });
-
-      const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
-      try {
-        const fortune = JSON.parse(cleaned);
-        fortune.date = dateStr;
-        res.json(fortune);
-      } catch {
-        // Deterministic fallback based on date
-        const dayHash = dateStr.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-        res.json({
-          totalScore: 60 + (dayHash % 30),
+      // Deterministic fallback generator
+      const genFallback = () => {
+        const dayHash = dateStr.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+        const uHash = userId.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+        const h = (dayHash * 31 + uHash) & 0x7fffffff;
+        return {
+          totalScore: 60 + (h % 30),
           dimensions: {
-            love: 55 + (dayHash % 35),
-            wealth: 50 + ((dayHash * 3) % 40),
-            career: 60 + ((dayHash * 7) % 30),
-            study: 55 + ((dayHash * 11) % 35),
-            social: 60 + ((dayHash * 13) % 30),
+            love: 55 + (h % 35),
+            wealth: 50 + ((h * 3) % 40),
+            career: 60 + ((h * 7) % 30),
+            study: 55 + ((h * 11) % 35),
+            social: 60 + ((h * 13) % 30),
           },
-          luckyColor: ['红色', '蓝色', '绿色', '紫色', '金色'][dayHash % 5],
-          luckyNumber: (dayHash % 9) + 1,
+          luckyColor: ['红色', '蓝色', '绿色', '紫色', '金色'][h % 5],
+          luckyNumber: (h % 9) + 1,
           luckyDirection: luckDirection || '东南',
           aiInsight: '今天整体运势平稳，适合做一些计划中的事情。保持积极的心态，注意适度休息。',
           date: dateStr,
+        };
+      };
+
+      // Generate fortune via AI (with graceful fallback)
+      try {
+        const seed = `${dateStr}-${userId.slice(0, 8)}`;
+        const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 600,
+          messages: [
+            { role: "system", content: `你是观星(GuanXing)的每日运势AI。根据日期生成运势数据。返回严格JSON，不要markdown标记。种子: ${seed}` },
+            { role: "user", content: `日期: ${dateStr}, 农历: ${lunarInfo || '未知'}\n\n生成今日运势JSON：\n{\n  "totalScore": 75,\n  "dimensions": { "love": 72, "wealth": 68, "career": 80, "study": 75, "social": 78 },\n  "luckyColor": "淡蓝色",\n  "luckyNumber": 7,\n  "luckyDirection": "${luckDirection || '东南'}",\n  "aiInsight": "100-150字的今日运势解读和建议"\n}\n\n要求：totalScore在55-92之间，各维度在45-95之间，要有差异感。insight要具体、有指导性。` },
+          ],
         });
+
+        const raw = response.choices[0]?.message?.content?.trim() || "";
+        const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+        try {
+          const fortune = JSON.parse(cleaned);
+          fortune.date = dateStr;
+          return res.json(fortune);
+        } catch {
+          return res.json(genFallback());
+        }
+      } catch (aiErr) {
+        console.error("Fortune AI error (using fallback):", (aiErr as any)?.message || aiErr);
+        return res.json(genFallback());
       }
     } catch (err) {
       console.error("Fortune today error:", err);

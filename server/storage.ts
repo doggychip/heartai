@@ -9,8 +9,13 @@ import {
   type PostLike,
   type PostComment, type InsertPostComment,
   type AgentFollow,
+  type Avatar, type InsertAvatar,
+  type AvatarMemory, type InsertAvatarMemory,
+  type AvatarAction, type InsertAvatarAction,
+  type AvatarChat, type AvatarChatMessage,
   users, conversations, messages, moodEntries, assessments, assessmentResults,
   communityPosts, postLikes, postComments, agentFollows,
+  avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
@@ -87,6 +92,29 @@ export interface IStorage {
   // Posts/comments by user
   getPostsByUser(userId: string): Promise<CommunityPost[]>;
   getCommentsByUser(userId: string): Promise<PostComment[]>;
+
+  // Avatars
+  getAvatar(id: string): Promise<Avatar | undefined>;
+  getAvatarByUser(userId: string): Promise<Avatar | undefined>;
+  createAvatar(data: InsertAvatar): Promise<Avatar>;
+  updateAvatar(id: string, data: Partial<InsertAvatar>): Promise<Avatar | undefined>;
+
+  // Avatar Memories
+  getAvatarMemories(avatarId: string): Promise<AvatarMemory[]>;
+  createAvatarMemory(data: InsertAvatarMemory): Promise<AvatarMemory>;
+  deleteAvatarMemory(id: string): Promise<void>;
+
+  // Avatar Actions
+  getAvatarActions(avatarId: string, limit?: number): Promise<AvatarAction[]>;
+  createAvatarAction(data: InsertAvatarAction): Promise<AvatarAction>;
+  approveAvatarAction(id: string, approved: boolean): Promise<void>;
+
+  // Avatar Chats
+  getAvatarChat(avatarId: string, visitorId: string): Promise<AvatarChat | undefined>;
+  createAvatarChat(avatarId: string, visitorId: string): Promise<AvatarChat>;
+  getAvatarChatMessages(chatId: string): Promise<AvatarChatMessage[]>;
+  createAvatarChatMessage(chatId: string, role: string, content: string): Promise<AvatarChatMessage>;
+  getAvatarChatsByVisitor(visitorId: string): Promise<AvatarChat[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -438,6 +466,119 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(postComments)
       .where(eq(postComments.userId, userId))
       .orderBy(desc(postComments.createdAt));
+  }
+
+  // ─── Avatars ─────────────────────────────────────────────────
+
+  async getAvatar(id: string): Promise<Avatar | undefined> {
+    const [a] = await db.select().from(avatars).where(eq(avatars.id, id)).limit(1);
+    return a;
+  }
+
+  async getAvatarByUser(userId: string): Promise<Avatar | undefined> {
+    const [a] = await db.select().from(avatars).where(eq(avatars.userId, userId)).limit(1);
+    return a;
+  }
+
+  async createAvatar(data: InsertAvatar): Promise<Avatar> {
+    const now = new Date().toISOString();
+    const [a] = await db.insert(avatars).values({
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+    return a;
+  }
+
+  async updateAvatar(id: string, data: Partial<InsertAvatar>): Promise<Avatar | undefined> {
+    const [a] = await db.update(avatars)
+      .set({ ...data, updatedAt: new Date().toISOString() })
+      .where(eq(avatars.id, id))
+      .returning();
+    return a;
+  }
+
+  // ─── Avatar Memories ────────────────────────────────────────
+
+  async getAvatarMemories(avatarId: string): Promise<AvatarMemory[]> {
+    return db.select().from(avatarMemories)
+      .where(eq(avatarMemories.avatarId, avatarId))
+      .orderBy(desc(avatarMemories.weight), desc(avatarMemories.createdAt));
+  }
+
+  async createAvatarMemory(data: InsertAvatarMemory): Promise<AvatarMemory> {
+    const [m] = await db.insert(avatarMemories).values({
+      ...data,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return m;
+  }
+
+  async deleteAvatarMemory(id: string): Promise<void> {
+    await db.delete(avatarMemories).where(eq(avatarMemories.id, id));
+  }
+
+  // ─── Avatar Actions ─────────────────────────────────────────
+
+  async getAvatarActions(avatarId: string, limit = 50): Promise<AvatarAction[]> {
+    return db.select().from(avatarActions)
+      .where(eq(avatarActions.avatarId, avatarId))
+      .orderBy(desc(avatarActions.createdAt))
+      .limit(limit);
+  }
+
+  async createAvatarAction(data: InsertAvatarAction): Promise<AvatarAction> {
+    const [a] = await db.insert(avatarActions).values({
+      ...data,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return a;
+  }
+
+  async approveAvatarAction(id: string, approved: boolean): Promise<void> {
+    await db.update(avatarActions)
+      .set({ isApproved: approved })
+      .where(eq(avatarActions.id, id));
+  }
+
+  // ─── Avatar Chats ───────────────────────────────────────────
+
+  async getAvatarChat(avatarId: string, visitorId: string): Promise<AvatarChat | undefined> {
+    const [c] = await db.select().from(avatarChats)
+      .where(and(eq(avatarChats.avatarId, avatarId), eq(avatarChats.visitorId, visitorId)))
+      .limit(1);
+    return c;
+  }
+
+  async createAvatarChat(avatarId: string, visitorId: string): Promise<AvatarChat> {
+    const [c] = await db.insert(avatarChats).values({
+      avatarId,
+      visitorId,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return c;
+  }
+
+  async getAvatarChatMessages(chatId: string): Promise<AvatarChatMessage[]> {
+    return db.select().from(avatarChatMessages)
+      .where(eq(avatarChatMessages.chatId, chatId))
+      .orderBy(asc(avatarChatMessages.createdAt));
+  }
+
+  async createAvatarChatMessage(chatId: string, role: string, content: string): Promise<AvatarChatMessage> {
+    const [m] = await db.insert(avatarChatMessages).values({
+      chatId,
+      role,
+      content,
+      createdAt: new Date().toISOString(),
+    }).returning();
+    return m;
+  }
+
+  async getAvatarChatsByVisitor(visitorId: string): Promise<AvatarChat[]> {
+    return db.select().from(avatarChats)
+      .where(eq(avatarChats.visitorId, visitorId))
+      .orderBy(desc(avatarChats.createdAt));
   }
 }
 

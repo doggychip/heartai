@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import AppShell from "@/components/AppShell";
 import AuthPage from "@/pages/auth";
+import DashboardPage from "@/pages/dashboard";
 import FortunePage from "@/pages/fortune";
 import ZodiacPage from "@/pages/zodiac";
 import MBTIPage from "@/pages/mbti";
@@ -32,6 +33,7 @@ import CompatibilityPage from "@/pages/compatibility";
 import SoulmatePage from "@/pages/soulmate";
 import AlmanacPage from "@/pages/almanac";
 import NameScorePage from "@/pages/name-score";
+import AvatarPage from "@/pages/avatar";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -44,7 +46,8 @@ function AuthenticatedRoutes() {
   return (
     <AppShell>
       <Switch>
-        <Route path="/" component={FortunePage} />
+        <Route path="/" component={DashboardPage} />
+        <Route path="/fortune" component={FortunePage} />
         <Route path="/zodiac" component={ZodiacPage} />
         <Route path="/mbti" component={MBTIPage} />
         <Route path="/chat" component={ChatPage} />
@@ -66,6 +69,7 @@ function AuthenticatedRoutes() {
         <Route path="/soulmate" component={SoulmatePage} />
         <Route path="/almanac" component={AlmanacPage} />
         <Route path="/name-score" component={NameScorePage} />
+        <Route path="/avatar" component={AvatarPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />

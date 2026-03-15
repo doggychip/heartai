@@ -227,6 +227,7 @@ export const postLikes = pgTable("post_likes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   postId: varchar("post_id").notNull(),
   userId: varchar("user_id").notNull(),
+  isFromAvatar: boolean("is_from_avatar").notNull().default(false), // AI分身自动点赞标识
   createdAt: text("created_at").notNull(),
 });
 
@@ -239,6 +240,7 @@ export const postComments = pgTable("post_comments", {
   userId: varchar("user_id").notNull(),
   content: text("content").notNull(),
   isAnonymous: boolean("is_anonymous").notNull().default(false),
+  isFromAvatar: boolean("is_from_avatar").notNull().default(false), // AI分身自动评论标识
   createdAt: text("created_at").notNull(),
 });
 
@@ -331,3 +333,104 @@ export const feishuSettingsSchema = z.object({
   feishuWebhookUrl: z.string().url("请输入有效的飞书 Webhook URL").or(z.literal("")),
 });
 export type FeishuSettings = z.infer<typeof feishuSettingsSchema>;
+
+// ─── AI 分身 (Cyber Avatar) ─────────────────────────────────
+export const avatars = pgTable("avatars", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique(), // one avatar per user
+  name: text("name").notNull(),
+  bio: text("bio"),
+
+  // 性格滑块 (0-100)
+  sliderPraise: integer("slider_praise").notNull().default(50),    // 0=锐评 100=夸夸
+  sliderSerious: integer("slider_serious").notNull().default(50),  // 0=抽象 100=正经
+  sliderWarm: integer("slider_warm").notNull().default(50),        // 0=高冷 100=显眼
+
+  // 命格底色 (auto-computed from user personality)
+  element: text("element"),           // 五行属性
+  elementTraits: text("element_traits"), // JSON: string[] 命格特质
+
+  // 分身设置
+  isActive: boolean("is_active").notNull().default(true),
+  autoLike: boolean("auto_like").notNull().default(true),
+  autoComment: boolean("auto_comment").notNull().default(true),
+  autoBrowse: boolean("auto_browse").notNull().default(true),
+  maxActionsPerHour: integer("max_actions_per_hour").notNull().default(10),
+
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const insertAvatarSchema = createInsertSchema(avatars).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAvatar = z.infer<typeof insertAvatarSchema>;
+export type Avatar = typeof avatars.$inferSelect;
+
+export const createAvatarSchema = z.object({
+  name: z.string().min(1, "请输入分身名称").max(20),
+  bio: z.string().max(200).optional(),
+  sliderPraise: z.number().min(0).max(100).default(50),
+  sliderSerious: z.number().min(0).max(100).default(50),
+  sliderWarm: z.number().min(0).max(100).default(50),
+  autoLike: z.boolean().default(true),
+  autoComment: z.boolean().default(true),
+  autoBrowse: z.boolean().default(true),
+});
+export type CreateAvatarInput = z.infer<typeof createAvatarSchema>;
+
+// ─── 分身记忆 (Avatar Memory) ───────────────────────────────
+export const avatarMemories = pgTable("avatar_memories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  avatarId: varchar("avatar_id").notNull(),
+  category: text("category").notNull(), // "interest" | "style" | "opinion" | "fact" | "preference"
+  content: text("content").notNull(),
+  source: text("source"),             // where this was learned from
+  weight: integer("weight").notNull().default(1), // importance 1-10
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertAvatarMemorySchema = createInsertSchema(avatarMemories).omit({
+  id: true, createdAt: true,
+});
+export type InsertAvatarMemory = z.infer<typeof insertAvatarMemorySchema>;
+export type AvatarMemory = typeof avatarMemories.$inferSelect;
+
+// ─── 分身行为日志 (Avatar Action Log) ───────────────────────
+export const avatarActions = pgTable("avatar_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  avatarId: varchar("avatar_id").notNull(),
+  actionType: text("action_type").notNull(), // "browse" | "like" | "comment" | "skip"
+  targetPostId: varchar("target_post_id"),
+  content: text("content"),                  // for comment actions
+  innerThought: text("inner_thought"),       // AI内心OS
+  isApproved: boolean("is_approved"),        // null=pending, true=user approved, false=rejected
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertAvatarActionSchema = createInsertSchema(avatarActions).omit({
+  id: true, createdAt: true,
+});
+export type InsertAvatarAction = z.infer<typeof insertAvatarActionSchema>;
+export type AvatarAction = typeof avatarActions.$inferSelect;
+
+// ─── 分身对话 (Avatar Chat — others chat with your avatar) ──
+export const avatarChats = pgTable("avatar_chats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  avatarId: varchar("avatar_id").notNull(),  // whose avatar
+  visitorId: varchar("visitor_id").notNull(), // who is chatting
+  createdAt: text("created_at").notNull(),
+});
+
+export const avatarChatMessages = pgTable("avatar_chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  chatId: varchar("chat_id").notNull(),
+  role: text("role").notNull(),  // "visitor" | "avatar"
+  content: text("content").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export type AvatarChat = typeof avatarChats.$inferSelect;
+export type AvatarChatMessage = typeof avatarChatMessages.$inferSelect;
