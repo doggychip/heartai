@@ -5221,6 +5221,164 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
     };
   }
 
+  // ─── 人生运势曲线 (Life Fortune K-Line) ──────────────────
+  app.get("/api/fortune/life-curve", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user?.birthDate) {
+        return res.status(400).json({ error: "需要出生日期" });
+      }
+
+      const birthDate = user.birthDate;
+      const birthHour = user.birthHour ?? 12;
+      const birthYear = parseInt(birthDate.split(/[-\/]/)[0]);
+
+      // Parse birth bazi
+      const birthLs = lunisolar(`${birthDate} ${birthHour}:00`);
+      const dayMasterStem = birthLs.char8?.day?.stem?.toString() || '';
+
+      // Stem → Element mapping
+      const STEM_ELEMENT: Record<string, string> = {
+        '甲': '木', '乙': '木', '丙': '火', '丁': '火',
+        '戊': '土', '己': '土', '庚': '金', '辛': '金',
+        '壬': '水', '癸': '水',
+      };
+      const dayElement = STEM_ELEMENT[dayMasterStem] || '木';
+
+      // Five element relationships
+      const SHENG: Record<string, string> = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
+      const KE: Record<string, string> = { '木': '土', '火': '金', '土': '水', '金': '木', '水': '火' };
+      const SHENG_ME: Record<string, string> = { '木': '水', '火': '木', '土': '火', '金': '土', '水': '金' };
+      const KE_ME: Record<string, string> = { '木': '金', '火': '水', '土': '木', '金': '火', '水': '土' };
+
+      // Calculate scores for each year from age 1 to 80
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const currentYear = parseInt(new Date().toLocaleDateString('sv-SE', { timeZone: tz }).split('-')[0]);
+      const currentAge = currentYear - birthYear;
+
+      const points: any[] = [];
+
+      // 大运 phases (10-year cycles)
+      const DAYUN_PHASES = [
+        { range: [1, 10], name: '初运', base: 0 },
+        { range: [11, 20], name: '青年运', base: 5 },
+        { range: [21, 30], name: '而立运', base: 8 },
+        { range: [31, 40], name: '壮年运', base: 10 },
+        { range: [41, 50], name: '中年运', base: 6 },
+        { range: [51, 60], name: '知命运', base: 3 },
+        { range: [61, 70], name: '花甲运', base: -2 },
+        { range: [71, 80], name: '古稀运', base: -5 },
+      ];
+
+      // Branch → Element
+      const BRANCH_ELEMENT: Record<string, string> = {
+        '子': '水', '丑': '土', '寅': '木', '卯': '木',
+        '辰': '土', '巳': '火', '午': '火', '未': '土',
+        '申': '金', '酉': '金', '戌': '土', '亥': '水',
+      };
+
+      // Score modifier based on element relationship
+      function elementModifier(yearElement: string, myElement: string): number {
+        if (yearElement === myElement) return 5;              // 比和
+        if (SHENG_ME[myElement] === yearElement) return 10;   // 生我 (印)
+        if (SHENG[myElement] === yearElement) return 3;       // 我生 (食伤)
+        if (KE[myElement] === yearElement) return -2;         // 我克 (财)
+        if (KE_ME[myElement] === yearElement) return -8;      // 克我 (官杀)
+        return 0;
+      }
+
+      // Deterministic seed-based randomizer for variation
+      function seededRand(seed: string): number {
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash = hash & hash;
+        }
+        return (Math.abs(hash) % 100) / 100; // 0-1
+      }
+
+      const PHASE_INSIGHTS: Record<string, string[]> = {
+        '初运': ['童年时期，万物萌芽。', '少年不知愁滋味，正是学习好时光。', '根基稳固，未来可期。'],
+        '青年运': ['风华正茂，意气风发。', '学业事业打基础的黄金期。', '朝气蓬勃，勇往直前。'],
+        '而立运': ['三十而立，事业起步的关键期。', '感情与事业双线发展。', '开始收获人生的第一桶金。'],
+        '壮年运': ['人生黄金期，收获与挑战并存。', '事业上升期，把握机遇很重要。', '家庭与事业需要平衡。'],
+        '中年运': ['不惑之年，人生渐入佳境。', '积累的经验开始发挥价值。', '稳中求进，注意健康。'],
+        '知命运': ['五十知天命，智慧与阅历并重。', '人生下半场的开始。', '退一步海阔天空。'],
+        '花甲运': ['花甲之年，岁月沉淀的智慧。', '享受人生果实的时期。', '与家人共享天伦之乐。'],
+        '古稀运': ['人生七十古来稀，淡然处之。', '回归内心，享受宁静。', '岁月静好，安享晚年。'],
+      };
+
+      for (let age = 1; age <= 80; age++) {
+        const year = birthYear + age;
+        const phase = DAYUN_PHASES.find(p => age >= p.range[0] && age <= p.range[1]) || DAYUN_PHASES[0];
+
+        // Get year's stem/branch element
+        let yearElement = '木';
+        let dayPillar = '';
+        try {
+          const yearLs = lunisolar(`${year}-06-15`);
+          const yearStem = yearLs.char8?.year?.stem?.toString() || '';
+          yearElement = STEM_ELEMENT[yearStem] || '木';
+          dayPillar = yearLs.char8?.day?.toString() || '';
+        } catch {}
+
+        // Base score with age curve (natural life curve)
+        const ageCurve = -0.015 * (age - 38) * (age - 38) + 70; // Parabola peaking ~38
+        const phaseBonus = phase.base;
+        const elemMod = elementModifier(yearElement, dayElement);
+
+        // Seed for deterministic variation
+        const seed = `${birthDate}:${age}:${dayMasterStem}`;
+        const r1 = seededRand(seed + ':total');
+        const variation = (r1 - 0.5) * 20; // -10 to +10
+
+        const rawTotal = Math.round(ageCurve + phaseBonus + elemMod + variation);
+        const totalScore = Math.max(15, Math.min(95, rawTotal));
+
+        // Per-dimension scores with element-based adjustments
+        const dims: Record<string, number> = {};
+        const dimKeys = ['love', 'wealth', 'career', 'study', 'social'];
+        const dimOffsets = [3, -2, 5, -3, 1]; // personality-based offsets
+        dimKeys.forEach((k, i) => {
+          const dimSeed = seededRand(seed + ':' + k);
+          const dimVar = (dimSeed - 0.5) * 24;
+          const base = totalScore + dimOffsets[i] + dimVar;
+          dims[k] = Math.max(10, Math.min(98, Math.round(base)));
+        });
+
+        // Pick insight
+        const insights = PHASE_INSIGHTS[phase.name] || PHASE_INSIGHTS['初运'];
+        const insightIdx = Math.abs(Math.round(seededRand(seed + ':insight') * 100)) % insights.length;
+
+        points.push({
+          age,
+          year,
+          totalScore,
+          ...dims,
+          dayPillar,
+          luckyElement: yearElement,
+          phase: phase.name,
+          insight: insights[insightIdx],
+        });
+      }
+
+      res.json({
+        birthYear,
+        birthDate,
+        element: dayElement,
+        dayMaster: dayMasterStem,
+        points,
+        currentAge: Math.max(1, Math.min(80, currentAge)),
+        peakAge: points.reduce((a: any, b: any) => a.totalScore > b.totalScore ? a : b).age,
+        valleyAge: points.reduce((a: any, b: any) => a.totalScore < b.totalScore ? a : b).age,
+      });
+    } catch (err) {
+      console.error('Life curve error:', err);
+      res.status(500).json({ error: '运势曲线生成失败' });
+    }
+  });
+
   app.get("/api/fortune/today", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
