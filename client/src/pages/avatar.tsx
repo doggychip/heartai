@@ -247,7 +247,13 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
       ]);
       setChatMessage("");
     },
-    onError: (e: any) => toast({ title: "对话失败", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      console.error("Avatar chat error:", e);
+      // Show inline fallback instead of blocking toast
+      setChatHistory(prev => [...prev,
+        { role: "avatar", content: "分身现在有点忙，稍后再试试吧～" },
+      ]);
+    },
   });
 
   // Approve action

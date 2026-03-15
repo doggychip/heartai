@@ -110,8 +110,16 @@ export default function AvatarPlazaPage() {
     onSuccess: (data) => {
       setMessages(prev => [...prev, { role: "avatar", content: data.reply }]);
     },
-    onError: () => {
-      toast({ title: "对话失败", description: "请稍后重试", variant: "destructive" });
+    onError: (err: any) => {
+      console.error("Avatar chat error:", err);
+      // Show a fallback reply in the chat instead of just a toast
+      const fallbackReplies = [
+        `${chatTarget?.name || '分身'}现在有点忙，等会儿再来找我聊吧～`,
+        `网络好像不太稳定，${chatTarget?.name || '分身'}稍后回复你～`,
+        `${chatTarget?.name || '分身'}打了个盹，再发一次试试？`,
+      ];
+      const fallback = fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+      setMessages(prev => [...prev, { role: "avatar", content: fallback }]);
     },
   });
 
