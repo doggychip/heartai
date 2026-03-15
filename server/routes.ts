@@ -429,6 +429,17 @@ function getUserId(req: Request): string {
   return (req as any).userId;
 }
 
+// Helper: resolve author display name — use avatar name when isFromAvatar
+async function resolveAuthorName(userId: string, isFromAvatar: boolean, isAnonymous: boolean): Promise<string> {
+  if (isAnonymous) return "匿名用户";
+  if (isFromAvatar) {
+    const avatar = await storage.getAvatarByUser(userId);
+    if (avatar?.name) return avatar.name;
+  }
+  const user = await storage.getUser(userId);
+  return user?.nickname || user?.username || "用户";
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Seed assessments
   await seedAssessments();
@@ -1333,10 +1344,11 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       // Enrich posts with author info
       const enriched = await Promise.all(
         allPosts.map(async (post) => {
+          const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
           const author = await storage.getUser(post.userId);
           return {
             ...post,
-            authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || author?.username || "用户"),
+            authorNickname: authorName,
             authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
           };
         })
@@ -3016,12 +3028,13 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   // ─── Community Routes ───────────────────────────────────────
   app.get("/api/community/posts", async (req, res) => {
     const posts = await storage.getAllPosts();
-    // Enrich with author info
+    // Enrich with author info — use avatar name for avatar-generated posts
     const enriched = await Promise.all(posts.map(async (post) => {
+      const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
       const author = await storage.getUser(post.userId);
       return {
         ...post,
-        authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+        authorNickname: authorName,
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       };
     }));
@@ -3031,10 +3044,11 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/community/posts/:id", async (req, res) => {
     const post = await storage.getPost(req.params.id);
     if (!post) return res.status(404).json({ error: "Post not found" });
+    const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
     const author = await storage.getUser(post.userId);
     res.json({
       ...post,
-      authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+      authorNickname: authorName,
       authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
     });
   });
@@ -3047,10 +3061,11 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         return res.status(400).json({ error: msg });
       }
       const post = await storage.createPost({ userId: getUserId(req), ...parsed.data });
+      const authorName = await resolveAuthorName(getUserId(req), post.isFromAvatar ?? false, post.isAnonymous ?? false);
       const author = await storage.getUser(getUserId(req));
       res.json({
         ...post,
-        authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+        authorNickname: authorName,
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       });
 
@@ -3065,10 +3080,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       );
 
       // Feishu notification for new post
-      const authorName = post.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
+      const postAuthorLabel = post.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
       notifyFollowersFeishu(
         getUserId(req),
-        `📝 [HeartAI 新帖子] ${authorName} 发布了一篇帖子\n内容: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}\n标签: ${parsed.data.tag}`
+        `📝 [HeartAI 新帖子] ${postAuthorLabel} 发布了一篇帖子\n内容: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}\n标签: ${parsed.data.tag}`
       );
     } catch (err) {
       console.error("Create post error:", err);
@@ -3114,10 +3129,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/community/posts/:id/comments", async (req, res) => {
     const comments = await storage.getCommentsByPost(req.params.id);
     const enriched = await Promise.all(comments.map(async (c) => {
-      const author = await storage.getUser(c.userId);
+      const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
       return {
         ...c,
-        authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+        authorNickname: authorName,
         isFromAvatar: c.isFromAvatar || false,
       };
     }));
@@ -3131,26 +3146,25 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       
       const comment = await storage.createComment({ ...parsed.data, userId: getUserId(req) });
       await storage.incrementPostCommentCount(req.params.id);
-      const author = await storage.getUser(getUserId(req));
+      const authorName = await resolveAuthorName(getUserId(req), comment.isFromAvatar ?? false, comment.isAnonymous ?? false);
       res.json({
         ...comment,
-        authorNickname: comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+        authorNickname: authorName,
       });
 
       // Feishu notification for new comment (notify post author)
       const targetPost = await storage.getPost(req.params.id);
       if (targetPost && targetPost.userId !== getUserId(req)) {
-        const commentAuthorName = comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
         notifyFeishu(
           targetPost.userId,
-          `💬 [HeartAI 新评论] ${commentAuthorName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
+          `💬 [HeartAI 新评论] ${authorName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
         );
         // In-app notification
         storage.createNotification({
           userId: targetPost.userId,
           type: "comment",
           title: "收到评论",
-          body: `${commentAuthorName} 评论了你的帖子: ${parsed.data.content.slice(0, 60)}`,
+          body: `${authorName} 评论了你的帖子: ${parsed.data.content.slice(0, 60)}`,
           linkTo: `/community/${req.params.id}`,
           fromUserId: getUserId(req),
         }).catch(() => {});
@@ -3363,12 +3377,13 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           // Agent can browse community posts
           const posts = await storage.getAllPosts();
           const enriched = await Promise.all(posts.slice(0, 20).map(async (post) => {
+            const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
             const author = await storage.getUser(post.userId);
             return {
               id: post.id,
               content: post.content,
               tag: post.tag,
-              authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+              authorNickname: authorName,
               isAgent: author?.isAgent || false,
               likeCount: post.likeCount,
               commentCount: post.commentCount,
@@ -3383,11 +3398,12 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           if (!postId) return res.status(400).json({ error: "缺少 postId" });
           const comments = await storage.getCommentsByPost(postId);
           const enrichedComments = await Promise.all(comments.map(async (c) => {
+            const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
             const author = await storage.getUser(c.userId);
             return {
               id: c.id,
               content: c.content,
-              authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+              authorNickname: authorName,
               isAgent: author?.isAgent || false,
               createdAt: c.createdAt,
             };
@@ -4239,10 +4255,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       for (const ap of agentPosts.slice(0, 5)) {
         const comments = await storage.getCommentsByPost(ap.id);
         for (const c of comments.slice(-3)) {
-          const author = await storage.getUser(c.userId);
+          const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
           newComments.push({
             postId: ap.id, commentId: c.id, content: c.content,
-            authorNickname: author?.nickname || "用户", createdAt: c.createdAt,
+            authorNickname: authorName, createdAt: c.createdAt,
           });
         }
       }

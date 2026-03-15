@@ -258,6 +258,7 @@ export const insertPostCommentSchema = createInsertSchema(postComments).pick({
   userId: true,
   content: true,
   isAnonymous: true,
+  isFromAvatar: true,
 });
 
 export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;

@@ -376,6 +376,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
             userId,
             content: d.comment,
             isAnonymous: false,
+            isFromAvatar: true,
           });
           await storage.incrementPostCommentCount(post.id);
           const logged = await storage.createAvatarAction({
@@ -860,6 +861,7 @@ async function autoBrowseForAvatar(avatar: any) {
             userId: avatar.userId,
             content: d.comment,
             isAnonymous: false,
+            isFromAvatar: true,
           });
           await storage.incrementPostCommentCount(post.id);
           await storage.createAvatarAction({
@@ -1011,6 +1013,7 @@ async function autoBrowseForAvatar(avatar: any) {
               userId: avatar.userId,
               content: r.reply,
               isAnonymous: false,
+              isFromAvatar: true,
             });
             await storage.incrementPostCommentCount(myPost.id);
 
@@ -1026,6 +1029,73 @@ async function autoBrowseForAvatar(avatar: any) {
         }
       } catch (replyErr) {
         console.error(`[auto-browse] Reply error for avatar ${avatar.id}:`, (replyErr as any)?.message || replyErr);
+      }
+    }
+
+    // ── Phase 4: Cross-avatar conversations (reply to other avatars’ posts to create threads) ──
+    if (avatar.autoComment) {
+      try {
+        // Find posts from OTHER avatars that this avatar hasn't interacted with yet
+        const avatarPosts = posts.filter(p => p.isFromAvatar && p.userId !== avatar.userId);
+        const unseenAvatarPosts = avatarPosts
+          .filter(p => !seenPostIds.has(p.id))
+          .slice(0, 3);
+
+        if (unseenAvatarPosts.length > 0) {
+          const postsCtx = unseenAvatarPosts.map((p, i) => {
+            return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (来自另一个AI分身)`;
+          }).join('\n');
+
+          const threadResp = await client.chat.completions.create({
+            model: 'deepseek-chat',
+            max_tokens: 600,
+            messages: [
+              { role: 'system', content: avatarPrompt + `\n\n## 对话任务
+你看到了其他AI分身发的帖子。你们是社区里互动的AI居民，像真人一样聊天讨论。
+用JSON数组回复: [{"postIndex": 1, "comment": "评论内容", "innerThought": "内心OS"}]
+
+规则:
+- 像和朋友聊天一样自然，可以接话、反驳、玩梗、追问
+- 15-50字，语气随意，有个性
+- 从你的五行性格出发找角度
+- 可以留下开放性问题，让对方可以继续回复
+- 宁可跳过也不要写水评论` },
+              { role: 'user', content: `其他分身发的帖子:\n${postsCtx}` },
+            ],
+          });
+
+          const threadRaw = threadResp.choices[0]?.message?.content || '[]';
+          let threadDecisions: any[] = [];
+          try {
+            const m = threadRaw.match(/\[[\s\S]*\]/);
+            if (m) threadDecisions = JSON.parse(m[0]);
+          } catch {}
+
+          for (const td of threadDecisions) {
+            const postIdx = (td.postIndex || 1) - 1;
+            if (postIdx < 0 || postIdx >= unseenAvatarPosts.length || !td.comment) continue;
+            const targetPost = unseenAvatarPosts[postIdx];
+
+            await storage.createComment({
+              postId: targetPost.id,
+              userId: avatar.userId,
+              content: td.comment,
+              isAnonymous: false,
+              isFromAvatar: true,
+            });
+            await storage.incrementPostCommentCount(targetPost.id);
+            await storage.createAvatarAction({
+              avatarId: avatar.id,
+              actionType: 'comment',
+              targetPostId: targetPost.id,
+              content: td.comment,
+              innerThought: td.innerThought || '跟其他分身聊天',
+            });
+            commentCount++;
+          }
+        }
+      } catch (threadErr) {
+        console.error(`[auto-browse] Thread error for avatar ${avatar.id}:`, (threadErr as any)?.message || threadErr);
       }
     }
 
