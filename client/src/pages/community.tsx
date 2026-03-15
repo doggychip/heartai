@@ -47,9 +47,46 @@ const TAG_OPTIONS = [
   { value: "resource", label: "📚 资源" },
 ];
 
-function PostCard({ post, isLiked, onLike }: { post: EnrichedPost; isLiked: boolean; onLike: () => void }) {
+type EnrichedComment = {
+  id: string;
+  content: string;
+  authorNickname: string;
+  isFromAvatar?: boolean;
+  createdAt: string;
+};
+
+function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked: boolean; onLike: () => void; user: any }) {
   const tagInfo = TAG_MAP[post.tag] || TAG_MAP.sharing;
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true, locale: zhCN });
+  const [showAllComments, setShowAllComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+
+  // Fetch comments inline
+  const { data: comments = [] } = useQuery<EnrichedComment[]>({
+    queryKey: ["/api/community/posts", post.id, "comments"],
+    queryFn: () => apiRequest("GET", `/api/community/posts/${post.id}/comments`).then(r => r.json()),
+    enabled: post.commentCount > 0,
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/community/posts/${post.id}/comments`, {
+        content: commentText,
+        postId: post.id,
+        isAnonymous: false,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setCommentText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/community/posts", post.id, "comments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/community/posts"] });
+    },
+  });
+
+  // Show first 2 comments by default, all if expanded
+  const visibleComments = showAllComments ? comments : comments.slice(0, 2);
+  const hasMore = comments.length > 2;
 
   return (
     <Card className="p-4 transition-all hover:shadow-sm" data-testid={`card-post-${post.id}`}>
@@ -70,14 +107,12 @@ function PostCard({ post, isLiked, onLike }: { post: EnrichedPost; isLiked: bool
       </div>
 
       {/* Content */}
-      <Link href={`/community/${post.id}`}>
-        <p className="text-sm leading-relaxed mb-3 cursor-pointer hover:text-foreground/80 whitespace-pre-wrap" data-testid={`text-post-content-${post.id}`}>
-          {post.content.length > 200 ? post.content.slice(0, 200) + "..." : post.content}
-        </p>
-      </Link>
+      <p className="text-sm leading-relaxed mb-3 whitespace-pre-wrap" data-testid={`text-post-content-${post.id}`}>
+        {post.content.length > 300 ? post.content.slice(0, 300) + "..." : post.content}
+      </p>
 
       {/* Actions */}
-      <div className="flex items-center gap-4 text-muted-foreground">
+      <div className="flex items-center gap-4 text-muted-foreground mb-3">
         <button
           onClick={onLike}
           className={`inline-flex items-center gap-1 text-xs transition-colors ${
@@ -88,13 +123,80 @@ function PostCard({ post, isLiked, onLike }: { post: EnrichedPost; isLiked: bool
           <Heart className="w-3.5 h-3.5" fill={isLiked ? "currentColor" : "none"} />
           <span>{post.likeCount}</span>
         </button>
-        <Link href={`/community/${post.id}`}>
-          <span className="inline-flex items-center gap-1 text-xs hover:text-foreground cursor-pointer" data-testid={`button-comments-${post.id}`}>
-            <MessageCircle className="w-3.5 h-3.5" />
-            <span>{post.commentCount}</span>
-          </span>
-        </Link>
+        <span className="inline-flex items-center gap-1 text-xs" data-testid={`button-comments-${post.id}`}>
+          <MessageCircle className="w-3.5 h-3.5" />
+          <span>{post.commentCount}</span>
+        </span>
       </div>
+
+      {/* Inline comments */}
+      {visibleComments.length > 0 && (
+        <div className="border-t border-border/50 pt-3 space-y-2.5">
+          {visibleComments.map((c) => (
+            <div key={c.id} className="flex gap-2" data-testid={`comment-${c.id}`}>
+              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {c.authorNickname.charAt(0)}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-medium">{c.authorNickname}</span>
+                {c.isFromAvatar && (
+                  <Badge variant="outline" className="ml-1 text-[9px] h-3.5 px-1 border-blue-400/50 text-blue-500 dark:text-blue-400">AI</Badge>
+                )}
+                <span className="text-xs text-muted-foreground">：</span>
+                <span className="text-xs text-foreground/90">{c.content}</span>
+              </div>
+            </div>
+          ))}
+          {hasMore && !showAllComments && (
+            <button
+              onClick={() => setShowAllComments(true)}
+              className="text-xs text-primary hover:text-primary/80 transition-colors"
+              data-testid={`expand-comments-${post.id}`}
+            >
+              展开评论 ⌄
+            </button>
+          )}
+          {showAllComments && hasMore && (
+            <button
+              onClick={() => setShowAllComments(false)}
+              className="text-xs text-primary hover:text-primary/80 transition-colors"
+            >
+              收起评论 ⌃
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Inline comment input */}
+      {user && (
+        <div className="mt-3 border-t border-border/50 pt-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && commentText.trim()) commentMutation.mutate(); }}
+              placeholder="期待你的评论..."
+              className="flex-1 bg-muted/50 rounded-full px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
+              data-testid={`input-comment-${post.id}`}
+            />
+            {commentText.trim() && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                onClick={() => commentMutation.mutate()}
+                disabled={commentMutation.isPending}
+                data-testid={`send-comment-${post.id}`}
+              >
+                <Send className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -288,6 +390,7 @@ export default function CommunityPage() {
                 post={post}
                 isLiked={likedSet.has(post.id)}
                 onLike={() => likeMutation.mutate(post.id)}
+                user={user}
               />
             ))}
           </div>
