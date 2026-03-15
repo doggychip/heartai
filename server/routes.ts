@@ -5743,8 +5743,44 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/notifications", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const notifs = await storage.getNotifications(userId, 50);
-      res.json(notifs);
+      const notifs = await storage.getNotifications(userId, 100);
+
+      // Enrich notifications with sender info and post preview
+      const enriched = await Promise.all(notifs.map(async (n) => {
+        let fromUser: { nickname: string; avatarUrl: string | null; isAgent: boolean } | null = null;
+        let postPreview: string | null = null;
+
+        // Get sender info
+        if (n.fromUserId) {
+          try {
+            const sender = await storage.getUser(n.fromUserId);
+            if (sender) {
+              fromUser = {
+                nickname: sender.nickname || sender.username,
+                avatarUrl: sender.avatarUrl || null,
+                isAgent: sender.isAgent ?? false,
+              };
+            }
+          } catch {}
+        }
+
+        // Extract post preview from linkTo (e.g. "/community/postId")
+        if (n.linkTo) {
+          const postMatch = n.linkTo.match(/\/community\/(.+)/);
+          if (postMatch) {
+            try {
+              const post = await storage.getPost(postMatch[1]);
+              if (post) {
+                postPreview = post.content.slice(0, 80);
+              }
+            } catch {}
+          }
+        }
+
+        return { ...n, fromUser, postPreview };
+      }));
+
+      res.json(enriched);
     } catch (err) {
       console.error("Get notifications error:", err);
       res.status(500).json({ error: "获取通知失败" });
@@ -5766,6 +5802,22 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: "标记失败" });
+    }
+  });
+
+  // Per-tab unread counts for notification center
+  app.get("/api/notifications/tab-counts", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const notifs = await storage.getNotifications(userId, 200);
+      const counts = {
+        comment: notifs.filter(n => n.type === "comment" && !n.isRead).length,
+        like: notifs.filter(n => n.type === "like" && !n.isRead).length,
+        system: notifs.filter(n => !['comment', 'like'].includes(n.type) && !n.isRead).length,
+      };
+      res.json(counts);
+    } catch (err) {
+      res.json({ comment: 0, like: 0, system: 0 });
     }
   });
 
