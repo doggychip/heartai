@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import qiantongSrc from "@assets/qiantong.jpg";
 import {
   Flame,
   Heart,
@@ -67,15 +68,19 @@ const CATEGORIES: { value: QianCategory; label: string; icon: typeof Flame; desc
   { value: "exam", label: "考试学业", icon: GraduationCap, desc: "金榜题名时" },
 ];
 
-const RANK_STYLES: Record<string, { color: string; glow: string; bg: string; border: string }> = {
-  "上上": { color: "text-amber-500", glow: "shadow-amber-500/30", bg: "from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-950/40 dark:via-yellow-950/30 dark:to-orange-950/30", border: "border-amber-300/60 dark:border-amber-700/50" },
-  "上中": { color: "text-emerald-500", glow: "shadow-emerald-500/30", bg: "from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30", border: "border-emerald-300/60 dark:border-emerald-700/50" },
-  "中上": { color: "text-emerald-500", glow: "shadow-emerald-500/30", bg: "from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30", border: "border-emerald-300/60 dark:border-emerald-700/50" },
-  "中中": { color: "text-sky-500", glow: "shadow-sky-500/30", bg: "from-sky-50 to-blue-50 dark:from-sky-950/30 dark:to-blue-950/30", border: "border-sky-300/60 dark:border-sky-700/50" },
-  "中平": { color: "text-slate-500", glow: "shadow-slate-500/30", bg: "from-slate-50 to-gray-50 dark:from-slate-950/30 dark:to-gray-950/30", border: "border-slate-300/60 dark:border-slate-700/50" },
-  "中下": { color: "text-orange-500", glow: "shadow-orange-500/30", bg: "from-orange-50 to-rose-50 dark:from-orange-950/30 dark:to-rose-950/30", border: "border-orange-300/60 dark:border-orange-700/50" },
-  "下下": { color: "text-rose-500", glow: "shadow-rose-500/30", bg: "from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/30", border: "border-rose-300/60 dark:border-rose-700/50" },
-};
+// ─── Number to Chinese ───────────────────────────────
+
+function numberToChinese(n: number): string {
+  const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+  if (n <= 10) return ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"][n];
+  if (n < 20) return "十" + (n % 10 === 0 ? "" : digits[n % 10]);
+  if (n < 100) {
+    const tens = Math.floor(n / 10);
+    const ones = n % 10;
+    return digits[tens] + "十" + (ones === 0 ? "" : digits[ones]);
+  }
+  return "一百";
+}
 
 // ─── Floating Incense Particles ─────────────────────
 
@@ -92,10 +97,10 @@ function IncenseParticles() {
             left: `${10 + Math.random() * 80}%`,
             bottom: `${Math.random() * 20}%`,
             background: i % 3 === 0
-              ? 'rgba(147, 197, 253, 0.3)'  // blue
+              ? 'rgba(147, 197, 253, 0.3)'
               : i % 3 === 1
-              ? 'rgba(196, 181, 253, 0.3)'  // purple
-              : 'rgba(252, 211, 77, 0.25)', // gold
+              ? 'rgba(196, 181, 253, 0.3)'
+              : 'rgba(252, 211, 77, 0.25)',
             animation: `float-up ${5 + Math.random() * 5}s ease-in-out infinite`,
             animationDelay: `${Math.random() * 6}s`,
           }}
@@ -114,7 +119,7 @@ function IncenseParticles() {
   );
 }
 
-// ─── Shaking Sticks Animation ────────────────────────
+// ─── Shaking Sticks Animation (Real Image) ───────────
 
 function ShakingSticks({ isShaking, onShakeComplete }: { isShaking: boolean; onShakeComplete: () => void }) {
   const [shakePhase, setShakePhase] = useState(0);
@@ -138,128 +143,173 @@ function ShakingSticks({ isShaking, onShakeComplete }: { isShaking: boolean; onS
   }, [isShaking, onShakeComplete]);
 
   return (
-    <div className="relative w-48 h-64 mx-auto">
+    <div className="relative w-56 h-56 mx-auto flex items-center justify-center">
       {/* Glow under the pot */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 rounded-full bg-gradient-to-r from-rose-300/20 via-purple-300/30 to-sky-300/20 dark:from-rose-500/10 dark:via-purple-500/15 dark:to-sky-500/10 blur-xl" />
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-40 h-10 rounded-full bg-gradient-to-r from-red-300/30 via-amber-300/40 to-red-300/30 dark:from-red-500/15 dark:via-amber-500/20 dark:to-red-500/15 blur-xl" />
 
-      {/* 签筒 */}
-      <div
-        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-28 h-48 rounded-t-xl rounded-b-2xl overflow-hidden ${
+      {/* Real 签筒 image */}
+      <img
+        src={qiantongSrc}
+        alt="签筒"
+        className={`relative w-44 h-44 object-contain drop-shadow-xl select-none ${
           shakePhase === 1 ? "animate-shake" : ""
         }`}
-      >
-        {/* 签筒底色 — brighter warm gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-rose-400 via-fuchsia-500 to-indigo-600 dark:from-rose-500 dark:via-fuchsia-600 dark:to-indigo-700 rounded-t-xl rounded-b-2xl" />
-        {/* Inner shine */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent rounded-t-xl rounded-b-2xl" />
-        {/* Border */}
-        <div className="absolute inset-0 rounded-t-xl rounded-b-2xl border-2 border-white/20" />
-        {/* 签筒装饰线 */}
-        <div className="absolute inset-x-3 top-2 bottom-6 border border-white/15 rounded-t-lg rounded-b-xl" />
-        {/* 文字 */}
-        <div className="absolute inset-x-5 top-4 text-center">
-          <span className="text-white/90 text-xs font-bold tracking-widest drop-shadow-sm" style={{ writingMode: "vertical-rl" }}>
-            观星灵签
-          </span>
-        </div>
-        {/* 签条们 */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-0.5">
-          {Array.from({ length: 7 }).map((_, i) => (
-            <div
-              key={i}
-              className="w-1.5 rounded-t-full"
-              style={{
-                height: `${16 + Math.random() * 8}px`,
-                background: `linear-gradient(to bottom, #fef3c7, #f59e0b)`,
-                transform: `rotate(${(i - 3) * 4}deg)`,
-                transformOrigin: "bottom center",
-              }}
-            />
-          ))}
-        </div>
-      </div>
+        draggable={false}
+      />
 
       {/* 掉出来的签 */}
       {fallingStick && (
         <div
-          className="absolute left-1/2 top-0 -translate-x-1/2 origin-bottom"
+          className="absolute left-[55%] top-2 origin-bottom"
           style={{ animation: "stick-fall 1.2s ease-out forwards" }}
         >
-          <div className="w-2 h-32 bg-gradient-to-b from-amber-100 to-amber-400 rounded-t-full rounded-b-sm shadow-lg relative">
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-red-500 shadow-sm shadow-red-400/50" />
+          <div className="w-2.5 h-28 bg-gradient-to-b from-amber-200 via-amber-400 to-amber-500 rounded-t-full rounded-b-sm shadow-lg relative">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-600 shadow-sm shadow-red-500/50" />
           </div>
         </div>
       )}
 
       <style>{`
         @keyframes animate-shake {
-          0%, 100% { transform: translateX(-50%) rotate(0deg); }
-          10% { transform: translateX(-50%) rotate(-8deg); }
-          20% { transform: translateX(-50%) rotate(8deg); }
-          30% { transform: translateX(-50%) rotate(-6deg); }
-          40% { transform: translateX(-50%) rotate(6deg); }
-          50% { transform: translateX(-50%) rotate(-4deg); }
-          60% { transform: translateX(-50%) rotate(4deg); }
-          70% { transform: translateX(-50%) rotate(-2deg); }
-          80% { transform: translateX(-50%) rotate(2deg); }
-          90% { transform: translateX(-50%) rotate(-1deg); }
+          0%, 100% { transform: rotate(0deg); }
+          10% { transform: rotate(-10deg); }
+          20% { transform: rotate(10deg); }
+          30% { transform: rotate(-8deg); }
+          40% { transform: rotate(8deg); }
+          50% { transform: rotate(-5deg); }
+          60% { transform: rotate(5deg); }
+          70% { transform: rotate(-3deg); }
+          80% { transform: rotate(3deg); }
+          90% { transform: rotate(-1deg); }
         }
         .animate-shake {
           animation: animate-shake 0.5s ease-in-out infinite;
         }
         @keyframes stick-fall {
-          0% { transform: translateX(-50%) translateY(0) rotate(0deg); opacity: 0; }
+          0% { transform: translateY(0) rotate(0deg); opacity: 0; }
           15% { opacity: 1; }
-          40% { transform: translateX(-50%) translateY(10px) rotate(15deg); }
-          70% { transform: translateX(-30%) translateY(60px) rotate(35deg); }
-          100% { transform: translateX(-10%) translateY(100px) rotate(45deg); opacity: 0.8; }
+          40% { transform: translateY(10px) rotate(18deg); }
+          70% { transform: translateY(60px) rotate(40deg); }
+          100% { transform: translateY(100px) rotate(50deg); opacity: 0.7; }
         }
       `}</style>
     </div>
   );
 }
 
-// ─── Result Card (Qian Wen) ──────────────────────────
+// ─── Traditional Paper Slip Card (车公灵签 Style) ────
 
 function QianWenCard({ result }: { result: QianResult }) {
-  const rankStyle = RANK_STYLES[result.qian.rank] || RANK_STYLES["中中"];
-  const poemLines = result.qian.poem.match(/[^，。]+[，。]/g) || [result.qian.poem];
+  // Parse poem into lines — split on ，。；, and filter empty
+  const poemLines = result.qian.poem
+    .split(/[，。；\n]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  // Split baseMeaning into interpretive items for 解曰 section
+  const meaningParts = result.qian.baseMeaning
+    .split(/[，。；、\n]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+
+  const rankNumber = numberToChinese(result.qian.number);
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border ${rankStyle.border}`}>
-      {/* Decorative background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${rankStyle.bg}`} />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(147,197,253,0.1),transparent_60%)]" />
+    <div className="mx-auto max-w-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Outer frame — traditional paper slip with red border */}
+      <div
+        className="relative border-[3px] border-red-600 dark:border-red-500 rounded-sm"
+        style={{
+          background: "linear-gradient(135deg, #fdf6e3, #f5e6c8, #fdf6e3)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.12), inset 0 0 30px rgba(218,165,32,0.08)",
+        }}
+      >
+        {/* Inner border line for traditional double-border feel */}
+        <div className="absolute inset-[6px] border border-red-500/40 dark:border-red-400/30 rounded-sm pointer-events-none" />
 
-      <div className="relative p-6 text-center">
-        {/* Rank badge */}
-        <Badge className={`mb-3 px-4 py-1 text-sm font-bold ${rankStyle.color} bg-white/80 dark:bg-gray-900/80 border ${rankStyle.border} shadow-sm`}>
-          {result.qian.rank}签
-        </Badge>
-
-        {/* Number + Title */}
-        <div className="mb-4">
-          <p className="text-xs text-muted-foreground mb-1">第 {result.qian.number} 签</p>
-          <h2 className="text-xl font-bold tracking-wide">{result.qian.title}</h2>
+        {/* ── Header: Temple Name ── */}
+        <div className="relative pt-4 pb-2 text-center border-b-2 border-red-600/60 dark:border-red-500/50 mx-3">
+          <p className="text-xs text-red-700/70 dark:text-red-400/70 tracking-[0.3em] mb-1">
+            观 星 神 殿
+          </p>
+          <h2
+            className="text-2xl font-black tracking-[0.4em] text-red-700 dark:text-red-400"
+            style={{ fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
+          >
+            观星灵签
+          </h2>
         </div>
 
-        {/* Poem in classical vertical-ish feel */}
-        <div className="py-4 px-2 mb-3">
-          <div className="grid grid-cols-2 gap-x-1 gap-y-3">
-            {poemLines.map((line, i) => (
-              <p key={i} className="text-sm text-foreground/80 font-medium leading-relaxed">
-                {line.replace(/[，。]/g, "")}
-              </p>
-            ))}
+        {/* ── Body: Poem + Number/Rank ── */}
+        <div className="relative px-4 pt-4 pb-3">
+          <div className="flex">
+            {/* Right side: Sign number + rank (vertical text) */}
+            <div
+              className="flex-shrink-0 pr-3 border-r border-red-500/30 dark:border-red-400/20 flex flex-col items-center justify-start pt-1 gap-1"
+              style={{ writingMode: "vertical-rl", fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
+            >
+              <span className="text-lg font-bold text-red-700 dark:text-red-400 tracking-[0.2em]">
+                {rankNumber}
+              </span>
+              <span className="text-lg font-bold text-red-700 dark:text-red-400 tracking-[0.2em]">
+                {result.qian.rank}签
+              </span>
+            </div>
+
+            {/* Center: Poem in vertical columns */}
+            <div className="flex-1 flex justify-center py-2 min-h-[160px]">
+              <div
+                className="flex flex-row-reverse gap-3 items-start"
+                style={{ writingMode: "vertical-rl", fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
+              >
+                {poemLines.map((line, i) => (
+                  <p
+                    key={i}
+                    className="text-base font-semibold text-red-800/90 dark:text-red-300/90 leading-[1.8] tracking-[0.15em]"
+                  >
+                    {line}
+                  </p>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Base meaning */}
-        <div className="mt-2 px-4 py-3 rounded-xl bg-white/60 dark:bg-gray-900/50 border border-border/40 backdrop-blur-sm">
-          <p className="text-xs text-muted-foreground mb-1">签解</p>
-          <p className="text-sm font-medium">{result.qian.baseMeaning}</p>
+        {/* ── 解曰 Section ── */}
+        <div className="mx-3 border-t-2 border-red-600/60 dark:border-red-500/50 pt-3 pb-4 px-1">
+          <div className="flex items-start gap-2">
+            {/* 解曰 label — vertical */}
+            <div
+              className="flex-shrink-0 pt-0.5"
+              style={{ writingMode: "vertical-rl", fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif" }}
+            >
+              <span className="text-base font-bold text-red-700 dark:text-red-400 tracking-[0.3em]">解曰</span>
+            </div>
+
+            {/* Interpretation items — flowing vertical columns */}
+            <div className="flex-1 flex flex-wrap gap-x-3 gap-y-1 justify-center">
+              {meaningParts.map((part, i) => (
+                <span
+                  key={i}
+                  className="text-sm font-semibold text-red-800/80 dark:text-red-300/80 tracking-wide"
+                  style={{
+                    writingMode: "vertical-rl",
+                    fontFamily: "'Noto Serif SC', 'STKaiti', 'KaiTi', serif",
+                    lineHeight: "1.6",
+                  }}
+                >
+                  {part}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Subtle title below the slip */}
+      <p className="text-center text-xs text-muted-foreground mt-3 tracking-wide">
+        「{result.qian.title}」
+      </p>
     </div>
   );
 }
@@ -426,7 +476,7 @@ export default function QiuqianPage() {
             </div>
           )}
 
-          {/* Qian Wen Card */}
+          {/* Traditional Paper Slip Card */}
           <QianWenCard result={result} />
 
           {/* AI Interpretation */}
@@ -453,7 +503,6 @@ export default function QiuqianPage() {
           {/* Decorative halo */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-24 rounded-full bg-gradient-to-br from-sky-200/40 via-purple-200/30 to-pink-200/40 dark:from-sky-800/20 dark:via-purple-800/15 dark:to-pink-800/20 blur-2xl" />
           <div className="relative">
-            <Flame className="w-8 h-8 text-rose-400 mx-auto mb-3 drop-shadow-sm" />
             <h1 className="text-xl font-bold mb-1 bg-gradient-to-r from-purple-700 via-pink-600 to-sky-600 dark:from-purple-300 dark:via-pink-300 dark:to-sky-300 bg-clip-text text-transparent">
               观星灵签
             </h1>
@@ -499,7 +548,7 @@ export default function QiuqianPage() {
           />
         </div>
 
-        {/* Shaking Animation Area */}
+        {/* Shaking Animation Area — Real Image */}
         <div className="py-2">
           <ShakingSticks isShaking={isShaking} onShakeComplete={handleShakeComplete} />
         </div>
