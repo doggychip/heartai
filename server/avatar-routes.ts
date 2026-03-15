@@ -4,6 +4,36 @@ import { createAvatarSchema } from "@shared/schema";
 import { storage } from "./storage";
 import OpenAI from "openai";
 
+// ── In-memory notification store for avatar owners ──────────────
+interface AvatarNotification {
+  type: string;
+  message: string;
+  fromUserId?: string;
+  fromNickname?: string;
+  createdAt: string;
+  read?: boolean;
+}
+const avatarOwnerNotifications = new Map<string, AvatarNotification[]>();
+
+export function pushAvatarOwnerNotification(ownerId: string, notif: Omit<AvatarNotification, 'createdAt'>) {
+  if (!avatarOwnerNotifications.has(ownerId)) {
+    avatarOwnerNotifications.set(ownerId, []);
+  }
+  const list = avatarOwnerNotifications.get(ownerId)!;
+  list.unshift({ ...notif, createdAt: new Date().toISOString() });
+  // Keep max 50
+  if (list.length > 50) list.length = 50;
+}
+
+export function getAvatarOwnerNotifications(ownerId: string): AvatarNotification[] {
+  return avatarOwnerNotifications.get(ownerId) || [];
+}
+
+export function markAvatarNotificationsRead(ownerId: string) {
+  const list = avatarOwnerNotifications.get(ownerId) || [];
+  for (const n of list) n.read = true;
+}
+
 // Helper: build avatar system prompt from sliders + element
 function buildAvatarPrompt(avatar: any, memories: any[], fortuneCtx?: string) {
   const sliders = {
@@ -154,26 +184,6 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
     } catch (err) {
       console.error("Avatar plaza error:", err);
       res.status(500).json({ error: "获取分身广场失败" });
-    }
-  });
-
-
-  // ─── Get any user's avatar (public) ─────────────────────────
-  app.get("/api/avatar/:userId", async (req, res) => {
-    try {
-      const avatar = await storage.getAvatarByUser(req.params.userId);
-      if (!avatar) return res.status(404).json({ error: "该用户没有分身" });
-      const user = await storage.getUser(avatar.userId);
-      res.json({
-        id: avatar.id,
-        name: avatar.name,
-        bio: avatar.bio,
-        element: avatar.element,
-        isActive: avatar.isActive,
-        ownerNickname: user?.nickname,
-      });
-    } catch (err) {
-      res.status(500).json({ error: "获取分身失败" });
     }
   });
 
@@ -425,6 +435,16 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       // Save avatar reply
       await storage.createAvatarChatMessage(chat.id, 'avatar', reply);
 
+      // Notify avatar owner that someone is chatting with their avatar
+      const visitor = await storage.getUser(visitorId);
+      const visitorName = visitor?.nickname || visitor?.username || '未知用户';
+      pushAvatarOwnerNotification(targetUserId, {
+        type: 'chat',
+        message: `${visitorName} 给你的分身「${avatar.name}」发了消息: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`,
+        fromUserId: visitorId,
+        fromNickname: visitorName,
+      });
+
       // Learn from conversation (auto-add memory if significant)
       if (history.length > 5 && history.length % 5 === 0) {
         try {
@@ -513,15 +533,21 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       const avatar = await storage.getAvatarByUser(userId);
       if (!avatar) return res.json(null);
 
-      const actions = await storage.getAvatarActions(avatar.id, 100);
+      // Get ALL actions (up to 500 for all-time stats)
+      const actions = await storage.getAvatarActions(avatar.id, 500);
       const today = new Date().toISOString().split('T')[0];
       const todayActions = actions.filter(a => a.createdAt.startsWith(today));
 
-      const likes = todayActions.filter(a => a.actionType === 'like').length;
-      const comments = todayActions.filter(a => a.actionType === 'comment').length;
-      const skips = todayActions.filter(a => a.actionType === 'skip').length;
+      // ALL-TIME stats (shown in header cards)
+      const allLikes = actions.filter(a => a.actionType === 'like').length;
+      const allComments = actions.filter(a => a.actionType === 'comment').length;
+      const allBrowsed = actions.filter(a => a.actionType === 'like' || a.actionType === 'comment' || a.actionType === 'skip').length;
 
-      // Get interesting inner thoughts
+      // Today stats (for daily detail)
+      const todayLikes = todayActions.filter(a => a.actionType === 'like').length;
+      const todayComments = todayActions.filter(a => a.actionType === 'comment').length;
+
+      // Get interesting inner thoughts (today)
       const thoughts = todayActions
         .filter(a => a.innerThought)
         .map(a => a.innerThought)
@@ -530,21 +556,35 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       const memories = await storage.getAvatarMemories(avatar.id);
 
       // 同步率计算 (Sync Rate) — inspired by Elys
-      // Based on: memory count, approved actions ratio, total interactions, personality completeness
       const totalActions = actions.length;
       const approvedActions = actions.filter(a => a.isApproved === true).length;
       const rejectedActions = actions.filter(a => a.isApproved === false).length;
       const approvalRate = totalActions > 0 ? approvedActions / Math.max(approvedActions + rejectedActions, 1) : 0;
       
-      const memoryScore = Math.min(memories.length / 50, 1) * 30;      // max 30 pts from 50 memories
-      const actionScore = Math.min(totalActions / 100, 1) * 25;        // max 25 pts from 100 actions
-      const approvalScore = approvalRate * 25;                          // max 25 pts from approval
-      const personalityScore = (avatar.element ? 10 : 0) + (avatar.bio ? 10 : 0); // max 20 pts
+      const memoryScore = Math.min(memories.length / 50, 1) * 30;
+      const actionScore = Math.min(totalActions / 100, 1) * 25;
+      const approvalScore = approvalRate * 25;
+      const personalityScore = (avatar.element ? 10 : 0) + (avatar.bio ? 10 : 0);
       const syncRate = Math.round(Math.min(memoryScore + actionScore + approvalScore + personalityScore, 100));
+
+      // Owner notifications (unread count)
+      const notifications = getAvatarOwnerNotifications(userId);
+      const unreadCount = notifications.filter(n => !n.read).length;
 
       res.json({
         date: today,
-        stats: { likes, comments, skips, totalBrowsed: todayActions.length },
+        // All-time stats shown in the 4 header boxes
+        stats: {
+          likes: allLikes,
+          comments: allComments,
+          totalBrowsed: allBrowsed,
+        },
+        // Today detail
+        todayStats: {
+          likes: todayLikes,
+          comments: todayComments,
+          totalBrowsed: todayActions.length,
+        },
         thoughts,
         memoryCount: memories.length,
         memorySlots: { used: memories.length, total: 128 },
@@ -556,9 +596,31 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           approval: Math.round(approvalScore),
           personality: Math.round(personalityScore),
         },
+        unreadNotifications: unreadCount,
       });
     } catch (err) {
       res.status(500).json({ error: "获取日报失败" });
+    }
+  });
+
+  // ─── Avatar owner notifications ──────────────────────────────
+  app.get("/api/avatar/notifications", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const notifications = getAvatarOwnerNotifications(userId);
+      res.json(notifications);
+    } catch (err) {
+      res.status(500).json({ error: "获取通知失败" });
+    }
+  });
+
+  app.post("/api/avatar/notifications/read", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      markAvatarNotificationsRead(userId);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: "操作失败" });
     }
   });
 
@@ -607,4 +669,171 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       res.status(500).json({ error: "切换失败" });
     }
   });
+
+  // ─── Get any user's avatar (public) ─────────────────────────
+  app.get("/api/avatar/:userId", async (req, res) => {
+    try {
+      const avatar = await storage.getAvatarByUser(req.params.userId);
+      if (!avatar) return res.status(404).json({ error: "该用户没有分身" });
+      const user = await storage.getUser(avatar.userId);
+      res.json({
+        id: avatar.id,
+        name: avatar.name,
+        bio: avatar.bio,
+        element: avatar.element,
+        isActive: avatar.isActive,
+        ownerNickname: user?.nickname,
+      });
+    } catch (err) {
+      res.status(500).json({ error: "获取分身失败" });
+    }
+  });
+
+  // ─── Start auto-browse interval for all active avatars ───
+  startAutoBrowseLoop();
+}
+
+// ── Auto-browse: periodically trigger browse for active avatars ──
+async function autoBrowseForAvatar(avatar: any) {
+  try {
+    const memories = await storage.getAvatarMemories(avatar.id);
+    const posts = await storage.getAllPosts();
+    
+    const recentActions = await storage.getAvatarActions(avatar.id, 200);
+    const seenPostIds = new Set(recentActions.filter(a => a.targetPostId).map(a => a.targetPostId));
+    const unseenPosts = posts
+      .filter(p => !seenPostIds.has(p.id) && p.userId !== avatar.userId)
+      .slice(0, 20);
+
+    if (unseenPosts.length === 0) return;
+
+    const candidates = unseenPosts.slice(0, Math.min(5, unseenPosts.length));
+    const avatarPrompt = buildAvatarPrompt(avatar, memories);
+
+    const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+
+    const postsContext = candidates.map((p, i) => {
+      return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})`;
+    }).join('\n');
+
+    const browseResp = await client.chat.completions.create({
+      model: 'deepseek-chat',
+      max_tokens: 1000,
+      messages: [
+        { role: 'system', content: avatarPrompt + `\n\n现在你在浏览社区帖子。对每个帖子，决定你的行为，并用JSON数组回复。
+每项格式: {"postIndex": 1, "action": "like"|"comment"|"skip", "comment": "评论内容(如果是comment)", "innerThought": "你的内心想法(20字以内)"}
+根据你的性格和命格选择感兴趣的帖子。不需要对每个帖子都互动。` },
+        { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
+      ],
+    });
+
+    const rawText = browseResp.choices[0]?.message?.content || '[]';
+    let decisions: any[] = [];
+    try {
+      const match = rawText.match(/\[[\s\S]*\]/);
+      if (match) decisions = JSON.parse(match[0]);
+    } catch { decisions = []; }
+
+    for (const d of decisions) {
+      const postIdx = (d.postIndex || d.post_index || 1) - 1;
+      if (postIdx < 0 || postIdx >= candidates.length) continue;
+      const post = candidates[postIdx];
+      const action = d.action;
+
+      if (action === 'like' && avatar.autoLike) {
+        const existing = await storage.getPostLike(post.id, avatar.userId);
+        if (!existing) {
+          await storage.createPostLike(post.id, avatar.userId);
+          await storage.incrementPostLikeCount(post.id, 1);
+        }
+        await storage.createAvatarAction({
+          avatarId: avatar.id,
+          actionType: 'like',
+          targetPostId: post.id,
+          innerThought: d.innerThought || null,
+          isApproved: true,
+        });
+      } else if (action === 'comment' && avatar.autoComment && d.comment) {
+        await storage.createComment({
+          postId: post.id,
+          userId: avatar.userId,
+          content: d.comment,
+          isAnonymous: false,
+        });
+        await storage.incrementPostCommentCount(post.id);
+        await storage.createAvatarAction({
+          avatarId: avatar.id,
+          actionType: 'comment',
+          targetPostId: post.id,
+          content: d.comment,
+          innerThought: d.innerThought || null,
+          isApproved: null,
+        });
+      } else {
+        await storage.createAvatarAction({
+          avatarId: avatar.id,
+          actionType: 'skip',
+          targetPostId: post.id,
+          innerThought: d.innerThought || null,
+        });
+      }
+    }
+
+    // Notify the owner about auto-browse activity
+    const likeCount = decisions.filter(d => d.action === 'like').length;
+    const commentCount = decisions.filter(d => d.action === 'comment').length;
+    if (likeCount > 0 || commentCount > 0) {
+      pushAvatarOwnerNotification(avatar.userId, {
+        type: 'auto_browse',
+        message: `你的分身「${avatar.name}」自动浏览了 ${candidates.length} 篇帖子，点赞 ${likeCount}，评论 ${commentCount}`,
+      });
+    }
+
+    console.log(`[auto-browse] Avatar "${avatar.name}" browsed ${candidates.length} posts, ${decisions.length} decisions`);
+  } catch (err) {
+    console.error(`[auto-browse] Error for avatar ${avatar.id}:`, (err as any)?.message || err);
+  }
+}
+
+function startAutoBrowseLoop() {
+  const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+  
+  async function runCycle() {
+    try {
+      const allAvatars = await storage.getAllActiveAvatars();
+      if (allAvatars.length === 0) return;
+      
+      console.log(`[auto-browse] Starting cycle for ${allAvatars.length} active avatar(s)`);
+      
+      for (let i = 0; i < allAvatars.length; i++) {
+        const av = allAvatars[i];
+        // Check rate limit: max 10 actions per hour per avatar
+        const recentActions = await storage.getAvatarActions(av.id, 10);
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        const recentCount = recentActions.filter(a => a.createdAt > oneHourAgo).length;
+        
+        if (recentCount >= (av.maxActionsPerHour || 10)) {
+          console.log(`[auto-browse] Skipping "${av.name}" — rate limit (${recentCount} actions/hr)`);
+          continue;
+        }
+        
+        await autoBrowseForAvatar(av);
+        
+        // Stagger between avatars
+        if (i < allAvatars.length - 1) {
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+    } catch (err) {
+      console.error('[auto-browse] Cycle error:', err);
+    }
+  }
+
+  // Initial run after 2 minutes (let server warm up)
+  setTimeout(() => {
+    runCycle();
+    setInterval(runCycle, INTERVAL_MS);
+  }, 2 * 60 * 1000);
+  
+  console.log('[auto-browse] Auto-browse loop registered (every 30 min)');
 }

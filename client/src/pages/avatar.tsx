@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Zap, Brain, MessageCircle, ThumbsUp, Eye, SkipForward, Send,
   RefreshCw, Power, PowerOff, Plus, Trash2, Sparkles, Activity,
-  Database, ShieldCheck, User,
+  Database, ShieldCheck, User, Bell,
 } from "lucide-react";
 
 const ELEMENT_EMOJI: Record<string, string> = { '金': '✨', '木': '🌿', '水': '💧', '火': '🔥', '土': '⛰️' };
@@ -170,16 +170,30 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<{role: string; content: string}[]>([]);
 
-  // Daily summary
+  // Daily summary (includes all-time stats)
   const { data: summary } = useQuery({
     queryKey: ["/api/avatar/daily-summary"],
     queryFn: () => apiRequest("GET", "/api/avatar/daily-summary").then(r => r.json()),
+    refetchInterval: 60000, // Refresh every minute to catch auto-browse updates
   });
 
   // Actions
   const { data: actions } = useQuery({
     queryKey: ["/api/avatar/actions"],
     queryFn: () => apiRequest("GET", "/api/avatar/actions").then(r => r.json()),
+    refetchInterval: 60000,
+  });
+
+  // Notifications
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["/api/avatar/notifications"],
+    queryFn: () => apiRequest("GET", "/api/avatar/notifications").then(r => r.json()),
+    refetchInterval: 30000, // Check notifications every 30 seconds
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/avatar/notifications/read"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/avatar/notifications"] }),
   });
 
   // Browse trigger
@@ -291,6 +305,17 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
               <Badge variant={avatar.isActive ? "default" : "secondary"}>
                 {avatar.isActive ? "运行中" : "已暂停"}
               </Badge>
+              {/* Notification bell */}
+              <div className="relative">
+                <Button variant="ghost" size="icon" onClick={() => markReadMutation.mutate()} data-testid="notification-bell">
+                  <Bell className="w-4 h-4" />
+                </Button>
+                {(summary?.unreadNotifications || 0) > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {summary.unreadNotifications}
+                  </span>
+                )}
+              </div>
               <Button variant="ghost" size="icon" onClick={() => toggleMutation.mutate()} data-testid="toggle-avatar-btn">
                 {avatar.isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
               </Button>
@@ -346,10 +371,38 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
 
         {/* Activity feed */}
         <TabsContent value="activity" className="space-y-3">
-          <Button className="w-full" variant="outline" onClick={() => browseMutation.mutate()} disabled={browseMutation.isPending || !avatar.isActive} data-testid="browse-btn">
-            <RefreshCw className={`w-4 h-4 mr-2 ${browseMutation.isPending ? 'animate-spin' : ''}`} />
-            {browseMutation.isPending ? "浏览中..." : "让分身浏览社区"}
-          </Button>
+          <div className="flex gap-2">
+            <Button className="flex-1" variant="outline" onClick={() => browseMutation.mutate()} disabled={browseMutation.isPending || !avatar.isActive} data-testid="browse-btn">
+              <RefreshCw className={`w-4 h-4 mr-2 ${browseMutation.isPending ? 'animate-spin' : ''}`} />
+              {browseMutation.isPending ? "浏览中..." : "让分身浏览社区"}
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground text-center">分身每 30 分钟自动浏览一次，也可以手动触发</p>
+
+          {/* Notifications */}
+          {notifications.length > 0 && (
+            <Card className="border-orange-500/20 bg-orange-500/5">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="text-xs font-medium">分身通知</span>
+                  {notifications.filter((n: any) => !n.read).length > 0 && (
+                    <Badge variant="destructive" className="text-[9px] h-4">
+                      {notifications.filter((n: any) => !n.read).length} 新
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                  {notifications.slice(0, 5).map((n: any, i: number) => (
+                    <p key={i} className={`text-[11px] ${n.read ? 'text-muted-foreground' : 'text-foreground font-medium'}`}>
+                      {n.type === 'chat' ? '💬' : n.type === 'auto_browse' ? '🤖' : '🔔'} {n.message}
+                      <span className="text-muted-foreground ml-1">{new Date(n.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </p>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Inner thoughts */}
           {summary?.thoughts?.length > 0 && (
