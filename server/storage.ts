@@ -37,6 +37,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   createAgentUser(username: string, nickname: string, description?: string): Promise<User>;
   updateUser(userId: string, data: Partial<User>): Promise<User | undefined>;
+  updateUserPassword(userId: string, newPassword: string): Promise<void>;
   updateUserAgentApiKey(userId: string, apiKey: string): Promise<User | undefined>;
   updateAgentPersonality(userId: string, personality: string): Promise<User | undefined>;
   getAllAgents(): Promise<User[]>;
@@ -202,6 +203,10 @@ export class DatabaseStorage implements IStorage {
     if (Object.keys(updates).length === 0) return this.getUser(userId);
     const [user] = await db.update(users).set(updates).where(eq(users.id, userId)).returning();
     return user;
+  }
+
+  async updateUserPassword(userId: string, newPassword: string): Promise<void> {
+    await db.update(users).set({ password: newPassword }).where(eq(users.id, userId));
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {

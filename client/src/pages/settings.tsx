@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle, Star, Calendar } from "lucide-react";
+import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle, Star, Calendar, Lock } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 
@@ -55,6 +55,14 @@ export default function SettingsPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [, navigate] = useLocation();
 
+  // Password change
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [pwdSaving, setPwdSaving] = useState(false);
+
   // Profile fields
   const [profileBirthDate, setProfileBirthDate] = useState("");
   const [profileBirthHour, setProfileBirthHour] = useState<string>("");
@@ -87,6 +95,40 @@ export default function SettingsPage() {
       toast({ title: "保存失败", variant: "destructive" });
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPwd || !newPwd) {
+      toast({ title: "请填写当前密码和新密码", variant: "destructive" });
+      return;
+    }
+    if (newPwd.length < 6) {
+      toast({ title: "新密码至少6位", variant: "destructive" });
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      toast({ title: "两次输入的新密码不一致", variant: "destructive" });
+      return;
+    }
+    setPwdSaving(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/change-password", {
+        currentPassword: currentPwd,
+        newPassword: newPwd,
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "修改失败");
+      }
+      toast({ title: "密码已修改", description: "下次登录请使用新密码" });
+      setCurrentPwd("");
+      setNewPwd("");
+      setConfirmPwd("");
+    } catch (err: any) {
+      toast({ title: err.message || "修改密码失败", variant: "destructive" });
+    } finally {
+      setPwdSaving(false);
     }
   };
 
@@ -332,6 +374,84 @@ export default function SettingsPage() {
                 <Save className="w-3.5 h-3.5 mr-1.5" />
               )}
               保存
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* ─── 修改密码 ─── */}
+        <Card data-testid="card-change-password">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-primary" />
+              <CardTitle className="text-base">修改密码</CardTitle>
+            </div>
+            <CardDescription>定期修改密码可以提高账号安全性</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">当前密码</Label>
+              <div className="relative">
+                <Input
+                  type={showCurrentPwd ? "text" : "password"}
+                  placeholder="输入当前密码"
+                  value={currentPwd}
+                  onChange={(e) => setCurrentPwd(e.target.value)}
+                  className="pr-10"
+                  data-testid="input-current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  data-testid="button-toggle-current-pwd"
+                >
+                  {showCurrentPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">新密码</Label>
+              <div className="relative">
+                <Input
+                  type={showNewPwd ? "text" : "password"}
+                  placeholder="至少6位"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  className="pr-10"
+                  data-testid="input-new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPwd(!showNewPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  data-testid="button-toggle-new-pwd"
+                >
+                  {showNewPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">确认新密码</Label>
+              <Input
+                type="password"
+                placeholder="再次输入新密码"
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+                data-testid="input-confirm-password"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={handleChangePassword}
+              disabled={pwdSaving || !currentPwd || !newPwd || !confirmPwd}
+              data-testid="button-change-password"
+            >
+              {pwdSaving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              修改密码
             </Button>
           </CardContent>
         </Card>

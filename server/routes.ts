@@ -708,6 +708,30 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
     res.json({ ok: true });
   });
 
+  // Change password
+  app.post("/api/auth/change-password", requireAuth, async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "请填写当前密码和新密码" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "新密码至少6位" });
+      }
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: "用户不存在" });
+      if (user.password !== currentPassword) {
+        return res.status(401).json({ error: "当前密码错误" });
+      }
+      await storage.updateUserPassword(userId, newPassword);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Change password error:", err);
+      res.status(500).json({ error: "修改密码失败" });
+    }
+  });
+
   // ─── User Profile Update (persistent birth info, MBTI, zodiac) ───
   app.patch("/api/profile", requireAuth, async (req, res) => {
     try {
