@@ -4303,7 +4303,8 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         try {
           const theGods = lsr.theGods;
           if (theGods) {
-            lunarInfo.yi = theGods.getDuty12God?.()?.toString() || '';
+            const acts = theGods.getActs();
+            lunarInfo.yi = (acts?.good || []).slice(0, 6).join('、') || '';
           }
         } catch {}
       } catch {}
