@@ -394,23 +394,33 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       const memories = await storage.getAvatarMemories(avatar.id);
       const avatarPrompt = buildAvatarPrompt(avatar, memories);
 
-      const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
-
       const chatMsgs = history.slice(-20).map(m => ({
         role: m.role === 'visitor' ? 'user' as const : 'assistant' as const,
         content: m.content,
       }));
 
-      const resp = await client.chat.completions.create({
-        model: 'deepseek-chat',
-        max_tokens: 500,
-        messages: [
-          { role: 'system', content: avatarPrompt + '\n\n有人在和你私聊。用你的性格风格回复，自然、简短。' },
-          ...chatMsgs,
-        ],
-      });
-
-      const reply = resp.choices[0]?.message?.content?.trim() || '暂时无法回复';
+      let reply = '';
+      try {
+        const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+        const resp = await client.chat.completions.create({
+          model: 'deepseek-chat',
+          max_tokens: 500,
+          messages: [
+            { role: 'system', content: avatarPrompt + '\n\n有人在和你私聊。用你的性格风格回复，自然、简短。' },
+            ...chatMsgs,
+          ],
+        });
+        reply = resp.choices[0]?.message?.content?.trim() || '暂时无法回复';
+      } catch (llmErr) {
+        console.error('Avatar chat LLM error (using fallback):', (llmErr as any)?.message || llmErr);
+        // Provide a personality-aware fallback
+        const greetings = [
+          `你好呀～我是${avatar.name}，很高兴认识你！不过我现在有点走神，等会儿再聊好吗？😊`,
+          `嗨！我是${avatar.name}。刚刚在想事情，没太反应过来，你可以再说一次吗？`,
+          `哈喽～${avatar.name}在这里！我现在脑子有点转不过来，但我记住你啦～下次一定好好聊！`,
+        ];
+        reply = greetings[Math.floor(Math.random() * greetings.length)];
+      }
 
       // Save avatar reply
       await storage.createAvatarChatMessage(chat.id, 'avatar', reply);
@@ -418,6 +428,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       // Learn from conversation (auto-add memory if significant)
       if (history.length > 5 && history.length % 5 === 0) {
         try {
+          const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
           const learnResp = await client.chat.completions.create({
             model: 'deepseek-chat',
             max_tokens: 200,
