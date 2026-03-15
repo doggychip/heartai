@@ -18,6 +18,7 @@ import {
   Mountain,
   Wind,
   Calendar,
+  CalendarCheck,
   Sparkles,
   Heart,
   ChevronRight,
@@ -41,6 +42,7 @@ import {
   Send,
   Globe,
   Type,
+  CloudMoon,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -196,7 +198,7 @@ const SEASON_MAP: Record<string, { name: string; icon: any; color: string }> = {
 const HOUR_NAMES = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"];
 const HOUR_TIMES = ["23-1", "1-3", "3-5", "5-7", "7-9", "9-11", "11-13", "13-15", "15-17", "17-19", "19-21", "21-23"];
 
-type CultureView = "home" | "almanac" | "bazi" | "solar" | "fortune" | "compatibility" | "divination";
+type CultureView = "home" | "almanac" | "bazi" | "solar" | "fortune" | "compatibility" | "divination" | "name-score" | "qiuqian" | "zeji" | "dream";
 
 // ─── Score Ring Component ──────────────────────────────
 
@@ -292,6 +294,8 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
           { view: "solar" as CultureView, icon: Leaf, label: "节气养生", desc: "食物·运动", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" },
           { view: "name-score" as CultureView, icon: Type, label: "姓名测分", desc: "五格三才", color: "text-rose-500", bg: "bg-rose-500/10", linkTo: "/name-score" },
           { view: "qiuqian" as CultureView, icon: Flame, label: "求签解签", desc: "AI智慧解签", color: "text-amber-500", bg: "bg-amber-500/10", linkTo: "/qiuqian" },
+          { view: "zeji" as CultureView, icon: CalendarCheck, label: "择吉日", desc: "搬家·结婚·开业", color: "text-red-500", bg: "bg-red-500/10", linkTo: "/zeji" },
+          { view: "dream" as CultureView, icon: CloudMoon, label: "解梦", desc: "AI周公解梦", color: "text-violet-500", bg: "bg-violet-500/10", linkTo: "/dream" },
         ].map((item) => {
           const cardContent = (
             <Card

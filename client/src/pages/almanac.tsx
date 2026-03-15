@@ -82,6 +82,7 @@ function formatDate(d: Date): string {
 
 export default function AlmanacPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [expandedHour, setExpandedHour] = useState<number | null>(null);
   const dateStr = formatDate(selectedDate);
 
   const { data: almanac, isLoading: almanacLoading } = useQuery<AlmanacData>({
@@ -329,14 +330,19 @@ export default function AlmanacPage() {
           <Card className="p-4 space-y-3 border-amber-200/60 dark:border-amber-900/40">
             <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
               <Clock className="w-4 h-4 text-amber-600" /> 时辰吉凶
+              <span className="text-[10px] font-normal text-gray-400 ml-auto">点击查看详情</span>
             </h3>
             <div className="grid grid-cols-4 gap-2">
               {almanac.hourDetails.map((h, i) => (
-                <div key={i} className={`text-center p-2 rounded-lg border transition ${
-                  h.luck > 0
-                    ? 'bg-emerald-50/80 border-emerald-200/60 dark:bg-emerald-900/20 dark:border-emerald-800/40'
-                    : 'bg-red-50/80 border-red-200/60 dark:bg-red-900/20 dark:border-red-800/40'
-                }`}>
+                <div
+                  key={i}
+                  className={`text-center p-2 rounded-lg border transition cursor-pointer hover:shadow-sm ${
+                    h.luck > 0
+                      ? 'bg-emerald-50/80 border-emerald-200/60 dark:bg-emerald-900/20 dark:border-emerald-800/40'
+                      : 'bg-red-50/80 border-red-200/60 dark:bg-red-900/20 dark:border-red-800/40'
+                  } ${expandedHour === i ? 'ring-2 ring-amber-400' : ''}`}
+                  onClick={() => setExpandedHour(expandedHour === i ? null : i)}
+                >
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
                     {h.name.split('(')[0]}
                   </div>
@@ -347,6 +353,36 @@ export default function AlmanacPage() {
                 </div>
               ))}
             </div>
+            {/* Expanded hour detail */}
+            {expandedHour !== null && almanac.hourDetails[expandedHour] && (
+              <div className="mt-2 p-3 bg-amber-50/50 dark:bg-amber-900/10 rounded-lg border border-amber-200/40 dark:border-amber-800/30 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                    {almanac.hourDetails[expandedHour].name}
+                  </span>
+                  <Badge className={almanac.hourDetails[expandedHour].luck > 0
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 hover:bg-emerald-100'
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-100'
+                  }>
+                    {almanac.hourDetails[expandedHour].luck > 0 ? '吉时' : '凶时'}
+                  </Badge>
+                </div>
+                {almanac.hourDetails[expandedHour].gods.length > 0 ? (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">当值神煞</p>
+                    <div className="flex flex-wrap gap-1">
+                      {almanac.hourDetails[expandedHour].gods.map((g, gi) => (
+                        <span key={gi} className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 rounded-full border border-gray-200/60 dark:border-gray-700/60 text-gray-600 dark:text-gray-300">
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">暂无详细神煞数据</p>
+                )}
+              </div>
+            )}
           </Card>
         )}
 

@@ -41,6 +41,7 @@ import {
   Podcast,
   UserCircle,
   Flame,
+  CalendarCheck,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -86,6 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/bazi", label: "八字命理", icon: Calendar, guestVisible: true },
       { path: "/tarot", label: "塔罗占卜", icon: Layers, guestVisible: true },
       { path: "/qiuqian", label: "求签解签", icon: Flame, guestVisible: true },
+      { path: "/zeji", label: "择吉日", icon: CalendarCheck, guestVisible: true },
       { path: "/fengshui", label: "风水评估", icon: HomeIcon, guestVisible: false },
       { path: "/compatibility", label: "缘分雷达", icon: Radar, guestVisible: false },
       { path: "/soulmate", label: "灵魂伴侣", icon: Heart, guestVisible: false },
@@ -105,7 +107,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "自我探索",
     defaultOpen: false,
     items: [
-      { path: "/dream", label: "梦境解析", icon: Moon, guestVisible: false },
+      { path: "/dream", label: "梦境解析", icon: Moon, guestVisible: true },
       { path: "/emotion-insights", label: "情感频道", icon: Brain, guestVisible: false },
       { path: "/assessments", label: "心理测评", icon: ClipboardList, guestVisible: false },
       { path: "/journal", label: "情绪日记", icon: BookHeart, guestVisible: false },

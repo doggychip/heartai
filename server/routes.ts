@@ -2556,6 +2556,152 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   });
 
 
+  // ─── 择吉日 (Auspicious Date Finder) ────────────────────────────────
+  app.get("/api/culture/zeji", async (req, res) => {
+    try {
+      const { event, startDate, endDate } = req.query;
+      if (!event || !startDate) {
+        return res.status(400).json({ error: '请提供事件类型和起始日期' });
+      }
+
+      // Event type → required good acts + forbidden bad acts
+      // Note: lunisolar theGods returns traditional act names like 結婚姻, 移徙, 修宮室 etc.
+      // We use partial matching (includes) to handle variants
+      const EVENT_RULES: Record<string, { need: string[]; avoid: string[] }> = {
+        '搬家': { need: ['移徙', '入宅', '般移'], avoid: ['諸事不宜', '诸事不宜'] },
+        '结婚': { need: ['嫁娶', '結婚', '婚'], avoid: ['諸事不宜', '诸事不宜'] },
+        '开业': { need: ['开市', '立券', '交易'], avoid: ['諸事不宜', '诸事不宜'] },
+        '装修': { need: ['修宮', '修造', '置产', '置室'], avoid: ['諸事不宜', '诸事不宜'] },
+        '出行': { need: ['出行', '行幸', '遣使'], avoid: ['諸事不宜', '诸事不宜'] },
+        '祈福': { need: ['祈福'], avoid: ['諸事不宜', '诸事不宜'] },
+        '安葬': { need: ['安葬', '启攒'], avoid: ['諸事不宜', '诸事不宜'] },
+        '签约': { need: ['立券', '交易', '订盟'], avoid: ['諸事不宜', '诸事不宜'] },
+        '就职': { need: ['就职', '赴任', '封拜', '施恩封拜'], avoid: ['諸事不宜', '诸事不宜'] },
+        '求医': { need: ['求医', '疗病', '疗目'], avoid: ['諸事不宜', '诸事不宜'] },
+        '纳采': { need: ['纳采', '问名'], avoid: ['諸事不宜', '诸事不宜'] },
+        '入学': { need: ['入学', '拜师'], avoid: ['諸事不宜', '诸事不宜'] },
+        '动土': { need: ['动土', '破土'], avoid: ['諸事不宜', '诸事不宜'] },
+        '安床': { need: ['安床', '安碁'], avoid: ['諸事不宜', '诸事不宜'] },
+        '理发': { need: ['理发', '沐浴', '整手足甲', '剪发'], avoid: ['諸事不宜', '诸事不宜'] },
+      };
+
+      const eventStr = String(event);
+      const rule = EVENT_RULES[eventStr];
+      if (!rule) {
+        return res.status(400).json({
+          error: '不支持的事件类型',
+          supported: Object.keys(EVENT_RULES),
+        });
+      }
+
+      const start = new Date(String(startDate));
+      const end = endDate ? new Date(String(endDate)) : new Date(start.getTime() + 30 * 86400000);
+      const maxDays = 60;
+      const daySpan = Math.min(Math.ceil((end.getTime() - start.getTime()) / 86400000), maxDays);
+
+      const results: any[] = [];
+
+      for (let i = 0; i <= daySpan; i++) {
+        const cur = new Date(start.getTime() + i * 86400000);
+        const ds = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`;
+
+        try {
+          const d = lunisolar(ds);
+          let goodActs: string[] = [];
+          let badActs: string[] = [];
+          let duty12 = '';
+          let chong = '';
+          let sha = '';
+          let lunarDate = '';
+          let zodiac = '';
+          let luckDirections: Record<string, string> = {};
+
+          try {
+            const lunar = d.lunar;
+            lunarDate = `${lunar.getMonthName()}${lunar.getDayName()}`;
+            zodiac = d.char8?.year?.branch?.toString() || '';
+          } catch {}
+
+          try {
+            const rawActs = d.theGods.getActs();
+            goodActs = (rawActs.good || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
+            badActs = (rawActs.bad || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
+            duty12 = d.theGods.getDuty12God()?.toString() || '';
+          } catch {}
+
+          try {
+            const dayBranch = d.char8?.day?.branch;
+            const dayChongIdx = dayBranch ? (dayBranch.value + 6) % 12 : -1;
+            const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+            const ANIMALS = ['鼠','牛','虎','兔','龙','蛇','马','羊','猴','鸡','狗','猪'];
+            if (dayChongIdx >= 0) {
+              chong = `冲${ANIMALS[dayChongIdx]}(${BRANCHES[dayChongIdx]})`;
+            }
+          } catch {}
+
+          try {
+            const shaMap: Record<number, string> = { 0: '北', 3: '东', 6: '南', 9: '西' };
+            const dayBranchVal = d.char8?.day?.branch?.value;
+            if (dayBranchVal !== undefined) {
+              sha = '煞' + (shaMap[(dayBranchVal + 6) % 12 % 4 * 3] || '');
+            }
+          } catch {}
+
+          try {
+            const gods = ['喜神', '财神', '福神'];
+            for (const god of gods) {
+              try {
+                const [d24] = d.theGods.getLuckDirection(god);
+                luckDirections[god] = d24?.direction || '';
+              } catch {}
+            }
+          } catch {}
+
+          // Check if this day matches the event
+          // Find which good acts matched
+          const matchedGoodActs = goodActs.filter(a => rule.need.some(n => a.includes(n)));
+          const hasAvoid = rule.avoid.some(a => badActs.some(b => b.includes(a)));
+          // Check if any of our MATCHED good acts also appear in bad
+          // (e.g. if "结婚姻" is in good but also in bad, exclude)
+          const matchedAlsoBad = matchedGoodActs.some(ga => badActs.some(b => b === ga));
+
+          if (matchedGoodActs.length > 0 && !hasAvoid && !matchedAlsoBad) {
+            // Score: prefer days with fewer bad acts and more good acts
+            const score = goodActs.length * 2 - badActs.length;
+            results.push({
+              date: ds,
+              weekday: ['日','一','二','三','四','五','六'][cur.getDay()],
+              lunarDate,
+              zodiac,
+              goodActs,
+              badActs,
+              duty12,
+              chong,
+              sha,
+              luckDirections,
+              score,
+            });
+          }
+        } catch (e) {
+          // skip this day
+        }
+      }
+
+      results.sort((a, b) => b.score - a.score);
+
+      res.json({
+        event: eventStr,
+        range: { start: String(startDate), end: end.toISOString().split('T')[0] },
+        count: results.length,
+        results: results.slice(0, 20),
+      });
+    } catch (err) {
+      console.error('ZeJi error:', err);
+      res.status(500).json({ error: '择吉日查询失败' });
+    }
+  });
+
+
   // ─── Mood Journal Routes (auth required) ──────────────────────────
   app.get("/api/mood", requireAuth, async (req, res) => {
     const entries = await storage.getMoodEntriesByUser(getUserId(req));
@@ -5276,7 +5422,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
   // ─── Dream Interpretation API ─────────────────────────────────
 
-  app.post("/api/dream/interpret", requireAuth, async (req, res) => {
+  app.post("/api/dream/interpret", async (req, res) => {
     try {
       const userId = getUserId(req);
       const { dream } = req.body;
