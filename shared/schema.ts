@@ -215,6 +215,7 @@ export const communityPosts = pgTable("community_posts", {
   content: text("content").notNull(),
   tag: text("tag").notNull(), // "sharing" | "question" | "encouragement" | "resource"
   isAnonymous: boolean("is_anonymous").notNull().default(false),
+  isFromAvatar: boolean("is_from_avatar").notNull().default(false), // AI分身自动发帖标识
   likeCount: integer("like_count").notNull().default(0),
   commentCount: integer("comment_count").notNull().default(0),
   createdAt: text("created_at").notNull(),

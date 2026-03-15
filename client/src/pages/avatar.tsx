@@ -89,75 +89,53 @@ function MemorySlotBar({ used, total }: { used: number; total: number }) {
 }
 
 function AvatarSetup({ onCreated }: { onCreated: () => void }) {
-  const [name, setName] = useState("");
-  const [bio, setBio] = useState("");
-  const [sliderPraise, setSliderPraise] = useState(50);
-  const [sliderSerious, setSliderSerious] = useState(50);
-  const [sliderWarm, setSliderWarm] = useState(50);
   const { toast } = useToast();
 
+  // Auto-trigger avatar creation on mount
   const createMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("POST", "/api/avatar", { name, bio, sliderPraise, sliderSerious, sliderWarm });
+      return apiRequest("POST", "/api/avatar", {
+        name: "我的分身",
+        bio: "",
+        sliderPraise: 50,
+        sliderSerious: 50,
+        sliderWarm: 50,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/avatar"] });
-      toast({ title: "分身创建成功", description: "你的AI分身已激活" });
+      toast({ title: "分身已激活", description: "你的AI分身已自动生成，可在此页微调" });
       onCreated();
     },
     onError: () => toast({ title: "创建失败", variant: "destructive" }),
   });
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <Zap className="w-12 h-12 mx-auto text-primary" />
-        <h2 className="text-xl font-bold">创建你的 AI 分身</h2>
-        <p className="text-muted-foreground text-sm">
-          你的分身会学习你的风格，自动在社区浏览、点赞、评论。
-          五行命格作为性格底色，你可以用滑块微调。
+    <div className="max-w-lg mx-auto space-y-6 pt-12">
+      <div className="text-center space-y-3">
+        <Zap className="w-14 h-14 mx-auto text-primary animate-pulse" />
+        <h2 className="text-xl font-bold">你的 AI 分身</h2>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          AI 分身会基于你的五行命格自动生成，<br/>
+          它会代你在社区发帖、评论、互动。
         </p>
       </div>
 
-      <Card>
-        <CardContent className="pt-6 space-y-5">
-          <div>
-            <label className="text-sm font-medium mb-1 block">分身名称</label>
-            <Input placeholder="给你的分身起个名字" value={name} onChange={e => setName(e.target.value)} maxLength={20} data-testid="avatar-name-input" />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1 block">简介</label>
-            <Textarea placeholder="简单介绍你自己，分身会学习这些信息" value={bio} onChange={e => setBio(e.target.value)} maxLength={200} rows={3} data-testid="avatar-bio-input" />
-          </div>
-
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-medium flex items-center gap-2"><Sparkles className="w-4 h-4" /> 性格调节</h3>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>🔥 锐评</span><span>💖 夸夸</span>
-              </div>
-              <Slider value={[sliderPraise]} onValueChange={v => setSliderPraise(v[0])} min={0} max={100} step={1} data-testid="slider-praise" />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>🎭 抽象</span><span>📐 正经</span>
-              </div>
-              <Slider value={[sliderSerious]} onValueChange={v => setSliderSerious(v[0])} min={0} max={100} step={1} data-testid="slider-serious" />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>🧊 高冷</span><span>🌟 显眼</span>
-              </div>
-              <Slider value={[sliderWarm]} onValueChange={v => setSliderWarm(v[0])} min={0} max={100} step={1} data-testid="slider-warm" />
-            </div>
-          </div>
-
-          <Button className="w-full" onClick={() => createMutation.mutate()} disabled={!name.trim() || createMutation.isPending} data-testid="create-avatar-btn">
-            {createMutation.isPending ? "创建中..." : "激活分身 ⚡"}
+      <Card className="bg-gradient-to-br from-primary/5 to-transparent">
+        <CardContent className="py-8 text-center">
+          <Button
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+            className="px-8"
+            data-testid="create-avatar-btn"
+          >
+            {createMutation.isPending ? (
+              <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> 生成中...</>
+            ) : (
+              <>激活 AI 分身 ⚡</>
+            )}
           </Button>
+          <p className="text-[11px] text-muted-foreground mt-3">激活后可在此页微调性格滑块</p>
         </CardContent>
       </Card>
     </div>

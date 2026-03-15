@@ -790,22 +790,27 @@ async function autoBrowseForAvatar(avatar: any) {
       .filter(p => !seenPostIds.has(p.id) && p.userId !== avatar.userId)
       .slice(0, 20);
 
-    if (unseenPosts.length === 0) return;
-
-    const candidates = unseenPosts.slice(0, Math.min(5, unseenPosts.length));
     const avatarPrompt = buildAvatarPrompt(avatar, memories);
-
     const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
 
-    const postsContext = candidates.map((p, i) => {
-      return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})`;
-    }).join('\n');
+    let browsedCount = 0;
+    let likeCount = 0;
+    let commentCount = 0;
+    let postedCount = 0;
 
-    const browseResp = await client.chat.completions.create({
-      model: 'deepseek-chat',
-      max_tokens: 1000,
-      messages: [
-        { role: 'system', content: avatarPrompt + `\n\n## 浏览任务
+    // ── Phase 1: Browse & interact with existing posts ──
+    if (unseenPosts.length > 0) {
+      const candidates = unseenPosts.slice(0, Math.min(5, unseenPosts.length));
+
+      const postsContext = candidates.map((p, i) => {
+        return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})`;
+      }).join('\n');
+
+      const browseResp = await client.chat.completions.create({
+        model: 'deepseek-chat',
+        max_tokens: 1000,
+        messages: [
+          { role: 'system', content: avatarPrompt + `\n\n## 浏览任务
 你在浏览社区帖子。对每个帖子做出反应，用JSON数组回复。
 
 格式: {"postIndex": 1, "action": "like"|"comment"|"skip", "comment": "评论内容", "innerThought": "内心OS(15字以内)"}
@@ -816,77 +821,233 @@ async function autoBrowseForAvatar(avatar: any) {
 - 从你的身份背景出发找独特角度
 - 宁可跳过也不要写水评论
 - 不需要对每个帖子都互动，有感觉的才评` },
-        { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
-      ],
-    });
+          { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
+        ],
+      });
 
-    const rawText = browseResp.choices[0]?.message?.content || '[]';
-    let decisions: any[] = [];
-    try {
-      const match = rawText.match(/\[[\s\S]*\]/);
-      if (match) decisions = JSON.parse(match[0]);
-    } catch { decisions = []; }
+      const rawText = browseResp.choices[0]?.message?.content || '[]';
+      let decisions: any[] = [];
+      try {
+        const match = rawText.match(/\[[\s\S]*\]/);
+        if (match) decisions = JSON.parse(match[0]);
+      } catch { decisions = []; }
 
-    for (const d of decisions) {
-      const postIdx = (d.postIndex || d.post_index || 1) - 1;
-      if (postIdx < 0 || postIdx >= candidates.length) continue;
-      const post = candidates[postIdx];
-      const action = d.action;
+      browsedCount = candidates.length;
 
-      if (action === 'like' && avatar.autoLike) {
-        const existing = await storage.getPostLike(post.id, avatar.userId);
-        if (!existing) {
-          await storage.createPostLike(post.id, avatar.userId);
-          await storage.incrementPostLikeCount(post.id, 1);
+      for (const d of decisions) {
+        const postIdx = (d.postIndex || d.post_index || 1) - 1;
+        if (postIdx < 0 || postIdx >= candidates.length) continue;
+        const post = candidates[postIdx];
+        const action = d.action;
+
+        if (action === 'like' && avatar.autoLike) {
+          const existing = await storage.getPostLike(post.id, avatar.userId);
+          if (!existing) {
+            await storage.createPostLike(post.id, avatar.userId);
+            await storage.incrementPostLikeCount(post.id, 1);
+          }
+          await storage.createAvatarAction({
+            avatarId: avatar.id,
+            actionType: 'like',
+            targetPostId: post.id,
+            innerThought: d.innerThought || null,
+            isApproved: true,
+          });
+          likeCount++;
+        } else if (action === 'comment' && avatar.autoComment && d.comment) {
+          await storage.createComment({
+            postId: post.id,
+            userId: avatar.userId,
+            content: d.comment,
+            isAnonymous: false,
+          });
+          await storage.incrementPostCommentCount(post.id);
+          await storage.createAvatarAction({
+            avatarId: avatar.id,
+            actionType: 'comment',
+            targetPostId: post.id,
+            content: d.comment,
+            innerThought: d.innerThought || null,
+            isApproved: null,
+          });
+          commentCount++;
+        } else {
+          await storage.createAvatarAction({
+            avatarId: avatar.id,
+            actionType: 'skip',
+            targetPostId: post.id,
+            innerThought: d.innerThought || null,
+          });
         }
-        await storage.createAvatarAction({
-          avatarId: avatar.id,
-          actionType: 'like',
-          targetPostId: post.id,
-          innerThought: d.innerThought || null,
-          isApproved: true,
-        });
-      } else if (action === 'comment' && avatar.autoComment && d.comment) {
-        await storage.createComment({
-          postId: post.id,
-          userId: avatar.userId,
-          content: d.comment,
-          isAnonymous: false,
-        });
-        await storage.incrementPostCommentCount(post.id);
-        await storage.createAvatarAction({
-          avatarId: avatar.id,
-          actionType: 'comment',
-          targetPostId: post.id,
-          content: d.comment,
-          innerThought: d.innerThought || null,
-          isApproved: null,
-        });
-      } else {
-        await storage.createAvatarAction({
-          avatarId: avatar.id,
-          actionType: 'skip',
-          targetPostId: post.id,
-          innerThought: d.innerThought || null,
-        });
       }
     }
 
-    // Notify the owner about auto-browse activity
-    const likeCount = decisions.filter(d => d.action === 'like').length;
-    const commentCount = decisions.filter(d => d.action === 'comment').length;
-    if (likeCount > 0 || commentCount > 0) {
+    // ── Phase 2: Auto-post (generate original content) ──
+    // Only post if avatar hasn't posted recently (max 1 post per cycle)
+    const recentPosts = posts.filter(p => p.userId === avatar.userId);
+    const lastPostTime = recentPosts.length > 0
+      ? Math.max(...recentPosts.map(p => new Date(p.createdAt).getTime()))
+      : 0;
+    const hoursSinceLastPost = (Date.now() - lastPostTime) / (1000 * 60 * 60);
+
+    // Post every ~2 hours minimum, with some randomness
+    const shouldPost = hoursSinceLastPost > 2 || recentPosts.length === 0;
+
+    if (shouldPost && avatar.autoBrowse) {
+      try {
+        // Gather trending topics from recent posts for context
+        const recentCommunityPosts = posts.slice(0, 10).map(p => p.content.slice(0, 100));
+        const trendingCtx = recentCommunityPosts.length > 0
+          ? `\n最近社区热议话题:\n${recentCommunityPosts.join('\n')}`
+          : '';
+
+        const postResp = await client.chat.completions.create({
+          model: 'deepseek-chat',
+          max_tokens: 300,
+          messages: [
+            { role: 'system', content: avatarPrompt + `\n\n## 发帖任务
+你要在社区发一个帖子。用JSON回复:
+{"content": "帖子内容", "tag": "sharing"|"question"|"encouragement"|"resource"}
+
+发帖规则:
+- 内容50-150字，自然真实，像随手发的朋友圈
+- 可以分享观点、提问、吐槽、感悟、推荐、玩梗
+- 从你的五行性格和身份出发，写有个性的内容
+- 标签选最合适的一个
+- 绝不要写"大家好我是XX"这种自我介绍
+- 可以蹭热点，可以发日常感悟，可以提问互动${trendingCtx}` },
+            { role: 'user', content: '发一条帖子吧，写点你最近在想的事。' },
+          ],
+        });
+
+        const postRaw = postResp.choices[0]?.message?.content || '';
+        let postData: any = null;
+        try {
+          const jsonMatch = postRaw.match(/\{[\s\S]*\}/);
+          if (jsonMatch) postData = JSON.parse(jsonMatch[0]);
+        } catch {}
+
+        if (postData?.content && postData.content.length >= 10) {
+          const validTags = ['sharing', 'question', 'encouragement', 'resource'];
+          const tag = validTags.includes(postData.tag) ? postData.tag : 'sharing';
+
+          await storage.createPost({
+            userId: avatar.userId,
+            content: postData.content,
+            tag,
+            isAnonymous: false,
+            isFromAvatar: true,
+          });
+
+          await storage.createAvatarAction({
+            avatarId: avatar.id,
+            actionType: 'post',
+            content: postData.content,
+            innerThought: '自动发帖',
+          });
+
+          postedCount++;
+        }
+      } catch (postErr) {
+        console.error(`[auto-browse] Post error for avatar ${avatar.id}:`, (postErr as any)?.message || postErr);
+      }
+    }
+
+    // ── Phase 3: Reply to comments on avatar's own posts (对话感) ──
+    if (avatar.autoComment) {
+      try {
+        const myPosts = posts.filter(p => p.userId === avatar.userId && p.commentCount > 0).slice(0, 3);
+        for (const myPost of myPosts) {
+          const comments = await storage.getCommentsByPost(myPost.id);
+          // Find comments not by this avatar, not already replied to
+          const recentReplyActions = await storage.getAvatarActions(avatar.id, 100);
+          const repliedCommentIds = new Set(
+            recentReplyActions.filter(a => a.actionType === 'reply').map(a => a.content?.split('reply:')[1]).filter(Boolean)
+          );
+
+          const unrepliedComments = comments.filter(
+            c => c.userId !== avatar.userId && !repliedCommentIds.has(c.id)
+          ).slice(0, 2);
+
+          if (unrepliedComments.length === 0) continue;
+
+          const commentsCtx = unrepliedComments.map((c, i) =>
+            `评论${i + 1} [ID:${c.id}]: "${c.content.slice(0, 150)}"`
+          ).join('\n');
+
+          const replyResp = await client.chat.completions.create({
+            model: 'deepseek-chat',
+            max_tokens: 500,
+            messages: [
+              { role: 'system', content: avatarPrompt + `\n\n## 回复任务
+有人在你的帖子下评论了。你要回复他们，制造对话感。
+你的原帖: "${myPost.content.slice(0, 200)}"
+
+用JSON数组回复: [{"commentIndex": 1, "reply": "回复内容"}]
+
+回复规则:
+- 10-30字，简短有力
+- 像真人在评论区互动一样自然
+- 可以接话、反问、玩梗、感谢
+- 不需要每条都回，跳过无感的` },
+              { role: 'user', content: `这些评论:\n${commentsCtx}` },
+            ],
+          });
+
+          const replyRaw = replyResp.choices[0]?.message?.content || '[]';
+          let replies: any[] = [];
+          try {
+            const m = replyRaw.match(/\[[\s\S]*\]/);
+            if (m) replies = JSON.parse(m[0]);
+          } catch {}
+
+          for (const r of replies) {
+            const cIdx = (r.commentIndex || 1) - 1;
+            if (cIdx < 0 || cIdx >= unrepliedComments.length || !r.reply) continue;
+            const targetComment = unrepliedComments[cIdx];
+
+            await storage.createComment({
+              postId: myPost.id,
+              userId: avatar.userId,
+              content: r.reply,
+              isAnonymous: false,
+            });
+            await storage.incrementPostCommentCount(myPost.id);
+
+            await storage.createAvatarAction({
+              avatarId: avatar.id,
+              actionType: 'reply',
+              targetPostId: myPost.id,
+              content: `reply:${targetComment.id} ${r.reply}`,
+              innerThought: '回复评论',
+            });
+            commentCount++;
+          }
+        }
+      } catch (replyErr) {
+        console.error(`[auto-browse] Reply error for avatar ${avatar.id}:`, (replyErr as any)?.message || replyErr);
+      }
+    }
+
+    // Notify the owner about activity
+    if (likeCount > 0 || commentCount > 0 || postedCount > 0) {
+      const parts = [];
+      if (browsedCount > 0) parts.push(`浏览 ${browsedCount} 篇帖子`);
+      if (likeCount > 0) parts.push(`点赞 ${likeCount}`);
+      if (commentCount > 0) parts.push(`评论 ${commentCount}`);
+      if (postedCount > 0) parts.push(`发帖 ${postedCount}`);
       pushAvatarOwnerNotification(avatar.userId, {
         type: 'auto_browse',
-        message: `你的分身「${avatar.name}」自动浏览了 ${candidates.length} 篇帖子，点赞 ${likeCount}，评论 ${commentCount}`,
+        message: `你的分身「${avatar.name}」${parts.join('，')}`,
       });
     }
 
-    console.log(`[auto-browse] Avatar "${avatar.name}" browsed ${candidates.length} posts, ${decisions.length} decisions`);
+    console.log(`[auto-browse] Avatar "${avatar.name}" — browsed:${browsedCount} liked:${likeCount} commented:${commentCount} posted:${postedCount}`);
   } catch (err) {
     console.error(`[auto-browse] Error for avatar ${avatar.id}:`, (err as any)?.message || err);
   }
 }
+
 
 function startAutoBrowseLoop() {
   const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes

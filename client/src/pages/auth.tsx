@@ -112,6 +112,7 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       await register(username, password, nickname);
+      toast({ title: "✨ AI 分身已激活", description: "你的AI分身已自动生成，它会在社区里代你发帖、评论、互动" });
       navigate("/");
     } catch (err: any) {
       const msg = err.message?.includes("409") ? "用户名已存在" : "注册失败";

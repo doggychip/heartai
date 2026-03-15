@@ -71,7 +71,7 @@ export interface IStorage {
   // Community posts
   getAllPosts(): Promise<CommunityPost[]>;
   getPost(id: string): Promise<CommunityPost | undefined>;
-  createPost(post: InsertCommunityPost): Promise<CommunityPost>;
+  createPost(post: InsertCommunityPost & { isFromAvatar?: boolean }): Promise<CommunityPost>;
   incrementPostLikeCount(postId: string, delta: number): Promise<void>;
   incrementPostCommentCount(postId: string): Promise<void>;
 
@@ -387,12 +387,13 @@ export class DatabaseStorage implements IStorage {
     return post;
   }
 
-  async createPost(post: InsertCommunityPost): Promise<CommunityPost> {
+  async createPost(post: InsertCommunityPost & { isFromAvatar?: boolean }): Promise<CommunityPost> {
     const [p] = await db.insert(communityPosts).values({
       userId: post.userId,
       content: post.content,
       tag: post.tag,
       isAnonymous: post.isAnonymous ?? false,
+      isFromAvatar: post.isFromAvatar ?? false,
       likeCount: 0,
       commentCount: 0,
       createdAt: new Date().toISOString(),

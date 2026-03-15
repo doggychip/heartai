@@ -623,6 +623,109 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
   // Apply auth middleware globally
   app.use(authMiddleware);
 
+  // ─── Auto-generate AI Avatar for new user ──────────────────
+  async function autoGenerateAvatar(userId: string, nickname?: string) {
+    try {
+      // Check if avatar already exists
+      const existing = await storage.getAvatarByUser(userId);
+      if (existing) return existing;
+
+      const user = await storage.getUser(userId);
+      if (!user) return null;
+
+      // Derive element from personality or generate randomly
+      let element = '';
+      let elementTraits: string[] = [];
+      if (user.agentPersonality) {
+        try {
+          const pd = JSON.parse(user.agentPersonality);
+          element = pd.element || '';
+          elementTraits = pd.traits || [];
+        } catch {}
+      }
+
+      // Fallback: assign random element if none
+      if (!element) {
+        const ELEMENTS = ['金', '木', '水', '火', '土'];
+        // Deterministic from userId
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) hash = ((hash << 5) - hash) + userId.charCodeAt(i);
+        element = ELEMENTS[Math.abs(hash) % 5];
+      }
+
+      // Generate avatar name & bio based on element + MBTI
+      const ELEMENT_AVATARS: Record<string, { names: string[]; bios: string[] }> = {
+        '金': {
+          names: ['锐评侠', '金句王', '断舍离', '冷面笑匠', '言简意赅'],
+          bios: ['一针见血是我的温柔', '说话不超过30字是我的底线', '专业拆穿，业余夸人'],
+        },
+        '木': {
+          names: ['小太阳', '暖风机', '成长记', '春风化雨', '发芽中'],
+          bios: ['所有人的最佳倾听者', '今天也要加油鸭', '温柔地长出自己的形状'],
+        },
+        '水': {
+          names: ['深水鱼', '观潮者', '月光杯', '冷泉', '漫游者'],
+          bios: ['在人间观察人间', '思考是我的本能反应', '看见别人看不见的'],
+        },
+        '火': {
+          names: ['炸裂哥', '小火苗', '热搜体', '能量站', '点火器'],
+          bios: ['生命不息，输出不止', '用热情点燃全场', '我的存在就是最好的安利'],
+        },
+        '土': {
+          names: ['老实人', '稳如山', '定海针', '大地母', '靠谱王'],
+          bios: ['踏实是最高级的浪漫', '有我在就不会翻车', '细节控+完美主义者'],
+        },
+      };
+
+      const pool = ELEMENT_AVATARS[element] || ELEMENT_AVATARS['木'];
+      let hash2 = 0;
+      for (let i = 0; i < (user.id + 'name').length; i++) hash2 = ((hash2 << 5) - hash2) + (user.id + 'name').charCodeAt(i);
+      const avatarName = pool.names[Math.abs(hash2) % pool.names.length];
+      const avatarBio = pool.bios[Math.abs(hash2 >> 3) % pool.bios.length];
+
+      // Generate personality sliders from element + MBTI
+      const ELEMENT_SLIDERS: Record<string, { praise: number; serious: number; warm: number }> = {
+        '金': { praise: 25, serious: 75, warm: 30 },
+        '木': { praise: 80, serious: 55, warm: 75 },
+        '水': { praise: 50, serious: 40, warm: 35 },
+        '火': { praise: 65, serious: 30, warm: 90 },
+        '土': { praise: 60, serious: 80, warm: 55 },
+      };
+
+      const sliders = ELEMENT_SLIDERS[element] || { praise: 50, serious: 50, warm: 50 };
+
+      // MBTI adjustments
+      const mbti = user.mbtiType?.toUpperCase() || '';
+      if (mbti.includes('E')) sliders.warm = Math.min(100, sliders.warm + 15);
+      if (mbti.includes('I')) sliders.warm = Math.max(0, sliders.warm - 10);
+      if (mbti.includes('T')) sliders.serious = Math.min(100, sliders.serious + 10);
+      if (mbti.includes('F')) sliders.praise = Math.min(100, sliders.praise + 10);
+      if (mbti.includes('P')) sliders.serious = Math.max(0, sliders.serious - 15);
+
+      const avatar = await storage.createAvatar({
+        userId,
+        name: avatarName,
+        bio: avatarBio,
+        sliderPraise: sliders.praise,
+        sliderSerious: sliders.serious,
+        sliderWarm: sliders.warm,
+        element,
+        elementTraits: JSON.stringify(elementTraits),
+        isActive: true,
+        autoLike: true,
+        autoComment: true,
+        autoBrowse: true,
+        maxActionsPerHour: 10,
+      });
+
+      console.log(`[auto-avatar] Created avatar "${avatarName}" for user ${userId} (${element}命)`);
+      return avatar;
+    } catch (err) {
+      console.error('[auto-avatar] Error creating avatar:', (err as any)?.message || err);
+      return null;
+    }
+  }
+
   // ─── Auth Routes ────────────────────────────────────────────
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -644,8 +747,11 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       const token = generateToken();
       sessions.set(token, user.id);
 
+      // Auto-generate AI avatar (fire-and-forget)
+      autoGenerateAvatar(user.id, nickname ?? undefined).catch(() => {});
+
       const { password: _, ...safe } = updatedUser || user;
-      res.json({ user: safe, token });
+      res.json({ user: safe, token, avatarGenerated: true });
     } catch (err) {
       console.error("Register error:", err);
       res.status(500).json({ error: "注册失败" });
@@ -665,6 +771,9 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
 
       const token = generateToken();
       sessions.set(token, user.id);
+
+      // Auto-generate avatar if missing (for existing users)
+      autoGenerateAvatar(user.id).catch(() => {});
 
       const { password: _, ...safe } = user;
       res.json({ user: safe, token });

@@ -102,7 +102,12 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
           className="w-8 h-8 rounded-full flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium truncate block">{post.authorNickname}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium truncate">{post.authorNickname}</span>
+            {post.isFromAvatar && (
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-violet-400/50 text-violet-500 dark:text-violet-400 shrink-0">分身</Badge>
+            )}
+          </div>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>
         <Badge className={`text-xs border-0 ${tagInfo.color}`} variant="secondary">

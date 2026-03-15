@@ -5,6 +5,11 @@ import { sql } from "drizzle-orm";
 export async function migrateAvatar() {
   console.log("[migrate] Adding avatar tables...");
 
+  // Add isFromAvatar column to community_posts if not exists
+  await db.execute(sql`
+    ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS is_from_avatar BOOLEAN NOT NULL DEFAULT false
+  `);
+
   // Add isFromAvatar column to post_likes if not exists
   await db.execute(sql`
     ALTER TABLE post_likes ADD COLUMN IF NOT EXISTS is_from_avatar BOOLEAN NOT NULL DEFAULT false
