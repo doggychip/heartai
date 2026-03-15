@@ -3,6 +3,9 @@ import { getAuthToken } from "./auth";
 
 const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
+// User's timezone for date-sensitive APIs
+const USER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+
 function getAuthHeaders(): Record<string, string> {
   const token = getAuthToken();
   if (token) return { Authorization: `Bearer ${token}` };
@@ -42,7 +45,9 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(`${API_BASE}${queryKey.join("/")}`, {
+    const url = queryKey.join("/");
+    const sep = url.includes('?') ? '&' : '?';
+    const res = await fetch(`${API_BASE}${url}${sep}tz=${encodeURIComponent(USER_TZ)}`, {
       headers: getAuthHeaders(),
     });
 

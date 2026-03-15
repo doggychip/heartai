@@ -1265,7 +1265,8 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
   // 每日黄历 — Today’s almanac data
   app.get("/api/culture/almanac", async (req, res) => {
     try {
-      const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const dateStr = (req.query.date as string) || new Date().toLocaleDateString('sv-SE', { timeZone: tz });
       const d = lunisolar(dateStr);
 
       // Lunar info
@@ -1434,7 +1435,8 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
   // 多历法转换 — Multi-calendar conversion
   app.get("/api/calendar/multi", async (req, res) => {
     try {
-      const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const dateStr = (req.query.date as string) || new Date().toLocaleDateString('sv-SE', { timeZone: tz });
       const date = new Date(dateStr);
       const year = date.getFullYear();
       const month = date.getMonth() + 1;
@@ -4367,8 +4369,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/dashboard", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
-      const today = new Date();
-      const dateStr = today.toISOString().split("T")[0];
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+      const today = new Date(dateStr);
 
       // Parallel fetch all dashboard data
       const [moodEntries, posts, avatar, avatarActions, user] = await Promise.all([
@@ -5225,8 +5228,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         return res.status(429).json({ error: "请求太频繁，请稍后再试" });
       }
 
-      const today = new Date();
-      const dateStr = today.toISOString().split("T")[0];
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+      const today = new Date(dateStr);
 
       // Get user profile for personalized calculation
       const user = await storage.getUser(userId);
