@@ -4451,6 +4451,48 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         zodiacSign: (user as any).zodiacSign,
       } : null;
 
+      // Daily fortune stick (deterministic per user per day)
+      const DAILY_QIAN: { number: number; title: string; poem: string; rank: string }[] = [
+        { number: 1, rank: '上上', title: '开天辟地', poem: '天开地辟结良缘，日吉时良万事全。' },
+        { number: 2, rank: '上上', title: '鬼谷下山', poem: '盈虚消息百年中，冉冉光阴有限终。' },
+        { number: 3, rank: '下下', title: '董永卖身', poem: '临风冒雨去还乡，心已思量意已忙。' },
+        { number: 4, rank: '上中', title: '玉莲会友', poem: '千年古镜复重圆，女再求夫男再婚。' },
+        { number: 5, rank: '中上', title: '屏开金孔雀', poem: '五台山上云霞开，文殊菩萨坐莲台。' },
+        { number: 6, rank: '上中', title: '仙女乘鸾', poem: '投身岩下铜鸟台，胡天胡地强安排。' },
+        { number: 7, rank: '下下', title: '苏娘幭舯', poem: '奇巧过人一工巧，好把新情到处投。' },
+        { number: 8, rank: '上上', title: '庆云局唐', poem: '天赐平安福自多，年年丰收歌山河。' },
+        { number: 9, rank: '中上', title: '孔明祖月', poem: '十年窗下无人问，一举成名天下知。' },
+        { number: 10, rank: '中中', title: '庄周梦蝶', poem: '南柯一模梦罗浮，闲日无事坐春风。' },
+        { number: 11, rank: '上中', title: '小心行船', poem: '风平浪静好行船，恍恰行来是缘分。' },
+        { number: 12, rank: '中中', title: '夜月花香', poem: '庄前古树森森立，云影月光映交辉。' },
+        { number: 13, rank: '上上', title: '龙飞九天', poem: '龙风云之会年年有，一得春风百花开。' },
+        { number: 14, rank: '中上', title: '柳暗花明', poem: '山重水复疑无路，柳暗花明又一村。' },
+        { number: 15, rank: '下下', title: '秋风落叶', poem: '寒风落叶过山丘，行人怀志正兴愁。' },
+        { number: 16, rank: '上中', title: '子牙拜将', poem: '子牙年迈字太公，十年磨剑在江滨。' },
+        { number: 17, rank: '中中', title: '渔樵问答', poem: '踏破铁鞋无觅处，得来全不费功夫。' },
+        { number: 18, rank: '上上', title: '兆连科甲', poem: '金榜题名天下知，三元及第年年期。' },
+        { number: 19, rank: '中上', title: '子仪见南子', poem: '急水滩头放船人，水急庆得风帆顺。' },
+        { number: 20, rank: '中中', title: '姜太公垂铓', poem: '当时待价而氽开，日待火候自然来。' },
+      ];
+      // Deterministic: hash date + userId to pick one of the 20 curated qian
+      let dailyQian: any = null;
+      try {
+        const seed = dateStr + (userId || 'guest');
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash = hash & hash; // Convert to 32-bit int
+        }
+        const idx = Math.abs(hash) % DAILY_QIAN.length;
+        const q = DAILY_QIAN[idx];
+        dailyQian = {
+          number: q.number,
+          title: q.title,
+          poem: q.poem,
+          rank: q.rank,
+        };
+      } catch {}
+
       res.json({
         date: dateStr,
         lunar: lunarInfo,
@@ -4458,6 +4500,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         moodTrend: recentMood,
         hotPosts: enrichedPosts,
         avatar: avatarSummary,
+        dailyQian,
         stats: {
           totalPosts: (posts as any[]).filter((p: any) => p.userId === userId).length,
           totalMoodEntries: (moodEntries as any[]).length,

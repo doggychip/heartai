@@ -58,6 +58,7 @@ interface DashboardData {
   moodTrend: { score: number; tags: string; date: string }[];
   hotPosts: { id: string; content: string; tag: string; likeCount: number; commentCount: number; authorName: string; createdAt: string }[];
   avatar: { name: string; isActive: boolean; recentActions: { type: string; innerThought: string; createdAt: string }[] } | null;
+  dailyQian: { number: number; title: string; poem: string; rank: string } | null;
   stats: { totalPosts: number; totalMoodEntries: number };
 }
 
@@ -199,13 +200,14 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Almanac quick-link pill */}
-        {dashboard?.lunar?.yi && (
-          <Link href="/almanac">
-            <div className="mt-3 relative bg-white/10 rounded-xl px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/15 transition" data-testid="link-almanac">
-              <Scroll className="w-4 h-4 text-amber-200 flex-shrink-0" />
-              <span className="text-amber-100 text-[11px] flex-shrink-0">宜</span>
-              <span className="text-white/80 text-[11px] truncate">{dashboard.lunar.yi}</span>
+        {/* Daily fortune stick pill */}
+        {dashboard?.dailyQian && (
+          <Link href="/qiuqian">
+            <div className="mt-3 relative bg-white/10 rounded-xl px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/15 transition" data-testid="link-daily-qian">
+              <Scroll className="w-4 h-4 text-amber-300 flex-shrink-0" />
+              <span className="text-amber-200 text-[11px] flex-shrink-0 font-medium">每日一签</span>
+              <span className="text-white/40 text-[10px] flex-shrink-0">|</span>
+              <span className="text-white/70 text-[11px] truncate">{dashboard.dailyQian.poem}</span>
               <ChevronRight className="w-3.5 h-3.5 text-white/40 flex-shrink-0 ml-auto" />
             </div>
           </Link>
