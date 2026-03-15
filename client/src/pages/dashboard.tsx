@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,9 @@ import {
   ArrowRight,
   MessageCircle,
   RefreshCw,
+  Clock,
+  Scroll,
+  MapPin,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -74,6 +78,26 @@ const DIMENSION_CONFIG = [
   { key: "study" as const, label: "学习", icon: GraduationCap, color: "hsl(160, 50%, 45%)" },
   { key: "social" as const, label: "人际", icon: Users, color: "hsl(280, 50%, 55%)" },
 ];
+
+// ─── Dashboard Clock ────────────────────────────────────────
+function DashboardClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return (
+    <div className="flex items-baseline gap-0.5">
+      <span className="text-3xl font-black tabular-nums">{h}</span>
+      <span className="text-2xl font-light opacity-50 animate-pulse">:</span>
+      <span className="text-3xl font-black tabular-nums">{m}</span>
+      <span className="text-lg font-medium opacity-40 ml-0.5 tabular-nums">{s}</span>
+    </div>
+  );
+}
 
 // ─── Mini Score Ring ────────────────────────────────────────
 function MiniScoreRing({ score, size = 80 }: { score: number; size?: number }) {
@@ -274,6 +298,36 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* ─── Today's Almanac Summary ───────────────────────── */}
+        <Card className="border-0 shadow-sm overflow-hidden bg-gradient-to-r from-red-600 via-red-500 to-amber-500 text-white relative" data-testid="card-dashboard-almanac">
+          <div className="absolute top-[-20px] right-[-10px] w-32 h-32 rounded-full border border-white/10" />
+          <div className="absolute bottom-[-10px] left-[-10px] w-20 h-20 rounded-full border border-white/10" />
+          <CardContent className="p-4 relative">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <DashboardClock />
+                </div>
+                <div className="text-xs opacity-80 space-y-0.5">
+                  <div>{dashboard?.date} {dashboard?.lunar ? `· 农历${dashboard.lunar.lunarDate}` : ''}</div>
+                  {dashboard?.lunar?.yi && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-200">宜</span>
+                      <span className="opacity-70 line-clamp-1">{dashboard.lunar.yi}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Link href="/almanac">
+                <button className="flex flex-col items-center gap-1 px-3 py-2 bg-white/15 hover:bg-white/25 rounded-xl transition" data-testid="link-almanac">
+                  <Scroll className="w-5 h-5" />
+                  <span className="text-[10px]">万年历</span>
+                </button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ─── Top Row: Fortune + Avatar ──────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
