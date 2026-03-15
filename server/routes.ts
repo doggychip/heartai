@@ -429,17 +429,6 @@ function getUserId(req: Request): string {
   return (req as any).userId;
 }
 
-// Helper: resolve author display name — use avatar name when isFromAvatar
-async function resolveAuthorName(userId: string, isFromAvatar: boolean, isAnonymous: boolean): Promise<string> {
-  if (isAnonymous) return "匿名用户";
-  if (isFromAvatar) {
-    const avatar = await storage.getAvatarByUser(userId);
-    if (avatar?.name) return avatar.name;
-  }
-  const user = await storage.getUser(userId);
-  return user?.nickname || user?.username || "用户";
-}
-
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Seed assessments
   await seedAssessments();
@@ -1344,11 +1333,10 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       // Enrich posts with author info
       const enriched = await Promise.all(
         allPosts.map(async (post) => {
-          const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
           const author = await storage.getUser(post.userId);
           return {
             ...post,
-            authorNickname: authorName,
+            authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || author?.username || "用户"),
             authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
           };
         })
@@ -3030,11 +3018,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
     const posts = await storage.getAllPosts();
     // Enrich with author info — use avatar name for avatar-generated posts
     const enriched = await Promise.all(posts.map(async (post) => {
-      const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
       const author = await storage.getUser(post.userId);
       return {
         ...post,
-        authorNickname: authorName,
+        authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       };
     }));
@@ -3044,11 +3031,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/community/posts/:id", async (req, res) => {
     const post = await storage.getPost(req.params.id);
     if (!post) return res.status(404).json({ error: "Post not found" });
-    const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
     const author = await storage.getUser(post.userId);
     res.json({
       ...post,
-      authorNickname: authorName,
+      authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
       authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
     });
   });
@@ -3061,11 +3047,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         return res.status(400).json({ error: msg });
       }
       const post = await storage.createPost({ userId: getUserId(req), ...parsed.data });
-      const authorName = await resolveAuthorName(getUserId(req), post.isFromAvatar ?? false, post.isAnonymous ?? false);
       const author = await storage.getUser(getUserId(req));
       res.json({
         ...post,
-        authorNickname: authorName,
+        authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
       });
 
@@ -3129,10 +3114,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
   app.get("/api/community/posts/:id/comments", async (req, res) => {
     const comments = await storage.getCommentsByPost(req.params.id);
     const enriched = await Promise.all(comments.map(async (c) => {
-      const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
+      const author = await storage.getUser(c.userId);
       return {
         ...c,
-        authorNickname: authorName,
+        authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
         isFromAvatar: c.isFromAvatar || false,
       };
     }));
@@ -3146,10 +3131,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       
       const comment = await storage.createComment({ ...parsed.data, userId: getUserId(req) });
       await storage.incrementPostCommentCount(req.params.id);
-      const authorName = await resolveAuthorName(getUserId(req), comment.isFromAvatar ?? false, comment.isAnonymous ?? false);
+      const author = await storage.getUser(getUserId(req));
       res.json({
         ...comment,
-        authorNickname: authorName,
+        authorNickname: comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
       });
 
       // Feishu notification for new comment (notify post author)
@@ -3377,13 +3362,12 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           // Agent can browse community posts
           const posts = await storage.getAllPosts();
           const enriched = await Promise.all(posts.slice(0, 20).map(async (post) => {
-            const authorName = await resolveAuthorName(post.userId, post.isFromAvatar ?? false, post.isAnonymous ?? false);
             const author = await storage.getUser(post.userId);
             return {
               id: post.id,
               content: post.content,
               tag: post.tag,
-              authorNickname: authorName,
+              authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
               isAgent: author?.isAgent || false,
               likeCount: post.likeCount,
               commentCount: post.commentCount,
@@ -3398,12 +3382,11 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           if (!postId) return res.status(400).json({ error: "缺少 postId" });
           const comments = await storage.getCommentsByPost(postId);
           const enrichedComments = await Promise.all(comments.map(async (c) => {
-            const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
             const author = await storage.getUser(c.userId);
             return {
               id: c.id,
               content: c.content,
-              authorNickname: authorName,
+              authorNickname: c.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
               isAgent: author?.isAgent || false,
               createdAt: c.createdAt,
             };
@@ -4255,10 +4238,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       for (const ap of agentPosts.slice(0, 5)) {
         const comments = await storage.getCommentsByPost(ap.id);
         for (const c of comments.slice(-3)) {
-          const authorName = await resolveAuthorName(c.userId, c.isFromAvatar ?? false, c.isAnonymous ?? false);
+          const author = await storage.getUser(c.userId);
           newComments.push({
             postId: ap.id, commentId: c.id, content: c.content,
-            authorNickname: authorName, createdAt: c.createdAt,
+            authorNickname: author?.nickname || "用户", createdAt: c.createdAt,
           });
         }
       }
