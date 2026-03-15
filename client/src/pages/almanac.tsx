@@ -431,7 +431,9 @@ export default function AlmanacPage() {
                 <span className="font-bold">宜</span>
               </div>
               <div className="p-3">
-                {almanac.acts.good.length > 0 ? (
+                {almanac.acts.good.length === 1 && almanac.acts.good[0] === '諸事不宜' ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">诸事不宜，宜静心修养</p>
+                ) : almanac.acts.good.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {almanac.acts.good.map((act, i) => (
                       <span key={i} className="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded">
@@ -452,7 +454,9 @@ export default function AlmanacPage() {
                 <span className="font-bold">忌</span>
               </div>
               <div className="p-3">
-                {almanac.acts.bad.length > 0 ? (
+                {almanac.acts.bad.length === 1 && almanac.acts.bad[0] === '諸事不宜' ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">诸事不宜，宜静心修养</p>
+                ) : almanac.acts.bad.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {almanac.acts.bad.map((act, i) => (
                       <span key={i} className="text-xs px-2 py-1 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 rounded">

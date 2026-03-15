@@ -271,14 +271,23 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
               <Badge variant="outline" className="text-[10px] h-5">{almanac.bazi.day.pillar}日</Badge>
             </div>
             <div className="flex gap-4 text-xs">
-              <div>
-                <span className="text-green-600 dark:text-green-400">宜 </span>
-                <span className="text-muted-foreground">{almanac.acts.good.slice(0, 4).join("·")}</span>
-              </div>
-              <div>
-                <span className="text-red-500">忌 </span>
-                <span className="text-muted-foreground">{almanac.acts.bad.slice(0, 3).join("·")}</span>
-              </div>
+              {almanac.acts.good.length === 1 && almanac.acts.good[0] === '諸事不宜' ? (
+                <div>
+                  <span className="text-amber-500">☸ </span>
+                  <span className="text-muted-foreground">今日诸事不宜，宜静心修养</span>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <span className="text-green-600 dark:text-green-400">宜 </span>
+                    <span className="text-muted-foreground">{almanac.acts.good.slice(0, 4).join("·")}</span>
+                  </div>
+                  <div>
+                    <span className="text-red-500">忌 </span>
+                    <span className="text-muted-foreground">{almanac.acts.bad.slice(0, 3).join("·")}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </Card>
