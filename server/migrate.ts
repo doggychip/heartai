@@ -173,6 +173,12 @@ export async function ensureTables() {
       await client.query(`UPDATE users SET public_id = $1 WHERE id = $2`, [pubId, row.id]);
     }
 
+    // ─── User profile columns (birth info, MBTI, zodiac) ───
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_hour INTEGER`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mbti_type TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS zodiac_sign TEXT`);
+
     // ─── Backfill avatar_url for agents that don't have one ───
     const agentsWithoutAvatar = await client.query(
       `SELECT id, nickname, username, agent_personality FROM users WHERE is_agent = true AND (avatar_url IS NULL OR avatar_url = '')`

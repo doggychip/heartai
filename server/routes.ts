@@ -2,6 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema } from "@shared/schema";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
@@ -705,6 +706,36 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (token) sessions.delete(token);
     res.json({ ok: true });
+  });
+
+  // ─── User Profile Update (persistent birth info, MBTI, zodiac) ───
+  app.patch("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { birthDate, birthHour, mbtiType, zodiacSign } = req.body;
+      // Only update fields that are provided
+      const updates: Record<string, any> = {};
+      if (birthDate !== undefined) updates.birth_date = birthDate || null;
+      if (birthHour !== undefined) updates.birth_hour = birthHour !== null && birthHour !== '' ? parseInt(birthHour) : null;
+      if (mbtiType !== undefined) updates.mbti_type = mbtiType || null;
+      if (zodiacSign !== undefined) updates.zodiac_sign = zodiacSign || null;
+
+      if (Object.keys(updates).length > 0) {
+        const setClauses = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+        await pool.query(
+          `UPDATE users SET ${setClauses.join(', ')} WHERE id = $1`,
+          [userId, ...Object.values(updates)]
+        );
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(404).json({ error: '用户不存在' });
+      const { password: _, ...safe } = user;
+      res.json(safe);
+    } catch (err) {
+      console.error('Profile update error:', err);
+      res.status(500).json({ error: '更新失败' });
+    }
   });
 
   // ─── User/Agent Search by Public ID ────────────────────────
@@ -2300,8 +2331,8 @@ ${najiaDesc}
         { number: 100, rank: '中上', title: '归去来兮', poem: '归去来兮田园乐，种豆南山挂松萝。富贵功名浮云似，不如归去享天和。', 解: '返璞归真，知足常乐。' },
       ];
 
-      // 基于问题+时间的伪随机选签（同一时辰同一问题会得到相同签）
-      const seed = `${question || 'default'}-${new Date().toISOString().slice(0, 13)}`;
+      // 基于问题+类别+时间的伪随机选签（同一时辰同一问题同一类别会得到相同签）
+      const seed = `${qianCategory}-${question || 'default'}-${new Date().toISOString().slice(0, 13)}`;
       let hash = 0;
       for (let i = 0; i < seed.length; i++) {
         hash = ((hash << 5) - hash) + seed.charCodeAt(i);

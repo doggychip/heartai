@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles,
   RotateCcw,
@@ -124,6 +125,7 @@ function RadarChart({ radar }: { radar: CompatResult["radar"] }) {
 
 export default function CompatibilityPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [p1Name, setP1Name] = useState("");
   const [p1Date, setP1Date] = useState("");
   const [p1Zodiac, setP1Zodiac] = useState("");
@@ -131,6 +133,13 @@ export default function CompatibilityPage() {
   const [p2Date, setP2Date] = useState("");
   const [p2Zodiac, setP2Zodiac] = useState("");
   const [result, setResult] = useState<CompatResult | null>(null);
+
+  // Auto-populate person1 from user profile
+  useEffect(() => {
+    if (user?.nickname) setP1Name(user.nickname);
+    if (user?.birthDate) setP1Date(user.birthDate);
+    if (user?.zodiacSign) setP1Zodiac(user.zodiacSign);
+  }, [user?.nickname, user?.birthDate, user?.zodiacSign]);
 
   const mutation = useMutation({
     mutationFn: async () => {

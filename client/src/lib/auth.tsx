@@ -15,6 +15,8 @@ interface AuthContextType {
   agentRegisterAndLogin: (agentName: string, description: string, personality?: { birthDate?: string; birthHour?: number; mbtiType?: string; speakingStyle?: string }) => Promise<{ personality?: any }>;
   enterGuestMode: () => void;
   logout: () => void;
+  updateProfile: (data: { birthDate?: string; birthHour?: number; mbtiType?: string; zodiacSign?: string }) => Promise<void>;
+  setUser: (u: SafeUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -93,6 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsGuest(true);
   }, []);
 
+  const updateProfile = useCallback(async (data: { birthDate?: string; birthHour?: number; mbtiType?: string; zodiacSign?: string }) => {
+    const res = await apiRequest("PATCH", "/api/profile", data);
+    const updated = await res.json();
+    setUser(updated);
+  }, []);
+
   const logout = useCallback(() => {
     if (token) {
       apiRequest("POST", "/api/auth/logout").catch(() => {});
@@ -104,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, setToken]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isGuest, login, register, agentLogin, agentRegister, agentLoginWithKey, agentRegisterAndLogin, enterGuestMode, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isGuest, login, register, agentLogin, agentRegister, agentLoginWithKey, agentRegisterAndLogin, enterGuestMode, logout, updateProfile, setUser }}>
       {children}
     </AuthContext.Provider>
   );

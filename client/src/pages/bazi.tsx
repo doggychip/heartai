@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles,
   RotateCcw,
@@ -131,6 +132,7 @@ function getElementColor(element: string): string {
 
 export default function BaziPage() {
   const { toast } = useToast();
+  const { user, updateProfile } = useAuth();
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [day, setDay] = useState("");
@@ -138,6 +140,21 @@ export default function BaziPage() {
   const [gender, setGender] = useState("");
   const [result, setResult] = useState<BaziResult | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Auto-populate from user profile
+  useEffect(() => {
+    if (user?.birthDate) {
+      const parts = user.birthDate.split('-');
+      if (parts.length === 3) {
+        setYear(parts[0]);
+        setMonth(String(parseInt(parts[1])));
+        setDay(String(parseInt(parts[2])));
+      }
+    }
+    if (user?.birthHour !== undefined && user?.birthHour !== null) {
+      setHour(String(user.birthHour));
+    }
+  }, [user?.birthDate, user?.birthHour]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -149,7 +166,16 @@ export default function BaziPage() {
       });
       return res.json();
     },
-    onSuccess: (data: BaziResult) => setResult(data),
+    onSuccess: (data: BaziResult) => {
+      setResult(data);
+      // Auto-save birth info to profile
+      if (user && year && month && day) {
+        const birthDateStr = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const profileData: any = { birthDate: birthDateStr };
+        if (hour !== undefined) profileData.birthHour = parseInt(hour);
+        updateProfile(profileData).catch(() => {});
+      }
+    },
     onError: (err: Error) =>
       toast({
         title: "排盘失败",

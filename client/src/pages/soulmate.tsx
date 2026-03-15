@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles,
   RotateCcw,
@@ -43,12 +44,20 @@ const MBTI_TYPES = [
 
 export default function SoulmatePage() {
   const { toast } = useToast();
+  const { user, updateProfile } = useAuth();
   const [birthDate, setBirthDate] = useState("");
   const [zodiacSign, setZodiacSign] = useState("");
   const [mbtiType, setMbtiType] = useState("");
   const [gender, setGender] = useState("");
   const [concerns, setConcerns] = useState("");
   const [result, setResult] = useState<SoulmateResult | null>(null);
+
+  // Auto-populate from user profile
+  useEffect(() => {
+    if (user?.birthDate) setBirthDate(user.birthDate);
+    if (user?.zodiacSign) setZodiacSign(user.zodiacSign);
+    if (user?.mbtiType) setMbtiType(user.mbtiType);
+  }, [user?.birthDate, user?.zodiacSign, user?.mbtiType]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -61,7 +70,16 @@ export default function SoulmatePage() {
       });
       return res.json();
     },
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      // Auto-save to profile
+      if (user && birthDate) {
+        const profileData: any = { birthDate };
+        if (zodiacSign) profileData.zodiacSign = zodiacSign;
+        if (mbtiType) profileData.mbtiType = mbtiType;
+        updateProfile(profileData).catch(() => {});
+      }
+    },
     onError: (err: Error) =>
       toast({ title: "分析失败", description: err.message, variant: "destructive" }),
   });

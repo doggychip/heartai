@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,12 +76,17 @@ function SignCard({ label, sign, emoji }: { label: string; sign: string; emoji: 
 }
 
 export default function ZodiacPage() {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { toast } = useToast();
   const [birthday, setBirthday] = useState("");
   const [birthTime, setBirthTime] = useState("");
   const [birthPlace, setBirthPlace] = useState("");
   const [result, setResult] = useState<ZodiacResult | null>(null);
+
+  // Auto-populate from user profile
+  useEffect(() => {
+    if (user?.birthDate) setBirthday(user.birthDate);
+  }, [user?.birthDate]);
 
   const analyzeMutation = useMutation({
     mutationFn: async () => {
@@ -94,6 +99,12 @@ export default function ZodiacPage() {
     },
     onSuccess: (data) => {
       setResult(data);
+      // Auto-save birth date and zodiac sign to profile
+      if (user && birthday) {
+        const profileData: any = { birthDate: birthday };
+        if (data.sunSign) profileData.zodiacSign = data.sunSign;
+        updateProfile(profileData).catch(() => {});
+      }
     },
     onError: (err: Error) => {
       toast({ title: "分析失败", description: err.message, variant: "destructive" });

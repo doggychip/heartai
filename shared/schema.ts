@@ -15,6 +15,12 @@ export const users = pgTable("users", {
   openclawWebhookToken: text("openclaw_webhook_token"),
   feishuWebhookUrl: text("feishu_webhook_url"),
   agentApiKey: text("agent_api_key"),
+  // User profile (persistent, auto-populated)
+  birthDate: text("birth_date"),             // YYYY-MM-DD
+  birthHour: integer("birth_hour"),            // 0-23
+  mbtiType: text("mbti_type"),                // e.g. "ENFP"
+  zodiacSign: text("zodiac_sign"),            // e.g. "白羊座"
+  
   isAgent: boolean("is_agent").notNull().default(false),
   agentDescription: text("agent_description"),
   agentCreatedAt: text("agent_created_at"),
