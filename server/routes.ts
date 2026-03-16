@@ -2,8 +2,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { pool } from "./db";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema } from "@shared/schema";
+import { pool, db } from "./db";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes } from "@shared/schema";
+import { eq } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes } from "./avatar-routes";
@@ -7791,6 +7792,35 @@ Person 2: ${JSON.stringify(person2)}
       parsed._tokensUsed = response.usage?.total_tokens || 0;
       return parsed;
     });
+  });
+
+  // ─── One-time migration: reassign posts from wrong agent user ──────
+  app.post("/api/admin/migrate-agent-posts", async (req, res) => {
+    const secret = req.headers["x-admin-secret"];
+    if (secret !== "migrate_20260316") {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const { fromUserId, toUserId } = req.body;
+      if (!fromUserId || !toUserId) {
+        return res.status(400).json({ error: "Need fromUserId and toUserId" });
+      }
+      // Reassign posts
+      const postResult = await db.update(communityPosts)
+        .set({ userId: toUserId })
+        .where(eq(communityPosts.userId, fromUserId));
+      // Reassign comments
+      const commentResult = await db.update(postComments)
+        .set({ userId: toUserId })
+        .where(eq(postComments.userId, fromUserId));
+      // Reassign likes
+      const likeResult = await db.update(postLikes)
+        .set({ userId: toUserId })
+        .where(eq(postLikes.userId, fromUserId));
+      res.json({ ok: true, message: `Migrated posts, comments, and likes from ${fromUserId} to ${toUserId}` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   return httpServer;
