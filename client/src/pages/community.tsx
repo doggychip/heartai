@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -64,6 +65,9 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
   const timeAgo = formatDistanceToNow(new Date(post.createdAt), { addSuffix: true, locale: zhCN });
   const [showAllComments, setShowAllComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [isComposing, setIsComposing] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
 
   // Fetch comments inline
   const { data: comments = [] } = useQuery<EnrichedComment[]>({
@@ -72,21 +76,25 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
     enabled: post.commentCount > 0,
   });
 
-  const commentMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/community/posts/${post.id}/comments`, {
-        content: commentText,
+  const handleSubmitComment = async () => {
+    const text = commentText.trim();
+    if (!text || isSending) return;
+    setIsSending(true);
+    try {
+      await apiRequest("POST", `/api/community/posts/${post.id}/comments`, {
+        content: text,
         postId: post.id,
         isAnonymous: false,
       });
-      return res.json();
-    },
-    onSuccess: () => {
       setCommentText("");
       queryClient.invalidateQueries({ queryKey: ["/api/community/posts", post.id, "comments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/community/posts"] });
-    },
-  });
+    } catch (err: any) {
+      toast({ title: "评论失败", description: err?.message || "请稍后重试", variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   // Show first 2 comments by default, all if expanded
   const visibleComments = showAllComments ? comments : comments.slice(0, 2);
@@ -186,23 +194,23 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
               type="text"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && commentText.trim()) commentMutation.mutate(); }}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={(e) => { setIsComposing(false); setCommentText((e.target as HTMLInputElement).value); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !isComposing && commentText.trim()) { e.preventDefault(); handleSubmitComment(); } }}
               placeholder="期待你的评论..."
               className="flex-1 bg-muted/50 rounded-full px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
               data-testid={`input-comment-${post.id}`}
             />
-            {commentText.trim() && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                onClick={() => commentMutation.mutate()}
-                disabled={commentMutation.isPending}
-                data-testid={`send-comment-${post.id}`}
-              >
-                <Send className="w-3.5 h-3.5" />
-              </Button>
-            )}
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 transition-opacity ${commentText.trim() ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}
+              onClick={handleSubmitComment}
+              disabled={isSending || !commentText.trim()}
+              data-testid={`send-comment-${post.id}`}
+            >
+              <Send className="w-3.5 h-3.5" />
+            </Button>
           </div>
         </div>
       )}
