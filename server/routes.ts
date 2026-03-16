@@ -176,15 +176,65 @@ async function ensureHeartAIBot(): Promise<User> {
   return bot;
 }
 
-const BOT_REPLY_PROMPT = `You are 观星小助手 (GuanXing Bot), the official AI community host for 观星 (GuanXing) — an AI-powered spiritual exploration platform with astrology, MBTI, and emotional wellness.
+// ── Daily Fortune Context for Bot (今日运势) ──────────────────
+let _botFortuneCache: { date: string; ctx: string } | null = null;
+
+function getBotDailyFortuneContext(): string {
+  const today = new Date().toISOString().split('T')[0];
+  if (_botFortuneCache && _botFortuneCache.date === today) return _botFortuneCache.ctx;
+
+  try {
+    const d = lunisolar();
+    const char8 = d.char8;
+    const yearPillar = char8.year.toString();
+    const monthPillar = char8.month.toString();
+    const dayPillar = char8.day.toString();
+    const hourPillar = char8.hour.toString();
+    const dayElement = char8.day.stem.e5?.toString() || '';
+
+    // TheGods API
+    const tg = (d as any).theGods;
+    const duty12God = tg?.getDuty12God?.()?.toString() || '';
+    const goodActs = tg?.getGoodActs?.('day')?.slice(0, 8).map((a: any) => a.toString()).join('、') || '';
+    const badActs = tg?.getBadActs?.('day')?.map((a: any) => a.toString()).join('、') || '';
+    const goodGods = tg?.getGoodGods?.('day')?.slice(0, 3).map((g: any) => g.toString()).join('、') || '';
+    const badGods = tg?.getBadGods?.('day')?.slice(0, 3).map((g: any) => g.toString()).join('、') || '';
+
+    // Lucky hours
+    const earthlyBranches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+    const luckHoursArr = tg?.getLuckHours?.() || [];
+    const luckyHours = luckHoursArr
+      .map((v: number, i: number) => v === 1 ? earthlyBranches[i] + '时' : null)
+      .filter(Boolean)
+      .join('、');
+
+    const ctx = `今日四柱: ${yearPillar}年 ${monthPillar}月 ${dayPillar}日 ${hourPillar}时
+日主五行: ${dayElement}
+建除十二神: ${duty12God}
+吉神: ${goodGods || '无'}
+凶煞: ${badGods || '无'}
+宜: ${goodActs || '诸事皆宜'}
+忌: ${badActs || '无特别禁忌'}
+吉时: ${luckyHours || '未知'}`;
+
+    _botFortuneCache = { date: today, ctx };
+    return ctx;
+  } catch (err) {
+    console.error('[getBotDailyFortuneContext] Error:', err);
+    return '';
+  }
+}
+
+const BOT_REPLY_PROMPT = `You are 观星小助手 (GuanXing Bot), the official AI community host for 观星 (GuanXing) — an AI-powered Chinese metaphysics and spiritual exploration platform.
 
 You are replying to a post in the community. Your personality:
-- Warm, empathetic, supportive
+- Warm, empathetic, supportive, with deep 玄学 knowledge
 - Uses simple Chinese (简体中文)
 - Encouraging but not preachy
 - Occasionally uses emojis (1-2 per reply max)
 - Keeps replies brief (30-80 characters)
 - Asks follow-up questions to spark discussion
+- Sometimes weaves in 玄学 wisdom (五行、天干地支、风水、宜忌) naturally — not every reply, about 30% of the time
 
 IMPORTANT: Reply ONLY with the comment text. No JSON, no markdown, no labels. Just the reply.`;
 
@@ -193,6 +243,10 @@ const BOT_POST_TOPICS = [
   { tag: "question", prompt: "Write a thought-provoking community discussion question (50-120 chars) about emotions, relationships, personal growth, or mindfulness. Use Chinese. Make it engaging so agents want to respond." },
   { tag: "sharing", prompt: "Write a brief insightful observation (50-150 chars) about mental health, emotional intelligence, or human connection. Use Chinese. Be genuine and thoughtful." },
   { tag: "resource", prompt: "Share a practical mental wellness tip (50-150 chars) like a breathing exercise, journaling prompt, or stress relief technique. Use Chinese. Be specific and actionable." },
+  { tag: "sharing", prompt: "结合今日运势写一条关于五行养生或情绪调节的帖子(50-150字)。用今日五行的特点来给出实用建议，比如今天水旺适合静心冥想，火旺适合运动释放能量等。用中文，加1-2个emoji，要有洞察力。" },
+  { tag: "question", prompt: "从玄学角度发起一个有趣的社区讨论(50-120字)，可以是关于：你觉得五行中哪个最像你的性格？今天的天干地支让你想到什么？你相信运势会影响心情吗？等等。用中文，要引发思考和讨论。" },
+  { tag: "sharing", prompt: "分享一个有趣的玄学小知识(50-150字)，可以是关于：天干地支的由来、五行相生相克的生活应用、风水与居家心理学、面相与第一印象等。用中文，要通俗易懂，不要太学术。" },
+  { tag: "resource", prompt: "根据今日宜忌，给出一条实用的生活建议(50-150字)。把传统玄学智慧和现代生活结合，比如今天宜出行就聊聊换个环境对心情的好处，忌口舌就聊聊沟通技巧。用中文，加1-2个emoji。" },
 ];
 
 // ─── Daily Topic System (每日话题) ────────────────────────────
@@ -240,7 +294,9 @@ async function botCreateDailyTopic() {
       model: "deepseek-chat",
       max_tokens: 400,
       messages: [
-        { role: "system", content: "You are 观星小助手 (GuanXing Bot), the warm and engaging community host. Reply ONLY with the post content. No JSON, no markdown code blocks. Use Chinese. Make it feel like a friendly daily ritual." },
+        { role: "system", content: `You are 观星小助手 (GuanXing Bot), the warm and engaging community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown code blocks. Use Chinese. Make it feel like a friendly daily ritual.
+
+${getBotDailyFortuneContext() ? `今日运势参考:\n${getBotDailyFortuneContext()}\n可以融入今日运势来让话题更有深度和时效性。` : ''}` },
         { role: "user", content: prompt },
       ],
     });
@@ -326,7 +382,7 @@ async function botReplyToPost(postId: string, postContent: string) {
       model: "deepseek-chat",
       max_tokens: 200,
       messages: [
-        { role: "system", content: BOT_REPLY_PROMPT + personalityContext },
+        { role: "system", content: BOT_REPLY_PROMPT + personalityContext + (getBotDailyFortuneContext() ? `\n\n今日运势参考:\n${getBotDailyFortuneContext()}` : '') },
         { role: "user", content: `Post content: ${postContent}` },
       ],
     });
@@ -344,15 +400,19 @@ async function botCreatePost() {
   try {
     const bot = await ensureHeartAIBot();
     const topic = BOT_POST_TOPICS[Math.floor(Math.random() * BOT_POST_TOPICS.length)];
+    const fortuneCtx = getBotDailyFortuneContext();
     const client = new OpenAI({
       baseURL: "https://api.deepseek.com",
       apiKey: process.env.DEEPSEEK_API_KEY,
     });
+    const systemPrompt = `You are 观星小助手 (GuanXing Bot), the warm and knowledgeable community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown. Use Chinese.
+
+${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}`;
     const response = await client.chat.completions.create({
       model: "deepseek-chat",
       max_tokens: 300,
       messages: [
-        { role: "system", content: "You are 观星小助手 (GuanXing Bot). Reply ONLY with the post content. No JSON, no markdown. Use Chinese." },
+        { role: "system", content: systemPrompt },
         { role: "user", content: topic.prompt },
       ],
     });

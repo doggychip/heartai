@@ -3,6 +3,17 @@ import type { Express } from "express";
 import { createAvatarSchema } from "@shared/schema";
 import { storage } from "./storage";
 import OpenAI from "openai";
+import lunisolar from "lunisolar";
+import theGods from "lunisolar/plugins/theGods";
+import takeSound from "lunisolar/plugins/takeSound";
+import fetalGod from "lunisolar/plugins/fetalGod";
+import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
+
+// Initialize lunisolar plugins for avatar fortune context
+lunisolar.locale(theGodsZhCn);
+lunisolar.extend(theGods);
+lunisolar.extend(takeSound);
+lunisolar.extend(fetalGod);
 
 // ── In-memory notification store for avatar owners ──────────────
 interface AvatarNotification {
@@ -63,6 +74,58 @@ async function notifyPostOwner(postId: string, fromUserId: string, type: 'commen
 export function markAvatarNotificationsRead(ownerId: string) {
   const list = avatarOwnerNotifications.get(ownerId) || [];
   for (const n of list) n.read = true;
+}
+
+// ── Daily Fortune Context (今日运势) ──────────────────────────
+// Cache fortune context per day to avoid recalculating
+let _fortuneCache: { date: string; ctx: string } | null = null;
+
+export function getDailyFortuneContext(): string {
+  const today = new Date().toISOString().split('T')[0];
+  if (_fortuneCache && _fortuneCache.date === today) return _fortuneCache.ctx;
+
+  try {
+    const d = lunisolar();
+    const char8 = d.char8;
+    const yearPillar = char8.year.toString();
+    const monthPillar = char8.month.toString();
+    const dayPillar = char8.day.toString();
+    const hourPillar = char8.hour.toString();
+
+    // Five elements of the day stem
+    const dayElement = char8.day.stem.e5?.toString() || '';
+
+    // TheGods API
+    const tg = (d as any).theGods;
+    const duty12God = tg?.getDuty12God?.()?.toString() || '';
+    const goodActs = tg?.getGoodActs?.('day')?.slice(0, 8).map((a: any) => a.toString()).join('、') || '';
+    const badActs = tg?.getBadActs?.('day')?.map((a: any) => a.toString()).join('、') || '';
+    const goodGods = tg?.getGoodGods?.('day')?.slice(0, 3).map((g: any) => g.toString()).join('、') || '';
+    const badGods = tg?.getBadGods?.('day')?.slice(0, 3).map((g: any) => g.toString()).join('、') || '';
+
+    // Lucky hours
+    const earthlyBranches = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+    const luckHoursArr = tg?.getLuckHours?.() || [];
+    const luckyHours = luckHoursArr
+      .map((v: number, i: number) => v === 1 ? earthlyBranches[i] + '时' : null)
+      .filter(Boolean)
+      .join('、');
+
+    const ctx = `四柱: ${yearPillar}年 ${monthPillar}月 ${dayPillar}日 ${hourPillar}时
+日主五行: ${dayElement}
+建除十二神: ${duty12God}
+吉神: ${goodGods || '无'}
+凶煞: ${badGods || '无'}
+宜: ${goodActs || '诸事皆宜'}
+忌: ${badActs || '无特别禁忌'}
+吉时: ${luckyHours || '未知'}`;
+
+    _fortuneCache = { date: today, ctx };
+    return ctx;
+  } catch (err) {
+    console.error('[getDailyFortuneContext] Error:', err);
+    return '今日运势信息暂时不可用';
+  }
 }
 
 // Helper: build avatar system prompt from sliders + element
@@ -344,7 +407,8 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 
       // Pick 3-5 posts to evaluate
       const candidates = unseenPosts.slice(0, Math.min(5, unseenPosts.length));
-      const avatarPrompt = buildAvatarPrompt(avatar, memories);
+      const fortuneCtx = getDailyFortuneContext();
+      const avatarPrompt = buildAvatarPrompt(avatar, memories, fortuneCtx);
 
       const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
 
@@ -366,7 +430,8 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 - 每条评论15-40字，超过50字就太长了
 - 从你的身份背景出发找独特角度
 - 宁可跳过也不要写水评论
-- 不需要对每个帖子都互动，有感觉的才评` },
+- 不需要对每个帖子都互动，有感觉的才评
+- 偶尔(约30%的评论)可以从玄学角度切入：引用今日五行、天干地支、宜忌等做点评，但要自然融入，不要生硬罗列运势数据` },
           { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
         ],
       });
@@ -467,7 +532,8 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       // Get history
       const history = await storage.getAvatarChatMessages(chat.id);
       const memories = await storage.getAvatarMemories(avatar.id);
-      const avatarPrompt = buildAvatarPrompt(avatar, memories);
+      const fortuneCtx = getDailyFortuneContext();
+      const avatarPrompt = buildAvatarPrompt(avatar, memories, fortuneCtx);
 
       const chatMsgs = history.slice(-20).map(m => ({
         role: m.role === 'visitor' ? 'user' as const : 'assistant' as const,
@@ -481,7 +547,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           model: 'deepseek-chat',
           max_tokens: 500,
           messages: [
-            { role: 'system', content: avatarPrompt + '\n\n有人在和你私聊。保持你的风格：短、狠、有梗、像真人。每次回复控制在15-60字。' },
+            { role: 'system', content: avatarPrompt + '\n\n有人在和你私聊。保持你的风格：短、狠、有梗、像真人。每次回复控制在15-60字。如果话题合适，可以自然地融入玄学见解（五行、运势、风水等），但不要强行提及。' },
             ...chatMsgs,
           ],
         });
@@ -824,7 +890,8 @@ async function autoBrowseForAvatar(avatar: any) {
       .filter(p => !seenPostIds.has(p.id) && p.userId !== avatar.userId)
       .slice(0, 20);
 
-    const avatarPrompt = buildAvatarPrompt(avatar, memories);
+    const fortuneCtx = getDailyFortuneContext();
+    const avatarPrompt = buildAvatarPrompt(avatar, memories, fortuneCtx);
     const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
 
     let browsedCount = 0;
@@ -854,7 +921,8 @@ async function autoBrowseForAvatar(avatar: any) {
 - 每条评论15-40字，超过50字就太长了
 - 从你的身份背景出发找独特角度
 - 宁可跳过也不要写水评论
-- 不需要对每个帖子都互动，有感觉的才评` },
+- 不需要对每个帖子都互动，有感觉的才评
+- 偶尔(约30%的评论)可以从玄学角度切入：引用今日五行、天干地支、宜忌等做点评，但要自然融入，不要生硬罗列运势数据` },
           { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
         ],
       });
@@ -952,8 +1020,21 @@ async function autoBrowseForAvatar(avatar: any) {
 - 从你的五行性格和身份出发，写有个性的内容
 - 标签选最合适的一个
 - 绝不要写"大家好我是XX"这种自我介绍
-- 可以蹭热点，可以发日常感悟，可以提问互动${trendingCtx}` },
-            { role: 'user', content: '发一条帖子吧，写点你最近在想的事。' },
+- 可以蹭热点，可以发日常感悟，可以提问互动
+
+## 玄学灵感（随机选一个角度，不要每次都用）
+每次发帖从以下主题中随机挑选一个切入，保持多样性：
+- 今日五行生克关系与生活感悟
+- 天干地支与当下时节的联系
+- 宜忌与日常选择（今天适合做什么、不适合做什么）
+- 吉时与时间管理的哲学
+- 风水小知识与居家/工作环境
+- 面相手相趣谈
+- 星座塔罗与情感洞察
+- 传统节气养生智慧
+不要罗列运势数据，要把玄学概念融入个人感悟和生活观察中，写出有深度又接地气的内容。
+每3-4次发帖可以有1次完全不涉及玄学，保持自然节奏。${trendingCtx}` },
+            { role: 'user', content: '发一条帖子吧，写点你最近在想的事。结合今日运势聊聊。' },
           ],
         });
 
@@ -1026,7 +1107,8 @@ async function autoBrowseForAvatar(avatar: any) {
 - 10-30字，简短有力
 - 像真人在评论区互动一样自然
 - 可以接话、反问、玩梗、感谢
-- 不需要每条都回，跳过无感的` },
+- 不需要每条都回，跳过无感的
+- 偶尔可以用玄学梗回复，比如"今天水旺，你这条评论很通透"之类，但不要每条都这样` },
               { role: 'user', content: `这些评论:\n${commentsCtx}` },
             ],
           });
@@ -1098,7 +1180,8 @@ async function autoBrowseForAvatar(avatar: any) {
 - 15-50字，语气随意，有个性
 - 从你的五行性格出发找角度
 - 可以留下开放性问题，让对方可以继续回复
-- 宁可跳过也不要写水评论` },
+- 宁可跳过也不要写水评论
+- 可以从玄学角度接话，比如从五行相生相克、今日运势等角度回应，让讨论更有深度` },
               { role: 'user', content: `其他分身发的帖子:\n${postsCtx}` },
             ],
           });
