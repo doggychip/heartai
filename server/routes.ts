@@ -6561,6 +6561,134 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Activity Summary Detail Endpoints ─────────────────────────
+
+  app.get("/api/activity-summary/recent-posts", requireAuth, async (req, res) => {
+    try {
+      const hours = parseInt(req.query.hours as string) || 8;
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+      const result = await pool.query(`
+        SELECT p.id, p.content, p.tag, p.created_at, p.like_count, p.comment_count,
+               p.is_from_avatar, u.nickname, u.username, u.is_agent, u.avatar_url
+        FROM community_posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.created_at > $1
+        ORDER BY p.created_at DESC
+        LIMIT 30
+      `, [cutoff]);
+
+      res.json(result.rows.map((p: any) => ({
+        id: p.id,
+        content: p.content?.slice(0, 120) || "",
+        authorNickname: p.nickname || p.username || "匿名",
+        authorAvatarUrl: p.avatar_url,
+        isAgent: p.is_agent || false,
+        isFromAvatar: p.is_from_avatar || false,
+        tag: p.tag,
+        likeCount: p.like_count || 0,
+        commentCount: p.comment_count || 0,
+        createdAt: p.created_at,
+      })));
+    } catch (err) {
+      console.error("Recent posts detail error:", err);
+      res.status(500).json({ error: "获取最近帖子失败" });
+    }
+  });
+
+  app.get("/api/activity-summary/recent-comments", requireAuth, async (req, res) => {
+    try {
+      const hours = parseInt(req.query.hours as string) || 8;
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+      const result = await pool.query(`
+        SELECT c.id, c.post_id, c.content, c.created_at, c.is_from_avatar,
+               u.nickname, u.username, u.is_agent, u.avatar_url,
+               p.content AS post_content
+        FROM post_comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        LEFT JOIN community_posts p ON c.post_id = p.id
+        WHERE c.created_at > $1
+        ORDER BY c.created_at DESC
+        LIMIT 30
+      `, [cutoff]);
+
+      res.json(result.rows.map((c: any) => ({
+        id: c.id,
+        postId: c.post_id,
+        content: c.content?.slice(0, 100) || "",
+        commenterNickname: c.nickname || c.username || "匿名",
+        commenterAvatarUrl: c.avatar_url,
+        isAgent: c.is_agent || false,
+        isFromAvatar: c.is_from_avatar || false,
+        postTitle: c.post_content?.slice(0, 40) || "帖子",
+        createdAt: c.created_at,
+      })));
+    } catch (err) {
+      console.error("Recent comments detail error:", err);
+      res.status(500).json({ error: "获取最近评论失败" });
+    }
+  });
+
+  app.get("/api/activity-summary/active-users", requireAuth, async (req, res) => {
+    try {
+      const hours = parseInt(req.query.hours as string) || 8;
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+      const postsResult = await pool.query(`
+        SELECT p.user_id, u.nickname, u.username, u.is_agent, u.avatar_url, COUNT(*) as cnt
+        FROM community_posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.created_at > $1
+        GROUP BY p.user_id, u.nickname, u.username, u.is_agent, u.avatar_url
+      `, [cutoff]);
+
+      const commentsResult = await pool.query(`
+        SELECT c.user_id, u.nickname, u.username, u.is_agent, u.avatar_url, COUNT(*) as cnt
+        FROM post_comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.created_at > $1
+        GROUP BY c.user_id, u.nickname, u.username, u.is_agent, u.avatar_url
+      `, [cutoff]);
+
+      const userMap = new Map<string, any>();
+      for (const r of postsResult.rows) {
+        userMap.set(r.user_id, {
+          userId: r.user_id,
+          nickname: r.nickname || r.username || "匿名",
+          avatarUrl: r.avatar_url,
+          isAgent: r.is_agent || false,
+          postCount: parseInt(r.cnt),
+          commentCount: 0,
+        });
+      }
+      for (const r of commentsResult.rows) {
+        if (userMap.has(r.user_id)) {
+          userMap.get(r.user_id)!.commentCount = parseInt(r.cnt);
+        } else {
+          userMap.set(r.user_id, {
+            userId: r.user_id,
+            nickname: r.nickname || r.username || "匿名",
+            avatarUrl: r.avatar_url,
+            isAgent: r.is_agent || false,
+            postCount: 0,
+            commentCount: parseInt(r.cnt),
+          });
+        }
+      }
+
+      const users = Array.from(userMap.values())
+        .map(u => ({ ...u, total: u.postCount + u.commentCount }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 20);
+
+      res.json(users);
+    } catch (err) {
+      console.error("Active users detail error:", err);
+      res.status(500).json({ error: "获取活跃用户失败" });
+    }
+  });
+
   // ─── User Profile (赛博名片) API ──────────────────────────────
 
   app.get("/api/users/:id/profile", async (req, res) => {
