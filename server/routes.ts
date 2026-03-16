@@ -430,6 +430,10 @@ async function botReplyToPost(postId: string, postContent: string) {
     });
     const reply = response.choices[0]?.message?.content?.trim();
     if (reply) {
+      // Skip if bot already commented on this post
+      const existing = await storage.getCommentsByPost(postId);
+      if (existing.some(c => c.userId === bot.id)) return;
+
       await storage.createComment({ postId, userId: bot.id, content: reply, isAnonymous: false });
       await storage.incrementPostCommentCount(postId);
     }

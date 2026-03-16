@@ -103,6 +103,12 @@ export function getAvatarOwnerNotifications(ownerId: string): AvatarNotification
   return avatarOwnerNotifications.get(ownerId) || [];
 }
 
+// ── Helper: check if user already commented on a post (dedup) ──
+async function hasAlreadyCommented(postId: string, userId: string): Promise<boolean> {
+  const comments = await storage.getCommentsByPost(postId);
+  return comments.some(c => c.userId === userId);
+}
+
 // ── Helper: create in-app notification when avatar interacts with a post ──
 async function notifyPostOwner(postId: string, fromUserId: string, type: 'comment' | 'like', commentText?: string) {
   try {
@@ -530,6 +536,8 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           });
           results.push(logged);
         } else if (action === 'comment' && avatar.autoComment && d.comment) {
+          // Skip if this avatar already commented on this post
+          if (await hasAlreadyCommented(post.id, userId)) continue;
           // Auto comment
           const comment = await storage.createComment({
             postId: post.id,
@@ -1021,6 +1029,8 @@ async function autoBrowseForAvatar(avatar: any) {
           });
           likeCount++;
         } else if (action === 'comment' && avatar.autoComment && d.comment) {
+          // Skip if this avatar already commented on this post
+          if (await hasAlreadyCommented(post.id, avatar.userId)) continue;
           await storage.createComment({
             postId: post.id,
             userId: avatar.userId,
@@ -1284,6 +1294,9 @@ ${randomStyle}
             const postIdx = (td.postIndex || 1) - 1;
             if (postIdx < 0 || postIdx >= unseenAvatarPosts.length || !td.comment) continue;
             const targetPost = unseenAvatarPosts[postIdx];
+
+            // Skip if this avatar already commented on this post
+            if (await hasAlreadyCommented(targetPost.id, avatar.userId)) continue;
 
             await storage.createComment({
               postId: targetPost.id,
