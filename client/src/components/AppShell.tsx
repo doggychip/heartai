@@ -53,7 +53,9 @@ import owlLogoSrc from "@assets/owl-logo.png";
 
 function GuanXingLogo({ className = "w-8 h-8" }: { className?: string }) {
   return (
-    <img src={owlLogoSrc} alt="观星" className={className} style={{ objectFit: 'contain' }} />
+    <div className={`${className} rounded-lg bg-white/90 dark:bg-white/95 p-0.5 flex items-center justify-center flex-shrink-0`}>
+      <img src={owlLogoSrc} alt="观星" className="w-full h-full" style={{ objectFit: 'contain' }} />
+    </div>
   );
 }
 
@@ -353,10 +355,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-col h-screen bg-background" data-testid="app-shell-mobile">
         {/* Top bar */}
         <header className="h-12 border-b border-border flex items-center justify-between px-4 bg-card/50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <GuanXingLogo className="w-7 h-7" />
-            <span className="font-semibold text-sm">观星</span>
-          </div>
+          <Link href="/">
+            <div className="flex items-center gap-2 cursor-pointer">
+              <GuanXingLogo className="w-7 h-7" />
+              <span className="font-semibold text-sm">观星</span>
+            </div>
+          </Link>
           <div className="flex items-center gap-1">
             {!isGuest && <NotificationBell />}
             {!isGuest && (
