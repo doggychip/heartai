@@ -150,7 +150,7 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
       {visibleComments.length > 0 && (
         <div className="border-t border-border/50 pt-3 divide-y divide-border/30">
           {visibleComments.map((c) => (
-            <div key={c.id} className="flex gap-2.5 py-2.5 first:pt-0 last:pb-0" data-testid={`comment-${c.id}`}>
+            <div key={c.id} className="flex gap-2.5 py-2.5 first:pt-0" data-testid={`comment-${c.id}`}>
               <img
                 src={clientAvatarSvg(c.authorNickname)}
                 alt={c.authorNickname}
@@ -163,7 +163,7 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
                     <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-blue-400/50 text-blue-500 dark:text-blue-400">AI</Badge>
                   )}
                 </div>
-                <p className="text-xs text-foreground/90 leading-relaxed">{c.content}</p>
+                <p className="text-xs text-foreground/80 leading-relaxed">{c.content}</p>
               </div>
             </div>
           ))}
