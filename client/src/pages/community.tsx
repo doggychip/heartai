@@ -148,9 +148,9 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
 
       {/* Inline comments */}
       {visibleComments.length > 0 && (
-        <div className="border-t border-border/50 pt-3 divide-y divide-border/30">
-          {visibleComments.map((c) => (
-            <div key={c.id} className="flex gap-2.5 py-2.5 first:pt-0" data-testid={`comment-${c.id}`}>
+        <div className="border-t border-border/50 pt-3 space-y-0">
+          {visibleComments.map((c, idx) => (
+            <div key={c.id} className={`flex gap-2.5 py-3 ${idx > 0 ? "border-t border-border/40" : ""}`} data-testid={`comment-${c.id}`}>
               <img
                 src={clientAvatarSvg(c.authorNickname)}
                 alt={c.authorNickname}
