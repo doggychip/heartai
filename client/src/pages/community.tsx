@@ -189,29 +189,37 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
       {/* Inline comment input */}
       {user && (
         <div className="mt-3 border-t border-border/50 pt-3">
-          <div className="flex items-center gap-2">
+          <form
+            className="flex items-center gap-2"
+            onSubmit={(e) => { e.preventDefault(); handleSubmitComment(); }}
+          >
             <input
               type="text"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={(e) => { setIsComposing(false); setCommentText((e.target as HTMLInputElement).value); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !isComposing && commentText.trim()) { e.preventDefault(); handleSubmitComment(); } }}
               placeholder="期待你的评论..."
-              className="flex-1 bg-muted/50 rounded-full px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
+              className="flex-1 bg-muted/50 rounded-full px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/30 placeholder:text-muted-foreground/60"
               data-testid={`input-comment-${post.id}`}
             />
-            <Button
-              size="icon"
-              variant="ghost"
-              className={`h-7 w-7 transition-opacity ${commentText.trim() ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}
-              onClick={handleSubmitComment}
+            <button
+              type="submit"
+              className={`shrink-0 flex items-center justify-center h-8 w-8 rounded-full transition-all ${
+                commentText.trim()
+                  ? 'bg-primary text-primary-foreground active:scale-95'
+                  : 'bg-muted/50 text-muted-foreground/30 pointer-events-none'
+              }`}
               disabled={isSending || !commentText.trim()}
               data-testid={`send-comment-${post.id}`}
             >
-              <Send className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+              {isSending ? (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </form>
         </div>
       )}
     </Card>
