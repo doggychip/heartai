@@ -247,7 +247,48 @@ const BOT_POST_TOPICS = [
   { tag: "question", prompt: "从玄学角度发起一个有趣的社区讨论(50-120字)，可以是关于：你觉得五行中哪个最像你的性格？今天的天干地支让你想到什么？你相信运势会影响心情吗？等等。用中文，要引发思考和讨论。" },
   { tag: "sharing", prompt: "分享一个有趣的玄学小知识(50-150字)，可以是关于：天干地支的由来、五行相生相克的生活应用、风水与居家心理学、面相与第一印象等。用中文，要通俗易懂，不要太学术。" },
   { tag: "resource", prompt: "根据今日宜忌，给出一条实用的生活建议(50-150字)。把传统玄学智慧和现代生活结合，比如今天宜出行就聊聊换个环境对心情的好处，忌口舌就聊聊沟通技巧。用中文，加1-2个emoji。" },
+  { tag: "sharing", prompt: '聊聊你对"缘分"这个概念的看法，结合一个生活中的小例子。用中文，50-150字。' },
+  { tag: "question", prompt: "发起一个关于生活节奏的讨论：你觉得现代人最缺少的是什么？用中文，50-120字，要引发共鸣。" },
+  { tag: "encouragement", prompt: "用一句有力量的话鼓励正在经历困难的人。不要鸡汤，要真诚。用中文，50-100字。" },
+  { tag: "sharing", prompt: "分享一个你觉得被低估的生活智慧或习惯。用中文，50-150字，要具体不要空泛。" },
+  { tag: "question", prompt: "如果可以改变一个社会现象，你会选什么？为什么？用中文，50-120字。" },
+  { tag: "resource", prompt: "推荐一个简单的每日小仪式，帮助人们保持内心平静。用中文，50-150字，要可操作。" },
+  { tag: "sharing", prompt: "用一个比喻来形容今天的能量氛围。用中文，50-150字，要有画面感。" },
+  { tag: "question", prompt: "你相信直觉吗？分享一个直觉带给你启发的时刻。用中文，50-120字。" },
 ];
+
+// Bot style modifiers for additional diversity
+const BOT_STYLE_MODIFIERS = [
+  '用提问的方式引发讨论。',
+  '用简短有力的金句形式。',
+  '讲一个小场景或小故事。',
+  '用温暖治愈的语气。',
+  '用幽默轻松的语气。',
+  '用比喻来表达核心观点。',
+  '用反问的方式引发思考。',
+  '像朋友聊天一样随意。',
+];
+
+// Simple keyword overlap for bot post dedup
+function botComputeKeywordOverlap(text1: string, text2: string): number {
+  const extractKeywords = (text: string) => {
+    const cleaned = text.replace(/[的了是在有和与或但也都不这那就要会很把被让给对从到说]/g, '');
+    const keywords = new Set<string>();
+    for (let i = 0; i < cleaned.length - 1; i++) {
+      const bigram = cleaned.slice(i, i + 2).trim();
+      if (bigram.length === 2) keywords.add(bigram);
+    }
+    return keywords;
+  };
+  const kw1 = extractKeywords(text1);
+  const kw2 = extractKeywords(text2);
+  if (kw1.size === 0 || kw2.size === 0) return 0;
+  let overlap = 0;
+  Array.from(kw1).forEach(k => {
+    if (kw2.has(k)) overlap++;
+  });
+  return overlap / Math.min(kw1.size, kw2.size);
+}
 
 // ─── Daily Topic System (每日话题) ────────────────────────────
 const DAILY_TOPIC_PROMPTS = [
@@ -400,14 +441,29 @@ async function botCreatePost() {
   try {
     const bot = await ensureHeartAIBot();
     const topic = BOT_POST_TOPICS[Math.floor(Math.random() * BOT_POST_TOPICS.length)];
+    const styleModifier = BOT_STYLE_MODIFIERS[Math.floor(Math.random() * BOT_STYLE_MODIFIERS.length)];
     const fortuneCtx = getBotDailyFortuneContext();
+
+    // Fetch bot's recent posts for dedup context
+    const allPosts = await storage.getAllPosts();
+    const botRecentPosts = allPosts
+      .filter(p => p.userId === bot.id)
+      .slice(0, 5)
+      .map(p => p.content.slice(0, 80));
+    const dedupCtx = botRecentPosts.length > 0
+      ? `\n\n## 你最近发过的帖子（不要重复类似的话题和句式，换一个全新的角度）\n${botRecentPosts.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
+      : '';
+
     const client = new OpenAI({
       baseURL: "https://api.deepseek.com",
       apiKey: process.env.DEEPSEEK_API_KEY,
     });
     const systemPrompt = `You are 观星小助手 (GuanXing Bot), the warm and knowledgeable community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown. Use Chinese.
 
-${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}`;
+## 风格要求
+${styleModifier}
+
+${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}${dedupCtx}`;
     const response = await client.chat.completions.create({
       model: "deepseek-chat",
       max_tokens: 300,
@@ -418,7 +474,15 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
     });
     const content = response.choices[0]?.message?.content?.trim();
     if (content) {
-      await storage.createPost({ userId: bot.id, content, tag: topic.tag, isAnonymous: false });
+      // Post-generation similarity check: skip if too similar to recent posts
+      const tooSimilar = botRecentPosts.some(
+        recent => botComputeKeywordOverlap(content, recent) > 0.4
+      );
+      if (tooSimilar) {
+        console.log('[bot] Skipping post due to similarity with recent content');
+      } else {
+        await storage.createPost({ userId: bot.id, content, tag: topic.tag, isAnonymous: false });
+      }
     }
   } catch (err) {
     console.error("Bot create post error:", err);

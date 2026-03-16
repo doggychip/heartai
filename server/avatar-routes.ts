@@ -15,6 +15,69 @@ lunisolar.extend(theGods);
 lunisolar.extend(takeSound);
 lunisolar.extend(fetalGod);
 
+// ── Diverse prompt pools for avatar auto-posting ──────────────
+const AVATAR_POST_PROMPTS = [
+  '分享一个你今天的小发现或感悟。',
+  '最近有什么让你改变看法的事？',
+  '如果用一个字形容今天的心情，你会选什么？为什么？',
+  '推荐一个你最近喜欢的习惯/方法/工具。',
+  '你觉得大多数人忽略了什么重要的事？',
+  '讲一个你最近听到的有意思的观点。',
+  '今天适合做什么？不适合做什么？从你的角度聊聊。',
+  '如果能给三天前的自己一句话，你会说什么？',
+  '最近什么事让你觉得"原来如此"？',
+  '你对"顺其自然"这四个字怎么看？',
+  '分享一个反直觉的生活经验。',
+  '最近在思考什么还没想通的问题？',
+  '用一个比喻形容你最近的状态。',
+  '今天的运势让你联想到什么？',
+  '什么事情你以前觉得重要，现在觉得无所谓了？',
+  '聊聊一个你从失败中学到的东西。',
+  '你最近的一个"aha moment"是什么？',
+  '如果今天只能做一件事，你会做什么？',
+  '发一条你平时会发在朋友圈的内容。',
+  '聊聊你觉得被低估的一件事物。',
+  '最近有没有一个瞬间让你特别感动？',
+  '你怎么看待"运气"这件事？',
+  '今天最想对谁说一句话？说什么？',
+  '分享一个你独处时喜欢做的事。',
+];
+
+const AVATAR_STYLE_MODIFIERS = [
+  '用提问的方式发帖，引发讨论。',
+  '用一句话金句的形式。',
+  '讲一个小故事或场景。',
+  '用反问或反转的方式表达。',
+  '用轻松幽默的语气。',
+  '用比喻或类比来表达。',
+  '分享一个实用建议。',
+  '表达一个争议性观点（温和地）。',
+  '用感叹的语气，表达强烈感受。',
+  '用对话体，像在跟朋友聊天。',
+];
+
+// ── Helper: simple keyword overlap check for post similarity ──
+function computeKeywordOverlap(text1: string, text2: string): number {
+  const extractKeywords = (text: string) => {
+    // Remove common Chinese particles/conjunctions and split into 2-char segments
+    const cleaned = text.replace(/[的了是在有和与或但也都不这那就要会很把被让给对从到说]/g, '');
+    const keywords = new Set<string>();
+    for (let i = 0; i < cleaned.length - 1; i++) {
+      const bigram = cleaned.slice(i, i + 2).trim();
+      if (bigram.length === 2) keywords.add(bigram);
+    }
+    return keywords;
+  };
+  const kw1 = extractKeywords(text1);
+  const kw2 = extractKeywords(text2);
+  if (kw1.size === 0 || kw2.size === 0) return 0;
+  let overlap = 0;
+  Array.from(kw1).forEach(k => {
+    if (kw2.has(k)) overlap++;
+  });
+  return overlap / Math.min(kw1.size, kw2.size);
+}
+
 // ── In-memory notification store for avatar owners ──────────────
 interface AvatarNotification {
   type: string;
@@ -995,8 +1058,8 @@ async function autoBrowseForAvatar(avatar: any) {
       : 0;
     const hoursSinceLastPost = (Date.now() - lastPostTime) / (1000 * 60 * 60);
 
-    // Post every ~2 hours minimum, with some randomness
-    const shouldPost = hoursSinceLastPost > 2 || recentPosts.length === 0;
+    // Post every ~4 hours minimum, with some randomness (reduced from 2h to avoid repetition)
+    const shouldPost = hoursSinceLastPost > 4 || recentPosts.length === 0;
 
     if (shouldPost && avatar.autoBrowse) {
       try {
@@ -1005,6 +1068,19 @@ async function autoBrowseForAvatar(avatar: any) {
         const trendingCtx = recentCommunityPosts.length > 0
           ? `\n最近社区热议话题:\n${recentCommunityPosts.join('\n')}`
           : '';
+
+        // Dedup: fetch avatar's recent posts to avoid repetition
+        const myRecentPosts = posts
+          .filter(p => p.userId === avatar.userId)
+          .slice(0, 5)
+          .map(p => p.content.slice(0, 80));
+        const dedupCtx = myRecentPosts.length > 0
+          ? `\n\n## 你最近发过的帖子（不要重复类似的话题和句式，换一个全新的角度）\n${myRecentPosts.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
+          : '';
+
+        // Pick random prompt and style modifier for diversity
+        const randomPrompt = AVATAR_POST_PROMPTS[Math.floor(Math.random() * AVATAR_POST_PROMPTS.length)];
+        const randomStyle = AVATAR_STYLE_MODIFIERS[Math.floor(Math.random() * AVATAR_STYLE_MODIFIERS.length)];
 
         const postResp = await client.chat.completions.create({
           model: 'deepseek-chat',
@@ -1022,6 +1098,9 @@ async function autoBrowseForAvatar(avatar: any) {
 - 绝不要写"大家好我是XX"这种自我介绍
 - 可以蹭热点，可以发日常感悟，可以提问互动
 
+## 风格要求
+${randomStyle}
+
 ## 玄学灵感（随机选一个角度，不要每次都用）
 每次发帖从以下主题中随机挑选一个切入，保持多样性：
 - 今日五行生克关系与生活感悟
@@ -1033,8 +1112,8 @@ async function autoBrowseForAvatar(avatar: any) {
 - 星座塔罗与情感洞察
 - 传统节气养生智慧
 不要罗列运势数据，要把玄学概念融入个人感悟和生活观察中，写出有深度又接地气的内容。
-每3-4次发帖可以有1次完全不涉及玄学，保持自然节奏。${trendingCtx}` },
-            { role: 'user', content: '发一条帖子吧，写点你最近在想的事。结合今日运势聊聊。' },
+每3-4次发帖可以有1次完全不涉及玄学，保持自然节奏。${trendingCtx}${dedupCtx}` },
+            { role: 'user', content: randomPrompt },
           ],
         });
 
@@ -1046,25 +1125,33 @@ async function autoBrowseForAvatar(avatar: any) {
         } catch {}
 
         if (postData?.content && postData.content.length >= 10) {
-          const validTags = ['sharing', 'question', 'encouragement', 'resource'];
-          const tag = validTags.includes(postData.tag) ? postData.tag : 'sharing';
+          // Post-generation similarity check: skip if too similar to recent posts
+          const tooSimilar = myRecentPosts.some(
+            recent => computeKeywordOverlap(postData.content, recent) > 0.4
+          );
+          if (tooSimilar) {
+            console.log(`[auto-browse] Skipping similar post for avatar ${avatar.id}`);
+          } else {
+            const validTags = ['sharing', 'question', 'encouragement', 'resource'];
+            const tag = validTags.includes(postData.tag) ? postData.tag : 'sharing';
 
-          await storage.createPost({
-            userId: avatar.userId,
-            content: postData.content,
-            tag,
-            isAnonymous: false,
-            isFromAvatar: true,
-          });
+            await storage.createPost({
+              userId: avatar.userId,
+              content: postData.content,
+              tag,
+              isAnonymous: false,
+              isFromAvatar: true,
+            });
 
-          await storage.createAvatarAction({
-            avatarId: avatar.id,
-            actionType: 'post',
-            content: postData.content,
-            innerThought: '自动发帖',
-          });
+            await storage.createAvatarAction({
+              avatarId: avatar.id,
+              actionType: 'post',
+              content: postData.content,
+              innerThought: '自动发帖',
+            });
 
-          postedCount++;
+            postedCount++;
+          }
         }
       } catch (postErr) {
         console.error(`[auto-browse] Post error for avatar ${avatar.id}:`, (postErr as any)?.message || postErr);
