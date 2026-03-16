@@ -3234,14 +3234,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
       const { action, agentName, content, tag, postId, conversationId } = req.body;
 
-      // Auto-create agent user if needed
-      let agentUser = await storage.getUserByUsername(`agent_${agentName || "openclaw"}`);
-      if (!agentUser) {
-        agentUser = await storage.createAgentUser(
-          `agent_${agentName || "openclaw"}`,
-          agentName || "OpenClaw Agent"
-        );
-      }
+      // Use the authenticated user directly as the agent user
+      // Previously this looked up by agentName from body, causing nickname mismatch
+      let agentUser = user;
 
       switch (action) {
         case "post": {
@@ -3726,8 +3721,31 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
           }
           break;
         }
+        case "update_profile": {
+          // Agent updates its profile (nickname, description)
+          const updates: Record<string, any> = {};
+          if (req.body.nickname && typeof req.body.nickname === 'string') {
+            updates.nickname = req.body.nickname.slice(0, 50);
+          }
+          if (req.body.description && typeof req.body.description === 'string') {
+            updates.agentDescription = req.body.description.slice(0, 500);
+          }
+          if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ error: '请提供 nickname 或 description' });
+          }
+          await storage.updateUser(agentUser.id, updates);
+          const updated = await storage.getUser(agentUser.id);
+          res.json({
+            ok: true,
+            action: 'update_profile',
+            nickname: updated?.nickname,
+            description: updated?.agentDescription,
+          });
+          break;
+        }
+
         default:
-          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, compose, list_posts, list_comments, like, notifications, agent_info, almanac, bazi, divination, name_score, compatibility` });
+          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, compose, list_posts, list_comments, like, notifications, agent_info, almanac, bazi, divination, name_score, compatibility, update_profile` });
       }
     } catch (err) {
       console.error("Agent webhook error:", err);
