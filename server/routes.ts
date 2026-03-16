@@ -3137,19 +3137,20 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         authorNickname: comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
       });
 
-      // Feishu notification for new comment (notify post author)
+      // Notify post author about new comment
       const targetPost = await storage.getPost(req.params.id);
+      const commenterName = author?.nickname || "用户";
       if (targetPost && targetPost.userId !== getUserId(req)) {
         notifyFeishu(
           targetPost.userId,
-          `💬 [HeartAI 新评论] ${authorName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
+          `💬 [观星 新评论] ${commenterName} 评论了你的帖子\n评论: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}`
         );
         // In-app notification
         storage.createNotification({
           userId: targetPost.userId,
           type: "comment",
           title: "收到评论",
-          body: `${authorName} 评论了你的帖子: ${parsed.data.content.slice(0, 60)}`,
+          body: `${commenterName} 评论了你的帖子: ${parsed.data.content.slice(0, 60)}`,
           linkTo: `/community/${req.params.id}`,
           fromUserId: getUserId(req),
         }).catch(() => {});
@@ -6196,6 +6197,119 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       res.json(counts);
     } catch (err) {
       res.json({ comment: 0, like: 0, system: 0 });
+    }
+  });
+
+  // ─── Activity Summary API (8小时活动摘要) ──────────────────
+
+  app.get("/api/activity-summary", requireAuth, async (req, res) => {
+    try {
+      const hours = parseInt(req.query.hours as string) || 8;
+      const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+      // Get recent posts
+      const postsResult = await pool.query(`
+        SELECT p.id, p.user_id, p.content, p.tag, p.created_at, p.like_count, p.comment_count, p.is_from_avatar,
+               u.nickname, u.username, u.is_agent, u.avatar_url
+        FROM community_posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.created_at > $1
+        ORDER BY p.created_at DESC
+        LIMIT 200
+      `, [cutoff]);
+
+      // Get recent comments
+      const commentsResult = await pool.query(`
+        SELECT c.id, c.post_id, c.user_id, c.content, c.created_at, c.is_from_avatar,
+               u.nickname, u.username, u.is_agent, u.avatar_url
+        FROM post_comments c
+        LEFT JOIN users u ON c.user_id = u.id
+        WHERE c.created_at > $1
+        ORDER BY c.created_at DESC
+        LIMIT 500
+      `, [cutoff]);
+
+      // Aggregate stats
+      const posts = postsResult.rows;
+      const comments = commentsResult.rows;
+
+      // Unique posters
+      const posterMap = new Map<string, { nickname: string; isAgent: boolean; avatarUrl: string | null; postCount: number; commentCount: number }>();
+      for (const p of posts) {
+        const key = p.user_id;
+        if (!posterMap.has(key)) {
+          posterMap.set(key, { nickname: p.nickname || p.username, isAgent: p.is_agent, avatarUrl: p.avatar_url, postCount: 0, commentCount: 0 });
+        }
+        posterMap.get(key)!.postCount++;
+      }
+      for (const c of comments) {
+        const key = c.user_id;
+        if (!posterMap.has(key)) {
+          posterMap.set(key, { nickname: c.nickname || c.username, isAgent: c.is_agent, avatarUrl: c.avatar_url, postCount: 0, commentCount: 0 });
+        }
+        posterMap.get(key)!.commentCount++;
+      }
+
+      // Top posters sorted by total activity
+      const activeUsers = Array.from(posterMap.entries())
+        .map(([id, data]) => ({ userId: id, ...data, total: data.postCount + data.commentCount }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 15);
+
+      // Tag distribution
+      const tagCounts: Record<string, number> = {};
+      for (const p of posts) {
+        const tag = p.tag || '其他';
+        tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      }
+
+      // Most discussed posts (highest comment count in time window)
+      const hotPosts = posts
+        .filter(p => p.comment_count > 0)
+        .sort((a: any, b: any) => b.comment_count - a.comment_count)
+        .slice(0, 5)
+        .map((p: any) => ({
+          id: p.id,
+          content: p.content.slice(0, 100),
+          authorNickname: p.nickname || p.username,
+          isAgent: p.is_agent,
+          tag: p.tag,
+          likeCount: p.like_count,
+          commentCount: p.comment_count,
+          createdAt: p.created_at,
+        }));
+
+      // Recent posts (newest 20)
+      const recentPosts = posts.slice(0, 20).map((p: any) => ({
+        id: p.id,
+        content: p.content.slice(0, 120),
+        authorNickname: p.nickname || p.username,
+        authorAvatarUrl: p.avatar_url,
+        isAgent: p.is_agent,
+        isFromAvatar: p.is_from_avatar || false,
+        tag: p.tag,
+        likeCount: p.like_count,
+        commentCount: p.comment_count,
+        createdAt: p.created_at,
+      }));
+
+      res.json({
+        hours,
+        stats: {
+          totalPosts: posts.length,
+          totalComments: comments.length,
+          uniquePosters: posterMap.size,
+          humanPosts: posts.filter((p: any) => !p.is_agent).length,
+          agentPosts: posts.filter((p: any) => p.is_agent).length,
+        },
+        activeUsers,
+        tagCounts,
+        hotPosts,
+        recentPosts,
+      });
+    } catch (err) {
+      console.error("Activity summary error:", err);
+      res.status(500).json({ error: "获取活动摘要失败" });
     }
   });
 

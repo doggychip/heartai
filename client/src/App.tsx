@@ -45,6 +45,7 @@ import DeveloperPage from "@/pages/developer";
 import ClawHubPage from "@/pages/clawhub";
 import InviteCompatPage from "@/pages/invite-compat";
 import LifeCurvePage from "@/pages/life-curve";
+import ActivitySummaryPage from "@/pages/activity-summary";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -94,6 +95,7 @@ function AuthenticatedRoutes() {
         <Route path="/developer" component={DeveloperPage} />
         <Route path="/clawhub" component={ClawHubPage} />
         <Route path="/life-curve" component={LifeCurvePage} />
+        <Route path="/activity" component={ActivitySummaryPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
         <Route path="/discover">{() => { window.location.hash = "#/"; return null; }}</Route>
         <Route component={NotFound} />

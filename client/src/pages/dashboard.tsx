@@ -37,6 +37,7 @@ import {
   Radar,
   Moon,
   ChevronRight,
+  Activity,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────
@@ -91,6 +92,7 @@ const FEATURE_GRID = [
   { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
   { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
   { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
+  { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
 ];
 
 // ─── Dashboard Page ─────────────────────────────────────────

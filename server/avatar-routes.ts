@@ -29,6 +29,37 @@ export function getAvatarOwnerNotifications(ownerId: string): AvatarNotification
   return avatarOwnerNotifications.get(ownerId) || [];
 }
 
+// ── Helper: create in-app notification when avatar interacts with a post ──
+async function notifyPostOwner(postId: string, fromUserId: string, type: 'comment' | 'like', commentText?: string) {
+  try {
+    const post = await storage.getPost(postId);
+    if (!post || post.userId === fromUserId) return; // don't notify yourself
+    const sender = await storage.getUser(fromUserId);
+    const senderName = sender?.nickname || '用户';
+    if (type === 'comment') {
+      await storage.createNotification({
+        userId: post.userId,
+        type: 'comment',
+        title: '收到评论',
+        body: `${senderName} 评论了你的帖子: ${(commentText || '').slice(0, 60)}`,
+        linkTo: `/community/${postId}`,
+        fromUserId,
+      });
+    } else {
+      await storage.createNotification({
+        userId: post.userId,
+        type: 'like',
+        title: '收到点赞',
+        body: `${senderName} 赞了你的帖子`,
+        linkTo: `/community/${postId}`,
+        fromUserId,
+      });
+    }
+  } catch (err) {
+    // Non-critical, don't let notification errors break the flow
+  }
+}
+
 export function markAvatarNotificationsRead(ownerId: string) {
   const list = avatarOwnerNotifications.get(ownerId) || [];
   for (const n of list) n.read = true;
@@ -360,6 +391,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           if (!existing) {
             await storage.createPostLike(post.id, userId);
             await storage.incrementPostLikeCount(post.id, 1);
+            notifyPostOwner(post.id, userId, 'like');
           }
           const logged = await storage.createAvatarAction({
             avatarId: avatar.id,
@@ -379,6 +411,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
             isFromAvatar: true,
           });
           await storage.incrementPostCommentCount(post.id);
+          notifyPostOwner(post.id, userId, 'comment', d.comment);
           const logged = await storage.createAvatarAction({
             avatarId: avatar.id,
             actionType: 'comment',
@@ -846,6 +879,7 @@ async function autoBrowseForAvatar(avatar: any) {
           if (!existing) {
             await storage.createPostLike(post.id, avatar.userId);
             await storage.incrementPostLikeCount(post.id, 1);
+            notifyPostOwner(post.id, avatar.userId, 'like');
           }
           await storage.createAvatarAction({
             avatarId: avatar.id,
@@ -864,6 +898,7 @@ async function autoBrowseForAvatar(avatar: any) {
             isFromAvatar: true,
           });
           await storage.incrementPostCommentCount(post.id);
+          notifyPostOwner(post.id, avatar.userId, 'comment', d.comment);
           await storage.createAvatarAction({
             avatarId: avatar.id,
             actionType: 'comment',
@@ -1016,6 +1051,10 @@ async function autoBrowseForAvatar(avatar: any) {
               isFromAvatar: true,
             });
             await storage.incrementPostCommentCount(myPost.id);
+            // Notify the commenter that avatar replied
+            if (targetComment.userId !== avatar.userId) {
+              notifyPostOwner(myPost.id, avatar.userId, 'comment', r.reply);
+            }
 
             await storage.createAvatarAction({
               avatarId: avatar.id,
@@ -1084,6 +1123,7 @@ async function autoBrowseForAvatar(avatar: any) {
               isFromAvatar: true,
             });
             await storage.incrementPostCommentCount(targetPost.id);
+            notifyPostOwner(targetPost.id, avatar.userId, 'comment', td.comment);
             await storage.createAvatarAction({
               avatarId: avatar.id,
               actionType: 'comment',
