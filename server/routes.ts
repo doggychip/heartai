@@ -1569,6 +1569,48 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
           } catch {}
         }
 
+        // ─── 每日运势 fortune data ───
+        const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+        const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+        const dayStemStr = d.char8.day.stem.toString();
+        const dayBranchStr2 = d.char8.day.branch.toString();
+
+        // 天干→五行 mapping
+        const stemElement: Record<string, string> = {
+          '甲': '木', '乙': '木', '丙': '火', '丁': '火', '戊': '土',
+          '己': '土', '庚': '金', '辛': '金', '壬': '水', '癸': '水',
+        };
+        const dayElement = stemElement[dayStemStr] || '土';
+
+        // 穿衣贵人色 (生我者 element colors) & 消耗色 (克我者 element colors)
+        const colorMap: Record<string, { lucky: { names: string[]; hexes: string[] }; unlucky: { names: string[]; hexes: string[] } }> = {
+          '木': { lucky: { names: ['黑', '蓝'], hexes: ['#1a1a2e', '#1e3a5f'] }, unlucky: { names: ['白', '金'], hexes: ['#f5f5f5', '#d4af37'] } },
+          '火': { lucky: { names: ['绿', '青'], hexes: ['#2d6a4f', '#0d9488'] }, unlucky: { names: ['黑', '蓝'], hexes: ['#1a1a2e', '#1e3a5f'] } },
+          '土': { lucky: { names: ['红', '紫'], hexes: ['#dc2626', '#7c3aed'] }, unlucky: { names: ['绿', '青'], hexes: ['#2d6a4f', '#0d9488'] } },
+          '金': { lucky: { names: ['黄', '棕'], hexes: ['#eab308', '#92400e'] }, unlucky: { names: ['红', '紫'], hexes: ['#dc2626', '#7c3aed'] } },
+          '水': { lucky: { names: ['白', '金'], hexes: ['#f5f5f5', '#d4af37'] }, unlucky: { names: ['黄', '棕'], hexes: ['#eab308', '#92400e'] } },
+        };
+        const fortuneColors = colorMap[dayElement] || colorMap['土'];
+
+        // 幸运数字
+        const luckyNumMap: Record<string, number[]> = {
+          '木': [3, 8], '火': [2, 7], '土': [5, 0], '金': [4, 9], '水': [1, 6],
+        };
+        const luckyNumbers = luckyNumMap[dayElement] || [5, 0];
+
+        // 大吉生肖 (三合+六合 based on day branch)
+        const zodiacHarmony: Record<string, string[]> = {
+          '子': ['龙', '猴', '牛'], '丑': ['蛇', '鸡', '鼠'], '寅': ['马', '狗', '猪'],
+          '卯': ['羊', '猪', '狗'], '辰': ['鼠', '猴', '鸡'], '巳': ['牛', '鸡', '猴'],
+          '午': ['虎', '狗', '羊'], '未': ['兔', '猪', '马'], '申': ['鼠', '龙', '蛇'],
+          '酉': ['牛', '蛇', '龙'], '戌': ['虎', '马', '兔'], '亥': ['兔', '羊', '虎'],
+        };
+        const luckyZodiac = zodiacHarmony[dayBranchStr2] || [];
+
+        // 财神方位 & 喜神方位 — use already-computed luckDirections
+        const wealthDirection = luckDirections['財神'] || '';
+        const joyDirection = luckDirections['喜神'] || '';
+
         // 时辰详情
         const hourNames = ['子时(23-1)', '丑时(1-3)', '寅时(3-5)', '卯时(5-7)', '辰时(7-9)', '巳时(9-11)', '午时(11-13)', '未时(13-15)', '申时(15-17)', '酉时(17-19)', '戌时(19-21)', '亥时(21-23)'];
         try {
@@ -1609,6 +1651,15 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         sha,
         pengzuTaboo,
         hourDetails,
+        // 每日运势 fortune fields
+        fortune: {
+          luckyColors: fortuneColors.lucky,
+          unluckyColors: fortuneColors.unlucky,
+          luckyNumbers,
+          luckyZodiac,
+          wealthDirection,
+          joyDirection,
+        },
       });
     } catch (err) {
       console.error('Almanac error:', err);

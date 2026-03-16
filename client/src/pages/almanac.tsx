@@ -59,6 +59,14 @@ interface AlmanacData {
   sha: string;
   pengzuTaboo: string;
   hourDetails: { name: string; luck: number; gods: string[] }[];
+  fortune?: {
+    luckyColors: { names: string[]; hexes: string[] };
+    unluckyColors: { names: string[]; hexes: string[] };
+    luckyNumbers: number[];
+    luckyZodiac: string[];
+    wealthDirection: string;
+    joyDirection: string;
+  };
 }
 
 interface MultiCalendar {
@@ -272,6 +280,105 @@ function DateStrip({
   );
 }
 
+// ─── Daily Fortune Card ─────────────────────────────────
+function DailyFortuneCard({ almanac }: { almanac: AlmanacData }) {
+  const fortune = almanac.fortune;
+  if (!fortune) return null;
+
+  const goodActs = almanac.acts.good.slice(0, 4);
+  const badActs = almanac.acts.bad.slice(0, 4);
+
+  return (
+    <div className="rounded-2xl overflow-hidden border border-amber-200/80 dark:border-amber-800/40 shadow-sm"
+      style={{ background: 'linear-gradient(to bottom, #fdf8f0, #faf3e8)' }}>
+      {/* Header */}
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+        <span className="text-lg font-bold tracking-wide" style={{ color: '#8b2500' }}>每日运势</span>
+        <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#8b2500', color: '#fdf8f0' }}>
+          农历{almanac.lunar.monthName}{almanac.lunar.dayName}
+        </span>
+      </div>
+
+      {/* Colors banner */}
+      <div className="mx-3 rounded-xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #a02020, #c03030, #a02020)', border: '1px solid #d4a74433' }}>
+        <div className="flex items-center justify-between px-4 py-2">
+          <span className="text-sm font-bold text-amber-100 tracking-wider">穿衣贵人色</span>
+          <span className="text-amber-200/60 text-lg">👔</span>
+          <span className="text-sm font-bold text-amber-100 tracking-wider">穿衣消耗色</span>
+        </div>
+      </div>
+
+      {/* Color circles */}
+      <div className="flex items-center justify-between px-6 py-3">
+        <div className="flex gap-4">
+          {fortune.luckyColors.names.map((name, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-full border-2 border-gray-300/60 shadow-inner"
+                style={{ backgroundColor: fortune.luckyColors.hexes[i] }} />
+              <span className="text-xs font-medium" style={{ color: '#5a3e28' }}>{name}</span>
+            </div>
+          ))}
+        </div>
+        <div className="w-px h-10 bg-amber-300/40" />
+        <div className="flex gap-4">
+          {fortune.unluckyColors.names.map((name, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="w-10 h-10 rounded-full border-2 border-gray-300/60 shadow-inner"
+                style={{ backgroundColor: fortune.unluckyColors.hexes[i] }} />
+              <span className="text-xs font-medium" style={{ color: '#5a3e28' }}>{name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Info rows */}
+      <div className="px-4 pb-2 space-y-0">
+        {[
+          { label: '幸运数字', value: fortune.luckyNumbers.join('、') },
+          { label: '大吉生肖', value: fortune.luckyZodiac.join('、') },
+          { label: '财神方位', value: fortune.wealthDirection || '—' },
+          { label: '喜神方位', value: fortune.joyDirection || '—' },
+        ].map((row, i) => (
+          <div key={i} className="flex items-center py-2 border-b last:border-b-0"
+            style={{ borderColor: '#e8dcc8' }}>
+            <span className="text-sm font-medium w-20 flex-shrink-0" style={{ color: '#8b6f47' }}>{row.label}：</span>
+            <span className="text-sm font-bold tracking-wide" style={{ color: '#3d2b1f' }}>{row.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* 宜忌 compact */}
+      <div className="mx-3 mb-3 mt-1 p-3 rounded-xl flex items-start gap-3" style={{ background: '#f5efe4' }}>
+        {/* 宜 */}
+        <div className="flex items-start gap-2 flex-1">
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+            style={{ background: '#c03030' }}>
+            宜
+          </div>
+          <div className="flex flex-wrap gap-1 pt-0.5">
+            {goodActs.map((act, i) => (
+              <span key={i} className="text-xs" style={{ color: '#5a3e28' }}>{act}</span>
+            ))}
+          </div>
+        </div>
+        <div className="w-px h-10 bg-amber-300/40 flex-shrink-0" />
+        {/* 忌 */}
+        <div className="flex items-start gap-2 flex-1 justify-end">
+          <div className="flex flex-wrap gap-1 pt-0.5 justify-end">
+            {badActs.map((act, i) => (
+              <span key={i} className="text-xs" style={{ color: '#5a3e28' }}>{act}</span>
+            ))}
+          </div>
+          <div className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
+            style={{ background: '#c03030' }}>
+            忌
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Almanac Page ─────────────────────────────────
 export default function AlmanacPage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -356,6 +463,9 @@ export default function AlmanacPage() {
           </h3>
           <LuopanClock luckHours={almanac?.luckHours} />
         </Card>
+
+        {/* 每日运势 Daily Fortune Card */}
+        {almanac?.fortune && <DailyFortuneCard almanac={almanac} />}
 
         {/* Lunar + Bazi Info */}
         {almanacLoading ? (
