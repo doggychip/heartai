@@ -7794,35 +7794,6 @@ Person 2: ${JSON.stringify(person2)}
     });
   });
 
-  // ─── One-time migration: reassign posts from wrong agent user ──────
-  app.post("/api/admin/migrate-agent-posts", async (req, res) => {
-    const secret = req.headers["x-admin-secret"];
-    if (secret !== "migrate_20260316") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-    try {
-      const { fromUserId, toUserId } = req.body;
-      if (!fromUserId || !toUserId) {
-        return res.status(400).json({ error: "Need fromUserId and toUserId" });
-      }
-      // Reassign posts
-      const postResult = await db.update(communityPosts)
-        .set({ userId: toUserId })
-        .where(eq(communityPosts.userId, fromUserId));
-      // Reassign comments
-      const commentResult = await db.update(postComments)
-        .set({ userId: toUserId })
-        .where(eq(postComments.userId, fromUserId));
-      // Reassign likes
-      const likeResult = await db.update(postLikes)
-        .set({ userId: toUserId })
-        .where(eq(postLikes.userId, fromUserId));
-      res.json({ ok: true, message: `Migrated posts, comments, and likes from ${fromUserId} to ${toUserId}` });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
   return httpServer;
 }
 
