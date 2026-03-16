@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
-// Owl Logo
+// Owl Logo — wrapped in white container for dark-mode visibility
 import owlLogoSrc from "@assets/owl-logo.png";
 
 function GuanXingLogo({ className = "w-8 h-8" }: { className?: string }) {
