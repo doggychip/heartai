@@ -1,6 +1,7 @@
 // GuanXing Agentic v2.0 - Agent Personality + Culture API Actions (2026-03-15)
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { pool, db } from "./db";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries } from "@shared/schema";
@@ -524,22 +525,25 @@ function checkRateLimit(key: string, maxRequests: number, windowMs: number): boo
   return true;
 }
 
-// Simple in-memory session store (userId keyed by token)
-const sessions = new Map<string, string>();
+// JWT-based authentication (stateless — survives server restarts)
+const JWT_SECRET = process.env.JWT_SECRET || "heartai-dev-secret-change-in-production";
 
-function generateToken(): string {
-  return Array.from({ length: 32 }, () => Math.random().toString(36)[2]).join("");
+function generateToken(userId: string): string {
+  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 // Middleware to extract user from token OR API key
 function authMiddleware(req: Request, res: Response, next: NextFunction) {
-  // 1. Check Bearer token (user sessions)
-  const token = req.headers.authorization?.replace("Bearer ", "");
-  if (token) {
-    const userId = sessions.get(token);
-    if (userId) {
-      (req as any).userId = userId;
+  // 1. Check Bearer token (JWT)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+      (req as any).userId = payload.userId;
       return next();
+    } catch (e) {
+      // Invalid/expired token — fall through
     }
   }
   // 2. Check X-API-Key header (agent access)
@@ -883,8 +887,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       // Assign public ID
       await storage.updateUser(user.id, { publicId });
       const updatedUser = await storage.getUser(user.id);
-      const token = generateToken();
-      sessions.set(token, user.id);
+      const token = generateToken(user.id);
 
       // Auto-generate AI avatar (fire-and-forget)
       autoGenerateAvatar(user.id, nickname ?? undefined).catch(() => {});
@@ -908,8 +911,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         return res.status(401).json({ error: "用户名或密码错误" });
       }
 
-      const token = generateToken();
-      sessions.set(token, user.id);
+      const token = generateToken(user.id);
 
       // Auto-generate avatar if missing (for existing users)
       autoGenerateAvatar(user.id).catch(() => {});
@@ -940,8 +942,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       if (!user) {
         return res.status(401).json({ error: "无效的 API Key" });
       }
-      const token = generateToken();
-      sessions.set(token, user.id);
+      const token = generateToken(user.id);
       const { password: _, ...safe } = user;
       res.json({ user: safe, token });
     } catch (err) {
@@ -950,9 +951,8 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (token) sessions.delete(token);
+  app.post("/api/auth/logout", (_req, res) => {
+    // JWT is stateless — client clears localStorage; nothing to do server-side
     res.json({ ok: true });
   });
 
@@ -2667,8 +2667,7 @@ ${najiaDesc}
       if (authHeader?.startsWith('Bearer ')) {
         try {
           const token = authHeader.slice(7);
-          const jwt = await import('jsonwebtoken');
-          const decoded = jwt.verify(token, process.env.SESSION_SECRET || 'heartai-secret-key-2025') as any;
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
           const user = await storage.getUser(decoded.userId);
           if (user) {
             const parts: string[] = [];
@@ -3411,13 +3410,19 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       const authHeader = req.headers.authorization;
       const apiKey = req.headers["x-api-key"] as string;
 
-      // Authenticate via X-API-Key or Bearer token matching an agent API key
+      // Authenticate via X-API-Key or Bearer JWT token
       let user;
       if (apiKey) {
         user = await storage.getUserByApiKey(apiKey);
       } else if (authHeader?.startsWith("Bearer ")) {
-        const token = authHeader.replace("Bearer ", "");
-        user = await storage.getUserByApiKey(token);
+        const token = authHeader.slice(7);
+        try {
+          const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+          user = await storage.getUser(payload.userId);
+        } catch {
+          // Not a valid JWT — try as raw API key for backward compat
+          user = await storage.getUserByApiKey(token);
+        }
       }
       if (!user) {
         return res.status(401).json({ error: "无效的 API Key" });

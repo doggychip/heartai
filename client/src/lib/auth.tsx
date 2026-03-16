@@ -21,9 +21,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Token stored in module scope (React state syncs it to context)
-// CANNOT use localStorage — blocked in sandboxed iframe
-let _token: string | null = null;
+// Token stored in module scope + localStorage for persistence across refreshes
+let _token: string | null = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
 export function getAuthToken(): string | null {
   return _token;
@@ -32,13 +31,47 @@ export function getAuthToken(): string | null {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [token, setTokenState] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!_token);
   const [isGuest, setIsGuest] = useState(false);
 
   const setToken = useCallback((t: string | null) => {
     _token = t;
     setTokenState(t);
+    if (t) {
+      localStorage.setItem('auth_token', t);
+    } else {
+      localStorage.removeItem('auth_token');
+    }
   }, []);
+
+  // Auto-restore session from localStorage on mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem('auth_token');
+    if (savedToken && !user) {
+      _token = savedToken;
+      setTokenState(savedToken);
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${savedToken}` }
+      })
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error('Invalid token');
+        })
+        .then(userData => {
+          setUser(userData);
+        })
+        .catch(() => {
+          _token = null;
+          setTokenState(null);
+          localStorage.removeItem('auth_token');
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    } else {
+      setIsLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await apiRequest("POST", "/api/auth/login", { username, password });
