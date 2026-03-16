@@ -8,7 +8,7 @@ import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema,
 import { eq, inArray, sql } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
-import { registerAvatarRoutes } from "./avatar-routes";
+import { registerAvatarRoutes, generateAvatarTags } from "./avatar-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
@@ -861,6 +861,9 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       if (mbti.includes('F')) sliders.praise = Math.min(100, sliders.praise + 10);
       if (mbti.includes('P')) sliders.serious = Math.max(0, sliders.serious - 15);
 
+      // Generate metaphysical tags
+      const tags = generateAvatarTags(userId, avatarName, element, user.zodiacSign, user.mbtiType);
+
       const avatar = await storage.createAvatar({
         userId,
         name: avatarName,
@@ -870,6 +873,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         sliderWarm: sliders.warm,
         element,
         elementTraits: JSON.stringify(elementTraits),
+        ...tags,
         isActive: true,
         autoLike: true,
         autoComment: true,

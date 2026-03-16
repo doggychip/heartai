@@ -1,7 +1,8 @@
 // Avatar (分身) API routes — imported and called from routes.ts
 import type { Express } from "express";
-import { createAvatarSchema } from "@shared/schema";
+import { createAvatarSchema, avatars as avatarsTable } from "@shared/schema";
 import { storage } from "./storage";
+import { db } from "./db";
 import OpenAI from "openai";
 import lunisolar from "lunisolar";
 import theGods from "lunisolar/plugins/theGods";
@@ -55,6 +56,76 @@ const AVATAR_STYLE_MODIFIERS = [
   '用感叹的语气，表达强烈感受。',
   '用对话体，像在跟朋友聊天。',
 ];
+
+// ── Helper: generate metaphysical attribute tags for avatars ──────
+const ZODIAC_SIGNS = ['白羊座', '金牛座', '双子座', '巨蟹座', '狮子座', '处女座', '天秤座', '天蝎座', '射手座', '摩羯座', '水瓶座', '双鱼座'];
+const MBTI_TYPES = ['INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP', 'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 'ISTP', 'ISFP', 'ESTP', 'ESFP'];
+const FIVE_ELEMENTS = ['金', '木', '水', '火', '土'];
+const SPIRIT_ANIMALS: Record<string, string[]> = {
+  '金': ['白虎', '麒麟', '金蟾'],
+  '木': ['青龙', '梅花鹿', '仙鹤'],
+  '水': ['玄武', '锦鲤', '灵蛇'],
+  '火': ['朱雀', '火凤', '九尾狐'],
+  '土': ['黄龙', '玄牛', '貔貅'],
+};
+const TAROT_CARDS = ['愚者', '魔术师', '女祭司', '皇后', '皇帝', '教皇', '恋人', '战车', '力量', '隐者', '命运之轮', '正义', '倒吊人', '死神', '节制', '恶魔', '高塔', '星星', '月亮', '太阳', '审判', '世界'];
+
+// Element-aligned MBTI mapping (which MBTIs resonate most with each element)
+const ELEMENT_MBTI_AFFINITY: Record<string, string[]> = {
+  '金': ['INTJ', 'ISTJ', 'ENTJ', 'ESTJ'],
+  '木': ['ENFJ', 'ENFP', 'INFJ', 'ESFJ'],
+  '水': ['INTP', 'INFP', 'INFJ', 'ISTP'],
+  '火': ['ENFP', 'ENTP', 'ESTP', 'ESFP'],
+  '土': ['ISFJ', 'ISTJ', 'ESFJ', 'ISFP'],
+};
+
+// Deterministic hash helper
+function avatarHash(seed: string, salt: string = ''): number {
+  let h = 0;
+  const s = seed + salt;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i);
+  return Math.abs(h);
+}
+
+export function generateAvatarTags(userId: string, name: string, element: string, userZodiac?: string | null, userMbti?: string | null) {
+  const el = element || FIVE_ELEMENTS[avatarHash(userId, 'el') % 5];
+
+  // Zodiac: use user's if available, else derive from name+id
+  const zodiacSign = userZodiac || ZODIAC_SIGNS[avatarHash(userId, 'zodiac') % 12];
+
+  // MBTI: use user's if available, else pick element-aligned one
+  const affinityPool = ELEMENT_MBTI_AFFINITY[el] || MBTI_TYPES;
+  const mbtiType = userMbti || affinityPool[avatarHash(userId, 'mbti') % affinityPool.length];
+
+  // Five element (can differ from the base element — this is the "dominant" 五行)
+  const fiveElement = el;
+
+  // Spirit animal based on element
+  const animalPool = SPIRIT_ANIMALS[el] || SPIRIT_ANIMALS['木'];
+  const spiritAnimal = animalPool[avatarHash(name, 'animal') % animalPool.length];
+
+  // Lucky number 1-9
+  const luckyNumber = (avatarHash(userId, 'lucky') % 9) + 1;
+
+  // Tarot card
+  const tarotCard = TAROT_CARDS[avatarHash(userId, 'tarot') % TAROT_CARDS.length];
+
+  return { zodiacSign, mbtiType, fiveElement, spiritAnimal, luckyNumber, tarotCard };
+}
+
+/** Backfill metaphysical tags for all avatars that are missing them. Called on startup and via API. */
+export async function backfillAvatarTags() {
+  const allRows = await db.select().from(avatarsTable);
+  let updated = 0;
+  for (const av of allRows) {
+    if (av.zodiacSign && av.mbtiType && av.spiritAnimal && av.tarotCard) continue;
+    const user = await storage.getUser(av.userId);
+    const tags = generateAvatarTags(av.userId, av.name, av.element || '', user?.zodiacSign, user?.mbtiType);
+    await storage.updateAvatar(av.id, { ...av, ...tags });
+    updated++;
+  }
+  return { ok: true, updated, total: allRows.length };
+}
 
 // ── Helper: simple keyword overlap check for post similarity ──
 function computeKeywordOverlap(text1: string, text2: string): number {
@@ -322,12 +393,16 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
         } catch {}
       }
 
+      // Generate metaphysical tags
+      const tags = generateAvatarTags(userId, parsed.data.name, element, user?.zodiacSign, user?.mbtiType);
+
       if (existing) {
         const updated = await storage.updateAvatar(existing.id, {
           ...parsed.data,
           userId,
           element,
           elementTraits,
+          ...tags,
         });
         return res.json(updated);
       }
@@ -337,6 +412,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
         userId,
         element,
         elementTraits,
+        ...tags,
         isActive: true,
         maxActionsPerHour: 10,
       });
@@ -376,6 +452,12 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           sliderPraise: av.sliderPraise,
           sliderSerious: av.sliderSerious,
           sliderWarm: av.sliderWarm,
+          zodiacSign: av.zodiacSign,
+          mbtiType: av.mbtiType,
+          fiveElement: av.fiveElement,
+          spiritAnimal: av.spiritAnimal,
+          luckyNumber: av.luckyNumber,
+          tarotCard: av.tarotCard,
           ownerNickname: user?.nickname || user?.username || "未知",
           isActive: av.isActive,
         };
@@ -923,6 +1005,17 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       res.json({ pruned: toPrune.length, remaining: 128 });
     } catch (err) {
       res.status(500).json({ error: "记忆清理失败" });
+    }
+  });
+
+  // ─── Backfill metaphysical tags for ALL avatars missing them ──
+  app.post("/api/avatar/backfill-tags", async (_req, res) => {
+    try {
+      const result = await backfillAvatarTags();
+      res.json(result);
+    } catch (err) {
+      console.error("Backfill tags error:", err);
+      res.status(500).json({ error: "标签回填失败" });
     }
   });
 

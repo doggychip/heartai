@@ -360,6 +360,14 @@ export const avatars = pgTable("avatars", {
   element: text("element"),           // 五行属性
   elementTraits: text("element_traits"), // JSON: string[] 命格特质
 
+  // 玄学标签 (metaphysical attribute tags — auto-populated)
+  zodiacSign: text("zodiac_sign"),       // 星座 e.g. "白羊座"
+  mbtiType: text("mbti_type"),           // MBTI人格 e.g. "ENFP"
+  fiveElement: text("five_element"),     // 五行属性 e.g. "火"
+  spiritAnimal: text("spirit_animal"),   // 灵兽 e.g. "朱雀"
+  luckyNumber: integer("lucky_number"),  // 幸运数字 e.g. 7
+  tarotCard: text("tarot_card"),         // 塔罗牌 e.g. "愚者"
+
   // 分身设置
   isActive: boolean("is_active").notNull().default(true),
   autoLike: boolean("auto_like").notNull().default(true),

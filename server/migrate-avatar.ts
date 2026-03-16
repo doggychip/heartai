@@ -90,5 +90,13 @@ export async function migrateAvatar() {
     )
   `);
 
+  // Add metaphysical tag columns to avatars table (2026-03-16)
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS zodiac_sign TEXT`);
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS mbti_type TEXT`);
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS five_element TEXT`);
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS spirit_animal TEXT`);
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS lucky_number INTEGER`);
+  await db.execute(sql`ALTER TABLE avatars ADD COLUMN IF NOT EXISTS tarot_card TEXT`);
+
   console.log("[migrate] Avatar tables created successfully!");
 }

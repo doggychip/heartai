@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { ensureTables } from "./migrate";
 import { migrateAvatar } from "./migrate-avatar";
+import { backfillAvatarTags } from "./avatar-routes";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +66,7 @@ app.use((req, res, next) => {
   // Create database tables if they don't exist
   await ensureTables();
   await migrateAvatar();
+  await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(() => {});
 
   await registerRoutes(httpServer, app);
 

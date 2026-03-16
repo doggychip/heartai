@@ -37,6 +37,12 @@ interface AvatarInfo {
   sliderPraise: number;
   sliderSerious: number;
   sliderWarm: number;
+  zodiacSign: string | null;
+  mbtiType: string | null;
+  fiveElement: string | null;
+  spiritAnimal: string | null;
+  luckyNumber: number | null;
+  tarotCard: string | null;
   ownerNickname: string;
   isActive: boolean;
 }
@@ -314,11 +320,44 @@ export default function AvatarPlazaPage() {
                         <p className="text-xs text-muted-foreground/80 mt-1 line-clamp-2">{av.bio}</p>
                       )}
 
-                      {/* Personality tags */}
-                      <div className="flex gap-2 mt-2 text-muted-foreground">
-                        <SliderLabel value={av.sliderPraise} lowLabel="锐评" highLabel="夸夸" />
-                        <SliderLabel value={av.sliderSerious} lowLabel="抽象" highLabel="正经" />
-                        <SliderLabel value={av.sliderWarm} lowLabel="高冷" highLabel="显眼" />
+                      {/* Metaphysical attribute tags */}
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {av.zodiacSign && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">
+                            ✦ {av.zodiacSign}
+                          </span>
+                        )}
+                        {av.mbtiType && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-violet-500/15 text-violet-400 border border-violet-500/20">
+                            ◈ {av.mbtiType}
+                          </span>
+                        )}
+                        {av.fiveElement && (
+                          <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium border ${
+                            av.fiveElement === '金' ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' :
+                            av.fiveElement === '木' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' :
+                            av.fiveElement === '水' ? 'bg-blue-500/15 text-blue-400 border-blue-500/20' :
+                            av.fiveElement === '火' ? 'bg-red-500/15 text-red-400 border-red-500/20' :
+                            'bg-orange-500/15 text-orange-400 border-orange-500/20'
+                          }`}>
+                            ☯ {av.fiveElement}
+                          </span>
+                        )}
+                        {av.spiritAnimal && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">
+                            𓃰 {av.spiritAnimal}
+                          </span>
+                        )}
+                        {av.tarotCard && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/20">
+                            🃏 {av.tarotCard}
+                          </span>
+                        )}
+                        {av.luckyNumber != null && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-rose-500/15 text-rose-400 border border-rose-500/20">
+                            ✧ {av.luckyNumber}
+                          </span>
+                        )}
                       </div>
                     </div>
 
