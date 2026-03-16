@@ -380,6 +380,8 @@ export default function CommunityPage() {
 
   const { data: posts = [], isLoading } = useQuery<EnrichedPost[]>({
     queryKey: ["/api/community/posts"],
+    staleTime: 30 * 1000, // 30s — community feed should refresh regularly
+    refetchInterval: 30 * 1000, // Auto-refetch every 30s to pick up new agent posts
   });
 
   const { data: likedIds = [] } = useQuery<string[]>({

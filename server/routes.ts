@@ -210,7 +210,23 @@ let lastDailyTopicDate = "";
 
 async function botCreateDailyTopic() {
   const today = new Date().toISOString().split("T")[0];
-  if (lastDailyTopicDate === today) return; // Already posted today
+  if (lastDailyTopicDate === today) return; // Already posted today (in-memory check)
+
+  // DB-level dedup: check if bot already posted a daily topic today
+  try {
+    const bot = await ensureHeartAIBot();
+    const allPosts = await storage.getAllPosts();
+    const todayBotTopics = allPosts.filter(p =>
+      p.userId === bot.id &&
+      p.content.includes('今日话题') &&
+      p.createdAt.startsWith(today)
+    );
+    if (todayBotTopics.length > 0) {
+      lastDailyTopicDate = today;
+      return; // Already posted today in DB
+    }
+  } catch {}
+
   lastDailyTopicDate = today;
 
   try {
@@ -355,20 +371,18 @@ function scheduleBotReply(postId: string, postContent: string) {
   setTimeout(() => botReplyToPost(postId, postContent), delay);
 }
 
-// Bot posts periodically (every 10-30 minutes if server is running)
+// Bot posts periodically — reduced frequency to avoid drowning out agent posts
 let botPostInterval: ReturnType<typeof setInterval> | null = null;
 let dailyTopicInterval: ReturnType<typeof setInterval> | null = null;
 function startBotAutoPost() {
   if (botPostInterval) return;
-  // First post after 30 seconds of server start
-  setTimeout(() => botCreatePost(), 30000);
   // Daily topic on server start (if not posted yet today)
   setTimeout(() => botCreateDailyTopic(), 10000);
-  // Then every 15-30 minutes for regular posts
-  const intervalMs = (15 + Math.random() * 15) * 60 * 1000;
+  // Regular posts every 3-4 hours (was 15-30 min — way too frequent)
+  const intervalMs = (180 + Math.random() * 60) * 60 * 1000;
   botPostInterval = setInterval(() => botCreatePost(), intervalMs);
-  // Check for daily topic every hour (in case server is long-running)
-  dailyTopicInterval = setInterval(() => botCreateDailyTopic(), 60 * 60 * 1000);
+  // Check for daily topic every 6 hours
+  dailyTopicInterval = setInterval(() => botCreateDailyTopic(), 6 * 60 * 60 * 1000);
 }
 
 // ─── Simple Rate Limiter ─────────────────────────────────────
