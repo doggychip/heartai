@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { pool, db } from "./db";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries } from "@shared/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql, asc } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes } from "./avatar-routes";
@@ -8017,6 +8017,115 @@ Person 2: ${JSON.stringify(person2)}
       parsed._tokensUsed = response.usage?.total_tokens || 0;
       return parsed;
     });
+  });
+
+  // ─── TEMPORARY: Duplicate Comment Cleanup Endpoint ─────────────
+  app.post("/api/admin/cleanup-duplicate-comments", async (_req: Request, res: Response) => {
+    try {
+      const log: string[] = [];
+      log.push("Fetching all comments...");
+      const allComments = await db.select().from(postComments).orderBy(asc(postComments.createdAt));
+      log.push(`Found ${allComments.length} total comments.`);
+
+      // Group comments by postId
+      const byPost = new Map<string, typeof allComments>();
+      for (const c of allComments) {
+        if (!byPost.has(c.postId)) byPost.set(c.postId, []);
+        byPost.get(c.postId)!.push(c);
+      }
+
+      const toDelete: string[] = [];
+
+      // Step 1: Remove duplicate comments from the same user on the same post
+      for (const [postId, comments] of byPost) {
+        const byUser = new Map<string, typeof comments>();
+        for (const c of comments) {
+          if (!byUser.has(c.userId)) byUser.set(c.userId, []);
+          byUser.get(c.userId)!.push(c);
+        }
+        for (const [userId, userComments] of byUser) {
+          if (userComments.length > 1) {
+            const sorted = userComments.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+            for (let i = 1; i < sorted.length; i++) {
+              toDelete.push(sorted[i].id);
+            }
+            log.push(`Post ${postId.slice(0, 8)}...: User ${userId.slice(0, 8)}... has ${userComments.length} comments, marking ${userComments.length - 1} for deletion`);
+          }
+        }
+      }
+      log.push(`Step 1: ${toDelete.length} duplicate (same user, same post) comments to delete.`);
+
+      // Step 2: Cross-user near-identical comments (>60% keyword overlap)
+      const computeKeywordOverlap = (text1: string, text2: string): number => {
+        const extractKeywords = (text: string) => {
+          const cleaned = text.replace(/[的了是在有和与或但也都不这那就要会很把被让给对从到说\s]/g, '');
+          const keywords = new Set<string>();
+          for (let i = 0; i < cleaned.length - 1; i++) {
+            const bigram = cleaned.slice(i, i + 2).trim();
+            if (bigram.length === 2) keywords.add(bigram);
+          }
+          return keywords;
+        };
+        const kw1 = extractKeywords(text1);
+        const kw2 = extractKeywords(text2);
+        if (kw1.size === 0 || kw2.size === 0) return 0;
+        let overlap = 0;
+        for (const k of kw1) { if (kw2.has(k)) overlap++; }
+        return overlap / Math.min(kw1.size, kw2.size);
+      };
+
+      const similarToDelete: string[] = [];
+      for (const [postId, comments] of byPost) {
+        const remaining = comments.filter(c => !toDelete.includes(c.id));
+        if (remaining.length < 2) continue;
+        const kept = new Set<string>();
+        for (const c of remaining) {
+          let isDuplicate = false;
+          for (const keptId of kept) {
+            const keptComment = remaining.find(r => r.id === keptId)!;
+            if (computeKeywordOverlap(c.content, keptComment.content) > 0.6) {
+              isDuplicate = true;
+              similarToDelete.push(c.id);
+              log.push(`Post ${postId.slice(0, 8)}...: Similar — keeping "${keptComment.content.slice(0, 30)}..." deleting "${c.content.slice(0, 30)}..."`);
+              break;
+            }
+          }
+          if (!isDuplicate) kept.add(c.id);
+        }
+      }
+      log.push(`Step 2: ${similarToDelete.length} similar-wording comments to delete.`);
+
+      const allToDelete = [...toDelete, ...similarToDelete];
+      log.push(`Total comments to delete: ${allToDelete.length}`);
+
+      if (allToDelete.length === 0) {
+        log.push("No duplicates found. Database is clean!");
+        return res.json({ success: true, deleted: 0, log });
+      }
+
+      // Delete
+      let deleted = 0;
+      for (const id of allToDelete) {
+        await db.delete(postComments).where(eq(postComments.id, id));
+        deleted++;
+      }
+      log.push(`Deleted ${deleted} comments.`);
+
+      // Update comment counts on affected posts
+      const affectedPostIds = new Set(allComments.filter(c => allToDelete.includes(c.id)).map(c => c.postId));
+      for (const postId of affectedPostIds) {
+        const remaining = await db.select().from(postComments).where(eq(postComments.postId, postId));
+        await db.update(communityPosts)
+          .set({ commentCount: remaining.length })
+          .where(eq(communityPosts.id, postId));
+        log.push(`Post ${postId.slice(0, 8)}...: count updated to ${remaining.length}`);
+      }
+
+      log.push(`Done! Deleted ${allToDelete.length} duplicate/similar comments.`);
+      res.json({ success: true, deleted: allToDelete.length, step1: toDelete.length, step2: similarToDelete.length, log });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   return httpServer;
