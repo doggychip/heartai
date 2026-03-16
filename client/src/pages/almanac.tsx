@@ -26,6 +26,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Link } from "wouter";
+import LuopanClock from "@/components/luopan-clock";
 
 // ─── Types ─────────────────────────────────────────────
 interface AlmanacData {
@@ -347,6 +348,14 @@ export default function AlmanacPage() {
 
       {/* ─── Content ─────────────────────────────────────────── */}
       <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+
+        {/* 时辰罗盘 Compass Clock */}
+        <Card className="p-4 border-amber-200/60 dark:border-amber-900/40 bg-gradient-to-b from-amber-50/80 to-orange-50/40 dark:from-amber-900/10 dark:to-orange-900/5">
+          <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
+            <Compass className="w-4 h-4 text-amber-600" /> 时辰罗盘
+          </h3>
+          <LuopanClock luckHours={almanac?.luckHours} />
+        </Card>
 
         {/* Lunar + Bazi Info */}
         {almanacLoading ? (
