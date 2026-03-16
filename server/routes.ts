@@ -1500,6 +1500,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       let sha = '';
       let pengzuTaboo = '';
       let hourDetails: { name: string; luck: number; gods: string[] }[] = [];
+      let fortuneData: { luckyColors: any; unluckyColors: any; luckyNumbers: number[]; luckyZodiac: string[]; wealthDirection: string; joyDirection: string } | null = null;
 
       try {
         const rawActs = d.theGods.getActs();
@@ -1570,8 +1571,6 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         }
 
         // ─── 每日运势 fortune data ───
-        const STEMS = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
-        const BRANCHES = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
         const dayStemStr = d.char8.day.stem.toString();
         const dayBranchStr2 = d.char8.day.branch.toString();
 
@@ -1610,6 +1609,15 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         // 财神方位 & 喜神方位 — use already-computed luckDirections
         const wealthDirection = luckDirections['財神'] || '';
         const joyDirection = luckDirections['喜神'] || '';
+
+        fortuneData = {
+          luckyColors: fortuneColors.lucky,
+          unluckyColors: fortuneColors.unlucky,
+          luckyNumbers,
+          luckyZodiac,
+          wealthDirection,
+          joyDirection,
+        };
 
         // 时辰详情
         const hourNames = ['子时(23-1)', '丑时(1-3)', '寅时(3-5)', '卯时(5-7)', '辰时(7-9)', '巳时(9-11)', '午时(11-13)', '未时(13-15)', '申时(15-17)', '酉时(17-19)', '戌时(19-21)', '亥时(21-23)'];
@@ -1652,14 +1660,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         pengzuTaboo,
         hourDetails,
         // 每日运势 fortune fields
-        fortune: {
-          luckyColors: fortuneColors.lucky,
-          unluckyColors: fortuneColors.unlucky,
-          luckyNumbers,
-          luckyZodiac,
-          wealthDirection,
-          joyDirection,
-        },
+        fortune: fortuneData,
       });
     } catch (err) {
       console.error('Almanac error:', err);
