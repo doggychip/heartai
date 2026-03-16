@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
 import { ShareFortuneButton } from "@/pages/share-card";
@@ -97,7 +97,8 @@ const FEATURE_GRID = [
 
 // ─── Dashboard Page ─────────────────────────────────────────
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, isGuest, logout } = useAuth();
+  const [, navigate] = useLocation();
 
   const { data: dashboard, isLoading: dashLoading } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -111,7 +112,7 @@ export default function DashboardPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const isLoading = dashLoading || fortuneLoading;
+  const isLoading = !isGuest && (dashLoading || fortuneLoading);
 
   if (isLoading) {
     return (
@@ -163,7 +164,7 @@ export default function DashboardPage() {
     return `${days}天前`;
   };
 
-  const userName = user?.nickname || user?.username || "用户";
+  const userName = user?.nickname || user?.username || (isGuest ? "访客" : "用户");
   const element = dashboard?.personality?.element;
   const avatarSrc = clientAvatarSvg(userName, element);
 
@@ -191,9 +192,13 @@ export default function DashboardPage() {
               {getGreeting()}，{userName}
             </h1>
             <p className="text-white/70 text-xs mt-0.5 truncate">
-              {dashboard?.date}
-              {dashboard?.lunar ? ` · 农历${dashboard.lunar.lunarDate}` : ""}
-              {element ? ` · ${ELEMENT_EMOJI[element] || "✦"} ${element}命` : ""}
+              {isGuest ? "登录后解锁个性化运势分析" : (
+                <>
+                  {dashboard?.date}
+                  {dashboard?.lunar ? ` · 农历${dashboard.lunar.lunarDate}` : ""}
+                  {element ? ` · ${ELEMENT_EMOJI[element] || "✦"} ${element}命` : ""}
+                </>
+              )}
             </p>
           </div>
           {dashboard?.personality?.mbtiType && (
@@ -221,6 +226,20 @@ export default function DashboardPage() {
       <div className="relative -mt-8 px-4 pb-6 space-y-4">
 
         {/* ─── "自己" Fortune Card ─────────────────── */}
+        {isGuest ? (
+          <Card className="border-0 shadow-lg rounded-2xl overflow-hidden" data-testid="card-fortune">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-semibold">今日运势</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">登录后即可查看专属运势分析、命理解读和个性化建议</p>
+              <Button size="sm" className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" onClick={() => { logout(); navigate("/auth"); }}>
+                登录解锁运势
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <Card className="border-0 shadow-lg rounded-2xl overflow-hidden" data-testid="card-fortune">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -311,6 +330,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* ─── Feature Icon Grid (2 rows × 5) ──────── */}
         <div className="grid grid-cols-5 gap-y-3" data-testid="feature-grid">

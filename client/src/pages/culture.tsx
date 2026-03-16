@@ -234,9 +234,10 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
     queryKey: ["/api/culture/almanac"],
   });
 
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
   const { data: multiCal } = useQuery<MultiCalendarData>({
     queryKey: ["/api/calendar/multi"],
-    queryFn: () => apiRequest("GET", "/api/calendar/multi").then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/calendar/multi?tz=${encodeURIComponent(userTz)}`).then(r => r.json()),
   });
 
   const seasonInfo = almanac ? (SEASON_MAP[almanac.season] || SEASON_MAP["春"]) : SEASON_MAP["春"];
@@ -345,11 +346,11 @@ function CultureHome({ onNavigate }: { onNavigate: (v: CultureView) => void }) {
           <Card className="p-3">
             <div className="text-[10px] text-muted-foreground mb-1.5">吉时速查</div>
             <div className="flex flex-wrap gap-1">
-              {almanac.luckHours.slice(0, 6).map((h) => (
-                <Badge key={h} variant="outline" className="text-[9px] text-green-600 dark:text-green-400 border-green-500/30 h-5">
-                  {HOUR_NAMES[h]}时 {HOUR_TIMES[h]}
+              {almanac.luckHours.map((luck, i) => luck > 0 ? (
+                <Badge key={i} variant="outline" className="text-[9px] text-green-600 dark:text-green-400 border-green-500/30 h-5">
+                  {HOUR_NAMES[i]}时 {HOUR_TIMES[i]}
                 </Badge>
-              ))}
+              ) : null).filter(Boolean).slice(0, 6)}
             </div>
           </Card>
         </div>
@@ -484,11 +485,12 @@ function AlmanacView() {
         </h3>
         <div className="grid grid-cols-4 gap-1.5">
           {HOUR_NAMES.map((name, i) => {
-            const isLucky = data.luckHours.includes(i);
+            const isLucky = (data.luckHours[i] || 0) > 0;
             return (
               <div key={i} className={`text-center py-1.5 rounded-md text-[10px] ${isLucky ? "bg-green-500/10 text-green-600 dark:text-green-400 font-medium" : "bg-muted/30 text-muted-foreground"}`}>
                 <div className="font-medium">{name}时</div>
                 <div className="text-[9px]">{HOUR_TIMES[i]}</div>
+                <div className={`text-[9px] font-medium ${isLucky ? "text-green-600 dark:text-green-400" : "text-red-500 dark:text-red-400"}`}>{isLucky ? "吉" : "凶"}</div>
               </div>
             );
           })}

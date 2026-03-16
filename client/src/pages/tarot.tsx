@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
 import {
   Sparkles,
   RotateCcw,
@@ -103,6 +106,8 @@ function CardFace({ card }: { card: TarotCard }) {
 
 export default function TarotPage() {
   const { toast } = useToast();
+  const { logout } = useAuth();
+  const [, navigate] = useLocation();
   const [question, setQuestion] = useState("");
   const [spread, setSpread] = useState<SpreadType>("three");
   const [result, setResult] = useState<TarotResult | null>(null);
@@ -117,8 +122,22 @@ export default function TarotPage() {
       setResult(data);
       setFlipped(new Set());
     },
-    onError: (err: Error) =>
-      toast({ title: "占卜失败", description: err.message, variant: "destructive" }),
+    onError: (err: Error) => {
+      if (err.message.startsWith("401")) {
+        toast({
+          title: "请登录后使用塔罗占卜",
+          description: "登录后即可解锁占卜功能",
+          variant: "destructive",
+          action: (
+            <ToastAction altText="去登录" onClick={() => { logout(); navigate("/auth"); }}>
+              去登录
+            </ToastAction>
+          ),
+        });
+      } else {
+        toast({ title: "占卜失败", description: err.message, variant: "destructive" });
+      }
+    },
   });
 
   const flipCard = (idx: number) => {

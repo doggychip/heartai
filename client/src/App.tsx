@@ -1,4 +1,5 @@
-import { Switch, Route, Router, Redirect } from "wouter";
+import { useState } from "react";
+import { Switch, Route, Router, Redirect, useLocation } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -104,10 +105,56 @@ function AuthenticatedRoutes() {
   );
 }
 
+// Protected routes that require login — guests see a modal instead of silent redirect
+const GUEST_PROTECTED_ROUTES = [
+  "/zodiac", "/mbti", "/compatibility", "/life-curve",
+  "/soulmate", "/share-card", "/invite-compat",
+  "/fortune", "/chat", "/assessments", "/journal",
+  "/settings", "/notifications", "/profile", "/agent-team",
+  "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
+  "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
+];
+
+function GuestAuthModal() {
+  const { logout } = useAuth();
+  const [, navigate] = useLocation();
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="bg-background rounded-2xl shadow-xl max-w-sm mx-4 p-6 space-y-4 text-center animate-in fade-in zoom-in-95 duration-200">
+        <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
+          <span className="text-2xl">🔒</span>
+        </div>
+        <h2 className="text-lg font-bold">该功能需要登录才能使用</h2>
+        <p className="text-sm text-muted-foreground">登录后即可解锁全部功能，体验更完整的观星之旅</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigate("/")}
+            className="flex-1 px-4 py-2.5 text-sm rounded-xl border border-border hover:bg-accent transition-colors"
+          >
+            返回首页
+          </button>
+          <button
+            onClick={() => { logout(); navigate("/auth"); }}
+            className="flex-1 px-4 py-2.5 text-sm rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+          >
+            去登录
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuestProtectedRedirect() {
+  return <GuestAuthModal />;
+}
+
 function GuestRoutes() {
   return (
     <AppShell>
       <Switch>
+        <Route path="/" component={DashboardPage} />
         <Route path="/community" component={CommunityPage} />
         <Route path="/community/:id" component={PostDetailPage} />
         <Route path="/agents" component={AgentsPage} />
@@ -121,8 +168,12 @@ function GuestRoutes() {
         <Route path="/zeji" component={ZejiPage} />
         <Route path="/dream" component={DreamPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
+        {/* Protected routes show auth modal instead of silent redirect */}
+        {GUEST_PROTECTED_ROUTES.map((path) => (
+          <Route key={path} path={path} component={GuestProtectedRedirect} />
+        ))}
         <Route>
-          <Redirect to="/community" />
+          <Redirect to="/" />
         </Route>
       </Switch>
     </AppShell>
@@ -135,7 +186,7 @@ function AppRouter() {
   return (
     <Switch>
       <Route path="/auth">
-        {user ? <Redirect to="/" /> : isGuest ? <Redirect to="/community" /> : <AuthPage />}
+        {user ? <Redirect to="/" /> : isGuest ? <Redirect to="/" /> : <AuthPage />}
       </Route>
       <Route>
         {isGuest ? <GuestRoutes /> : <AuthenticatedRoutes />}

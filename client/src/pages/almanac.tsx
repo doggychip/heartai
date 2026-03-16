@@ -277,14 +277,16 @@ export default function AlmanacPage() {
   const [expandedHour, setExpandedHour] = useState<number | null>(null);
   const dateStr = formatDate(selectedDate);
 
+  const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai';
+
   const { data: almanac, isLoading: almanacLoading } = useQuery<AlmanacData>({
     queryKey: ["/api/culture/almanac", dateStr],
-    queryFn: () => apiRequest("GET", `/api/culture/almanac?date=${dateStr}`).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/culture/almanac?date=${dateStr}&tz=${encodeURIComponent(userTz)}`).then(r => r.json()),
   });
 
   const { data: multiCal, isLoading: calLoading } = useQuery<MultiCalendar>({
     queryKey: ["/api/calendar/multi", dateStr],
-    queryFn: () => apiRequest("GET", `/api/calendar/multi?date=${dateStr}`).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/calendar/multi?date=${dateStr}&tz=${encodeURIComponent(userTz)}`).then(r => r.json()),
   });
 
   const isToday = formatDate(new Date()) === dateStr;
