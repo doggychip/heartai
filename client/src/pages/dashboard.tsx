@@ -95,12 +95,36 @@ const FEATURE_GRID = [
   { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
 ];
 
+// ─── Live clock hook (updates every minute) ─────────────────
+function useLiveClock() {
+  const fmt = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    return {
+      date: `${y}-${m}-${d}`,
+      display: `${y}年${parseInt(m)}月${parseInt(d)}日 周${weekdays[now.getDay()]} ${hh}:${mm}`,
+    };
+  };
+  const [clock, setClock] = useState(fmt);
+  useEffect(() => {
+    const id = setInterval(() => setClock(fmt()), 30_000); // refresh every 30s
+    return () => clearInterval(id);
+  }, []);
+  return clock;
+}
+
 // ─── Dashboard Page ─────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isGuest, logout } = useAuth();
   const [, navigate] = useLocation();
+  const clock = useLiveClock();
 
-  const { data: dashboard, isLoading: dashLoading } = useQuery<DashboardData>({
+  const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
     enabled: !!user,
     staleTime: 2 * 60 * 1000,
@@ -111,6 +135,15 @@ export default function DashboardPage() {
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Auto-refresh data when date changes (midnight crossing)
+  const lastDateRef = useState(() => clock.date)[0];
+  useEffect(() => {
+    if (clock.date !== lastDateRef) {
+      refetchDash();
+      refetchFortune();
+    }
+  }, [clock.date]);
 
   const isLoading = !isGuest && (dashLoading || fortuneLoading);
 
@@ -194,7 +227,7 @@ export default function DashboardPage() {
             <p className="text-white/70 text-xs mt-0.5 truncate">
               {isGuest ? "登录后解锁个性化运势分析" : (
                 <>
-                  {dashboard?.date}
+                  {clock.display}
                   {dashboard?.lunar ? ` · 农历${dashboard.lunar.lunarDate}` : ""}
                   {element ? ` · ${ELEMENT_EMOJI[element] || "✦"} ${element}命` : ""}
                 </>

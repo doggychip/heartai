@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,14 +119,41 @@ function DimensionBar({ label, score, icon: Icon, color }: {
   );
 }
 
+function useLiveDate() {
+  const fmt = () => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    return {
+      dateKey: `${y}-${m}-${d}`,
+      display: `${y}年${parseInt(m)}月${parseInt(d)}日 周${weekdays[now.getDay()]}`,
+    };
+  };
+  const [d, setD] = useState(fmt);
+  useEffect(() => {
+    const id = setInterval(() => setD(fmt()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return d;
+}
+
 export default function FortunePage() {
   const { user } = useAuth();
+  const liveDate = useLiveDate();
 
   const { data: fortune, isLoading, refetch, isFetching } = useQuery<FortuneData>({
     queryKey: ["/api/fortune/today"],
     enabled: !!user,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  // Auto-refresh fortune when date changes (midnight crossing)
+  const lastDateRef = useState(() => liveDate.dateKey)[0];
+  useEffect(() => {
+    if (liveDate.dateKey !== lastDateRef) refetch();
+  }, [liveDate.dateKey]);
 
   if (isLoading) {
     return (
@@ -169,7 +196,7 @@ export default function FortunePage() {
               今日运势
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {data.date} {data.zodiac ? `· ${data.zodiac}` : ""}
+              {liveDate.display} {data.zodiac ? `· ${data.zodiac}` : ""}
             </p>
           </div>
           <Button
