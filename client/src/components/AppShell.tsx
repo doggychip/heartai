@@ -54,7 +54,7 @@ import owlLogoSrc from "@assets/owl-logo.png";
 function GuanXingLogo({ className = "w-8 h-8" }: { className?: string }) {
   return (
     <div className={`${className} rounded-md overflow-hidden bg-white dark:bg-white/95 flex-shrink-0`}>
-      <img src={owlLogoSrc} alt="观星" className="w-full h-full object-cover" />
+      <img src={owlLogoSrc} alt="观星" className="w-[115%] h-[115%] -ml-[7.5%] -mt-[7.5%] object-contain" />
     </div>
   );
 }
