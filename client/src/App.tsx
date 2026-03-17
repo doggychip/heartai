@@ -47,7 +47,6 @@ import ClawHubPage from "@/pages/clawhub";
 import InviteCompatPage from "@/pages/invite-compat";
 import LifeCurvePage from "@/pages/life-curve";
 import ActivitySummaryPage from "@/pages/activity-summary";
-import DiscoverPage from "@/pages/discover";
 import EnneagramPage from "@/pages/enneagram";
 import StarMansionPage from "@/pages/star-mansion";
 import ZodiacDetailPage from "@/pages/zodiac-detail";
@@ -109,7 +108,6 @@ function AuthenticatedRoutes() {
         <Route path="/life-curve" component={LifeCurvePage} />
         <Route path="/activity" component={ActivitySummaryPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
-        <Route path="/discover" component={DiscoverPage} />
         <Route path="/discover/enneagram" component={EnneagramPage} />
         <Route path="/discover/star-mansion" component={StarMansionPage} />
         <Route path="/discover/zodiac" component={ZodiacDetailPage} />
@@ -189,7 +187,6 @@ function GuestRoutes() {
         <Route path="/zeji" component={ZejiPage} />
         <Route path="/dream" component={DreamPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
-        <Route path="/discover" component={DiscoverPage} />
         <Route path="/discover/enneagram" component={EnneagramPage} />
         <Route path="/discover/star-mansion" component={StarMansionPage} />
         <Route path="/discover/zodiac" component={ZodiacDetailPage} />

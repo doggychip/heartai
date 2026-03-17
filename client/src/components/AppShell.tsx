@@ -185,8 +185,6 @@ const GUEST_MOBILE_TABS: NavItem[] = [
   { path: "/agents", label: "Agent", icon: Bot, guestVisible: true },
 ];
 
-// Paths promoted to the main discover page — excluded from the overlay
-const PROMOTED_PATHS = new Set(["/fengshui", "/discover/enneagram", "/discover/star-mansion"]);
 
 // ─── Discover Panel (mobile "more" menu) ─────────────────
 function DiscoverPanel({ onClose, isGuest }: { onClose: () => void; isGuest: boolean }) {
@@ -211,7 +209,7 @@ function DiscoverPanel({ onClose, isGuest }: { onClose: () => void; isGuest: boo
             const visibleItems = (isGuest
               ? group.items.filter((i) => i.guestVisible)
               : group.items
-            ).filter((i) => !PROMOTED_PATHS.has(i.path));
+            );
             if (visibleItems.length === 0) return null;
             
             return (
@@ -446,8 +444,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/80 backdrop-blur-sm" data-testid="bottom-nav">
           <div className="flex items-center justify-around h-14 px-1">
             {mobileTabs.map((item) => {
-              const active = isActive(item.path);
               const Icon = item.icon;
+              const isDiscover = item.path === "/discover";
+              const active = isDiscover ? showDiscover : isActive(item.path);
+
+              if (isDiscover) {
+                return (
+                  <div
+                    key={item.path}
+                    className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      active ? "text-primary" : "text-muted-foreground"
+                    }`}
+                    onClick={() => setShowDiscover(true)}
+                    data-testid={`nav-mobile-${item.path.replace("/", "") || "home"}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-[10px] leading-none">{item.label}</span>
+                  </div>
+                );
+              }
 
               return (
                 <Link key={item.path} href={item.path}>
@@ -467,7 +482,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Discover overlay — triggered from discover page */}
+        {/* Discover overlay */}
         {showDiscover && (
           <DiscoverPanel onClose={() => setShowDiscover(false)} isGuest={isGuest} />
         )}
