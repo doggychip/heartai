@@ -388,6 +388,27 @@ export default function DashboardPage() {
         {/* ─── Proactive Message Card ──────────────── */}
         {!isGuest && <ProactiveMessageCard />}
 
+        {/* ─── 观星日报 Daily Letter Entry ────────── */}
+        {!isGuest && (
+          <Link href="/daily-letter">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-amber-500/8 to-orange-500/8 dark:from-amber-900/20 dark:to-orange-900/20 overflow-hidden" data-testid="card-daily-letter">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <span className="text-lg">🌌</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">观星日报</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium">每日更新</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">你的分身今晨观测了星象，写了一封信给你</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         {/* ─── Daily Check-in ─────────────────────── */}
         {!isGuest && <CheckinButton />}
 

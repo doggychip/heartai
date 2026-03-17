@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, jsonb, boolean, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -701,3 +701,16 @@ export const metaphysicsResults = pgTable("metaphysics_results", {
 });
 
 export type MetaphysicsResult = typeof metaphysicsResults.$inferSelect;
+
+// ─── Daily Letters (观星日报) ──────────────────────────────
+export const dailyLetters = pgTable("daily_letters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  letterDate: date("letter_date").notNull(),
+  greeting: text("greeting").notNull(),
+  sections: jsonb("sections").notNull(), // Array of { icon, title, content }
+  signoff: text("signoff").notNull(),
+  generatedAt: text("generated_at").notNull(),
+});
+
+export type DailyLetter = typeof dailyLetters.$inferSelect;

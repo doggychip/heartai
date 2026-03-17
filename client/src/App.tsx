@@ -64,6 +64,7 @@ import FriendsPage from "@/pages/friends";
 import DmPage from "@/pages/dm";
 import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import CryptoFortunePage from "@/pages/crypto-fortune";
+import DailyLetterPage from "@/pages/daily-letter";
 import GuestDashboard from "@/pages/guest-dashboard";
 import FeatureGate from "@/components/FeatureGate";
 import GuestBanner from "@/components/GuestBanner";
@@ -85,6 +86,7 @@ const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
   "/assessments": { name: "心理测评", desc: "专业心理量表测评，深入了解自己。" },
   "/avatar": { name: "AI分身", desc: "创建你的AI分身，让它在社区中代替你互动。" },
   "/settings": { name: "设置", desc: "管理你的账户和个性化设置。" },
+  "/daily-letter": { name: "观星日报", desc: "AI分身每日为你生成个性化命理日报，星象解读与生活指引。" },
 };
 
 function AuthenticatedRoutes() {
@@ -153,6 +155,7 @@ function AuthenticatedRoutes() {
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route path="/crypto" component={CryptoFortunePage} />
+        <Route path="/daily-letter" component={DailyLetterPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
@@ -168,6 +171,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
   "/group-chat", "/leaderboard", "/matching", "/friends", "/dm",
+  "/daily-letter",
 ];
 
 function GuestAuthModal() {

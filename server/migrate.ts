@@ -383,6 +383,20 @@ export async function ensureTables() {
       // Non-fatal — avatars are hardcoded in proactive-routes.ts
     }
 
+    // ─── Daily Letters (观星日报) ──────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS daily_letters (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        letter_date DATE NOT NULL,
+        greeting TEXT NOT NULL,
+        sections JSONB NOT NULL,
+        signoff TEXT NOT NULL,
+        generated_at TEXT NOT NULL,
+        UNIQUE(user_id, letter_date)
+      )
+    `);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {
