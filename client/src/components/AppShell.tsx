@@ -81,6 +81,7 @@ interface NavGroup {
   label: string;
   items: NavItem[];
   defaultOpen?: boolean;
+  guestOnly?: boolean;
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -88,7 +89,19 @@ const NAV_GROUPS: NavGroup[] = [
     label: "首页",
     defaultOpen: true,
     items: [
-      { path: "/", label: "仪表盘", icon: LayoutDashboard, guestVisible: false },
+      { path: "/", label: "今日运势", icon: LayoutDashboard, guestVisible: true },
+    ],
+  },
+  {
+    label: "免费体验",
+    defaultOpen: true,
+    guestOnly: true,
+    items: [
+      { path: "/almanac", label: "万年黄历", icon: CalendarCheck, guestVisible: true },
+      { path: "/qiuqian", label: "求签解签", icon: Flame, guestVisible: true },
+      { path: "/name-score", label: "姓名测分", icon: Star, guestVisible: true },
+      { path: "/horoscope", label: "星座运势", icon: TrendingUp, guestVisible: true },
+      { path: "/community", label: "社区浏览", icon: Users, guestVisible: true },
     ],
   },
   {
@@ -177,18 +190,17 @@ const MOBILE_TABS: NavItem[] = [
 ];
 
 const GUEST_MOBILE_TABS: NavItem[] = [
-  { path: "/community", label: "社区", icon: Users, guestVisible: true },
-  { path: "/culture", label: "国粹", icon: Scroll, guestVisible: true },
-  { path: "/bazi", label: "八字", icon: Calendar, guestVisible: true },
-  { path: "/tarot", label: "塔罗", icon: Layers, guestVisible: true },
+  { path: "/", label: "运势", icon: LayoutDashboard, guestVisible: true },
+  { path: "/almanac", label: "黄历", icon: CalendarCheck, guestVisible: true },
   { path: "/qiuqian", label: "灵签", icon: Flame, guestVisible: true },
-  { path: "/agents", label: "Agent", icon: Bot, guestVisible: true },
+  { path: "/community", label: "社区", icon: Users, guestVisible: true },
+  { path: "/discover", label: "发现", icon: Grid3X3, guestVisible: true },
 ];
 
 
 // ─── Discover Panel (mobile "more" menu) ─────────────────
 function DiscoverPanel({ onClose, isGuest }: { onClose: () => void; isGuest: boolean }) {
-  const groups = NAV_GROUPS.filter((g) => g.label !== "首页");
+  const groups = NAV_GROUPS.filter((g) => g.label !== "首页" && !g.guestOnly);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" data-testid="discover-panel">
@@ -249,6 +261,9 @@ function SidebarGroup({ group, isGuest, isActive }: {
   isGuest: boolean;
   isActive: (path: string) => boolean;
 }) {
+  // Guest-only groups are hidden when logged in
+  if (group.guestOnly && !isGuest) return null;
+
   const visibleItems = isGuest
     ? group.items.filter((i) => i.guestVisible)
     : group.items;
@@ -409,6 +424,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   data-testid="button-settings-mobile"
                 >
                   <Settings className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
+            {isGuest && !user && (
+              <Link href="/auth">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs px-3 bg-primary"
+                  onClick={logout}
+                  data-testid="button-guest-login-mobile"
+                >
+                  <LogIn className="w-3 h-3 mr-1" />
+                  登录
                 </Button>
               </Link>
             )}

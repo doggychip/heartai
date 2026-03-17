@@ -63,7 +63,28 @@ import MatchingPage from "@/pages/matching";
 import FriendsPage from "@/pages/friends";
 import DmPage from "@/pages/dm";
 import CommunityGuidelinesPage from "@/pages/community-guidelines";
+import GuestDashboard from "@/pages/guest-dashboard";
+import FeatureGate from "@/components/FeatureGate";
+import GuestBanner from "@/components/GuestBanner";
 import NotFound from "@/pages/not-found";
+
+// Feature descriptions for gate interstitials
+const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
+  "/chat": { name: "AI对话", desc: "与观星AI深度对话，获取个性化的情感支持和命理解读。" },
+  "/fortune": { name: "今日运势", desc: "基于你的八字命盘，生成每日专属运势分析和建议。" },
+  "/bazi": { name: "八字排盘", desc: "完整的八字命理分析，解读你的先天命格和运势走向。" },
+  "/tarot": { name: "塔罗占卜", desc: "AI塔罗牌占卜，为你的问题提供直觉洞察和指引。" },
+  "/fengshui": { name: "风水评估", desc: "智能风水分析，优化你的居住和工作环境。" },
+  "/compatibility": { name: "缘分合盘", desc: "双人八字合盘分析，深入了解感情契合度。" },
+  "/soulmate": { name: "正缘画像", desc: "基于命理推算你的正缘特征，描绘理想伴侣画像。" },
+  "/life-curve": { name: "人生运势曲线", desc: "纵览一生运势起伏，把握关键转折时机。" },
+  "/zodiac": { name: "星座解读", desc: "深度星座性格分析和星盘解读。" },
+  "/mbti": { name: "MBTI人格", desc: "MBTI人格测试与深度解读。" },
+  "/journal": { name: "情绪日记", desc: "记录每日情绪，AI帮你分析情感变化趋势。" },
+  "/assessments": { name: "心理测评", desc: "专业心理量表测评，深入了解自己。" },
+  "/avatar": { name: "AI分身", desc: "创建你的AI分身，让它在社区中代替你互动。" },
+  "/settings": { name: "设置", desc: "管理你的账户和个性化设置。" },
+};
 
 function AuthenticatedRoutes() {
   const { user } = useAuth();
@@ -182,11 +203,16 @@ function GuestProtectedRedirect() {
   return <GuestAuthModal />;
 }
 
+function GuestFeatureGate({ path }: { path: string }) {
+  const info = GATED_FEATURE_INFO[path] || { name: "此功能", desc: "注册后即可使用全部功能。" };
+  return <FeatureGate featureName={info.name} featureDescription={info.desc} />;
+}
+
 function GuestRoutes() {
   return (
     <AppShell>
       <Switch>
-        <Route path="/" component={DashboardPage} />
+        <Route path="/" component={GuestDashboard} />
         <Route path="/community" component={CommunityPage} />
         <Route path="/community/:id" component={PostDetailPage} />
         <Route path="/agents" component={AgentsPage} />
@@ -194,6 +220,7 @@ function GuestRoutes() {
         <Route path="/culture" component={CulturePage} />
         <Route path="/almanac" component={AlmanacPage} />
         <Route path="/name-score" component={NameScorePage} />
+        <Route path="/horoscope" component={HoroscopePage} />
         <Route path="/bazi" component={BaziPage} />
         <Route path="/tarot" component={TarotPage} />
         <Route path="/qiuqian" component={QiuqianPage} />
@@ -211,14 +238,17 @@ function GuestRoutes() {
         <Route path="/discover/human-design" component={HumanDesignPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
-        {/* Protected routes show auth modal instead of silent redirect */}
+        {/* Gated routes show feature gate interstitial instead of auth modal */}
         {GUEST_PROTECTED_ROUTES.map((path) => (
-          <Route key={path} path={path} component={GuestProtectedRedirect} />
+          <Route key={path} path={path}>
+            {() => <GuestFeatureGate path={path} />}
+          </Route>
         ))}
         <Route>
           <Redirect to="/" />
         </Route>
       </Switch>
+      <GuestBanner />
     </AppShell>
   );
 }

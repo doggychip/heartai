@@ -6265,6 +6265,115 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Guest Fortune (no auth) ──────────────────────────────
+  app.get("/api/fortune/guest", async (req, res) => {
+    try {
+      const ip = req.ip || "anon";
+      if (!checkRateLimit(`guest-fortune:${ip}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+      const today = new Date(dateStr);
+
+      // Lunar info
+      let lunarDate = "";
+      let yearName = "";
+      let dayName = "";
+      let yi = "";
+      let ji = "";
+      let luckDirection = "";
+      try {
+        const lsr = lunisolar(today);
+        const lunar = lsr.lunar;
+        lunarDate = `${lunar.month}月${lunar.day}`;
+        yearName = lsr.char8?.year?.toString() || '';
+        dayName = lsr.char8?.day?.toString() || '';
+        try {
+          const rawDir = lsr.theGods?.getLuckDirection?.('財神');
+          luckDirection = typeof rawDir === 'string' ? rawDir : (rawDir?.toString?.() || '东南');
+        } catch { luckDirection = '东南'; }
+        try {
+          const theGods = lsr.theGods;
+          if (theGods) {
+            const acts = theGods.getActs();
+            yi = (acts?.good || []).slice(0, 6).join('、') || '';
+            ji = (acts?.bad || []).slice(0, 6).join('、') || '';
+          }
+        } catch {}
+      } catch {}
+
+      // Optional personalization via query params
+      const birthDate = req.query.birthDate as string | undefined;
+      const birthHourStr = req.query.birthHour as string | undefined;
+      const birthHour = birthHourStr ? parseInt(birthHourStr, 10) : null;
+
+      let calculated: ReturnType<typeof calculatePersonalizedFortune> | null = null;
+      let isPersonalized = false;
+      if (birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+        try {
+          calculated = calculatePersonalizedFortune(birthDate, birthHour, today);
+          isPersonalized = true;
+        } catch {}
+      }
+
+      // Deterministic daily fortune for guests (no user id — use date only)
+      const dayHash = dateStr.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+      const h = (dayHash * 37) & 0x7fffffff;
+      const fallback = {
+        totalScore: 62 + (h % 28),
+        dimensions: {
+          love: 55 + (h % 35),
+          wealth: 50 + ((h * 3) % 38),
+          career: 60 + ((h * 7) % 28),
+          study: 55 + ((h * 11) % 33),
+          social: 58 + ((h * 13) % 30),
+        },
+        luckyColor: ['红色', '蓝色', '绿色', '紫色', '金色', '白色'][h % 6],
+        luckyNumber: (h % 9) + 1,
+        luckyDirection: luckDirection || '东南',
+      };
+
+      const scores = calculated ? {
+        totalScore: calculated.totalScore,
+        dimensions: calculated.dimensions,
+        luckyColor: calculated.luckyColor,
+        luckyNumber: calculated.luckyNumber,
+        luckyDirection: calculated.luckyDirection,
+      } : fallback;
+
+      // AI insight
+      let aiInsight = isPersonalized
+        ? `今日流日与你的命盘有${calculated?.analysisContext.coreRelation || '特殊'}关系，保持积极心态。`
+        : '欢迎来到观星！注册后可查看基于你命盘的专属运势分析。';
+      try {
+        const client = getAIClient();
+        const resp = await client.chat.completions.create({
+          model: DEFAULT_MODEL,
+          max_tokens: 200,
+          messages: [
+            { role: "system", content: "你是观星的运势AI。用1-2句话(50字内)写一段今日运势小提示。温暖、简洁、有指导性。不要用markdown。" },
+            { role: "user", content: `${dateStr}, 农历${lunarDate || '未知'}, 宜:${yi || '未知'}, 忌:${ji || '未知'}${isPersonalized ? `, 日主关系:${calculated?.analysisContext.coreRelation}` : ''}` },
+          ],
+        });
+        const txt = resp.choices[0]?.message?.content?.trim();
+        if (txt) aiInsight = txt;
+      } catch {}
+
+      res.json({
+        date: dateStr,
+        lunar: { lunarDate, yearName, dayName, yi, ji },
+        ...scores,
+        aiInsight,
+        isPersonalized,
+      });
+    } catch (err) {
+      console.error("Guest fortune error:", err);
+      res.status(500).json({ error: "运势获取失败" });
+    }
+  });
+
   // ─── 八字命理分析 API ───────────────────────────────────
   app.post("/api/bazi/analyze", requireAuth, async (req, res) => {
     try {
