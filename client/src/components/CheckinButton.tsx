@@ -62,7 +62,7 @@ export default function CheckinButton() {
           <button
             onClick={() => checkinMutation.mutate()}
             disabled={checkinMutation.isPending}
-            className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${
               isCheckedIn
                 ? "bg-green-500/15"
                 : "bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg shadow-amber-500/20 hover:scale-105 active:scale-95 animate-pulse"
@@ -106,21 +106,21 @@ export default function CheckinButton() {
           </div>
 
           {/* Stats */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {streak > 0 && (
-              <div className="text-center">
+              <div className="text-center whitespace-nowrap">
                 <div className="flex items-center gap-0.5">
-                  <Flame className="w-3.5 h-3.5 text-orange-500" />
-                  <span className="text-sm font-bold text-orange-500">{streak}</span>
+                  <Flame className="w-3 h-3 text-orange-500" />
+                  <span className="text-xs font-bold text-orange-500">{streak}</span>
                 </div>
                 <p className="text-[9px] text-muted-foreground">连签</p>
               </div>
             )}
             <Link href="/leaderboard">
-              <div className="text-center cursor-pointer hover:opacity-80 transition">
+              <div className="text-center cursor-pointer hover:opacity-80 transition whitespace-nowrap">
                 <div className="flex items-center gap-0.5">
-                  <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{totalMerit}</span>
+                  <Trophy className="w-3 h-3 text-amber-500" />
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">{totalMerit}</span>
                 </div>
                 <p className="text-[9px] text-muted-foreground flex items-center gap-0.5">
                   功德 <ChevronRight className="w-2.5 h-2.5" />
