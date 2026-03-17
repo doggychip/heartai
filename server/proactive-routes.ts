@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { proactiveMessages, groupChatSessions, groupChatMessages } from "@shared/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
-import OpenAI from "openai";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 import lunisolar from "lunisolar";
 
 // ── Avatar IDs (from community_avatars) ──────────────────────
@@ -29,12 +29,7 @@ function getUserId(req: Request): string {
   return (req as any).userId;
 }
 
-function getDeepSeekClient() {
-  return new OpenAI({
-    baseURL: "https://api.deepseek.com",
-    apiKey: process.env.DEEPSEEK_API_KEY,
-  });
-}
+
 
 // Get today's date string in user's timezone
 function getTodayStr(tz?: string): string {
@@ -122,8 +117,8 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         msgType = 'energy_tip';
       }
 
-      // Generate with DeepSeek
-      const client = getDeepSeekClient();
+      // Generate with AI (Gemini via Zeabur AI Hub)
+      const client = getAIClient();
       const systemPrompt = `你是「观星小助手」，一位温暖贴心的AI伙伴。你每天早上主动给用户发一条关心消息，像朋友发的早安短信一样自然。
 
 规则：
@@ -145,7 +140,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
 
       try {
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 300,
           temperature: 0.85,
           messages: [
@@ -323,7 +318,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         if (term) todayContext += ` 节气:${term}`;
       } catch {}
 
-      const client = getDeepSeekClient();
+      const client = getAIClient();
       const generatedMessages: any[] = [];
       let runningContext = conversationHistory;
 
@@ -337,7 +332,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
 
         try {
           const response = await client.chat.completions.create({
-            model: "deepseek-chat",
+            model: DEFAULT_MODEL,
             max_tokens: 300,
             temperature: 0.85,
             messages: [
