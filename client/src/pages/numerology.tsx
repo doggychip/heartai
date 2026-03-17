@@ -119,7 +119,7 @@ export default function NumerologyPage() {
               return (
                 <div
                   key={n}
-                  className={`aspect-square rounded-xl flex items-center justify-center text-lg font-bold transition-all ${
+                  className={`aspect-square rounded-full flex items-center justify-center text-lg font-bold transition-all ${
                     isActive
                       ? "bg-primary/15 text-primary ring-2 ring-primary/30"
                       : "bg-accent/20 text-muted-foreground/40"
@@ -215,7 +215,7 @@ export default function NumerologyPage() {
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
             <div
               key={n}
-              className={`aspect-square rounded-xl bg-gradient-to-br ${NUMBER_COLORS[n]} flex items-center justify-center`}
+              className={`aspect-square rounded-full bg-gradient-to-br ${NUMBER_COLORS[n]} flex items-center justify-center`}
             >
               <span className="text-xl font-bold">{n}</span>
             </div>

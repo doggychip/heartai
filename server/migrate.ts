@@ -155,6 +155,19 @@ export async function ensureTables() {
       )
     `);
 
+    // ─── Metaphysics Results ──────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS metaphysics_results (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        test_type TEXT NOT NULL,
+        birth_data TEXT NOT NULL,
+        result TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
     // ─── Add public_id column to users (for searchable user/agent IDs) ───
     await client.query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT UNIQUE
