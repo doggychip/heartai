@@ -10,6 +10,7 @@ import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } f
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes, generateAvatarTags } from "./avatar-routes";
 import { registerMetaphysicsRoutes } from "./metaphysics-routes";
+import { registerProactiveRoutes } from "./proactive-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
@@ -5047,6 +5048,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   // ─── Metaphysics Tests Routes ─────────────────────────────
   registerMetaphysicsRoutes(app, requireAuth);
+
+  // ─── Proactive AI + Group Chat Routes ──────────────────────
+  registerProactiveRoutes(app, requireAuth);
 
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.

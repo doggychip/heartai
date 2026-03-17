@@ -623,6 +623,45 @@ export interface WebhookApiResponse<T = any> {
   };
 }
 
+// ─── Proactive Messages (AI主动陪伴) ──────────────────────────
+export const proactiveMessages = pgTable("proactive_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  type: text("type").notNull(), // "energy_tip" | "fortune_care" | "jieqi_blessing" | "followup"
+  message: text("message").notNull(),
+  tip: text("tip"),
+  avatarId: varchar("avatar_id"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+export type ProactiveMessage = typeof proactiveMessages.$inferSelect;
+
+// ─── Group Chat Sessions (AI群聊「论道」) ─────────────────────
+export const groupChatSessions = pgTable("group_chat_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  topic: text("topic").notNull(),
+  userContext: text("user_context"), // JSON string
+  createdAt: text("created_at").notNull(),
+});
+
+export type GroupChatSession = typeof groupChatSessions.$inferSelect;
+
+// ─── Group Chat Messages ─────────────────────────────────────
+export const groupChatMessages = pgTable("group_chat_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  avatarId: varchar("avatar_id"), // NULL for user messages
+  userId: varchar("user_id"),     // NULL for avatar messages
+  content: text("content").notNull(),
+  messageOrder: integer("message_order"),
+  round: integer("round"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type GroupChatMessage = typeof groupChatMessages.$inferSelect;
+
 // ─── Metaphysics Results (cached AI analysis) ────────────────
 export const metaphysicsResults = pgTable("metaphysics_results", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

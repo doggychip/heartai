@@ -9,6 +9,7 @@ import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
 import { ShareFortuneButton } from "@/pages/share-card";
+import ProactiveMessageCard from "@/components/ProactiveMessageCard";
 import {
   Sparkles,
   Heart,
@@ -41,6 +42,7 @@ import {
   Hexagon,
   CircleDot,
   Grid3X3,
+  MessagesSquare,
 } from "lucide-react";
 import { useDiscoverOverlay } from "@/components/AppShell";
 
@@ -266,6 +268,9 @@ export default function DashboardPage() {
       {/* ═══════════ Content (overlaps header) ═══════════ */}
       <div className="relative -mt-8 px-4 pb-6 space-y-4">
 
+        {/* ─── Proactive Message Card ──────────────── */}
+        {!isGuest && <ProactiveMessageCard />}
+
         {/* ─── AI Avatar Quick Card ──────────────── */}
         {dashboard?.avatar && (
           <Link href="/avatar">
@@ -463,6 +468,24 @@ export default function DashboardPage() {
             </Card>
           </Link>
         </div>
+
+        {/* ─── Group Chat Entry ─────────────────────── */}
+        {!isGuest && (
+          <Link href="/group-chat">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 dark:from-indigo-900/25 dark:to-cyan-900/25 overflow-hidden" data-testid="card-group-chat">
+              <CardContent className="p-3.5 flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <MessagesSquare className="w-5.5 h-5.5 text-white" strokeWidth={1.8} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">AI群聊「论道」</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">四位大师同时解答你的困惑，观点碰撞更精彩</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
         {/* ─── Community Hot Posts ─────────────────── */}
         <div data-testid="section-hot-posts">

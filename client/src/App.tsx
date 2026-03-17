@@ -57,6 +57,7 @@ import HtpPage from "@/pages/htp";
 import MayanPage from "@/pages/mayan";
 import HumanDesignPage from "@/pages/human-design";
 import ZhengyuPage from "@/pages/zhengyu";
+import GroupChatPage from "@/pages/group-chat";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -117,6 +118,7 @@ function AuthenticatedRoutes() {
         <Route path="/discover/htp" component={HtpPage} />
         <Route path="/discover/mayan" component={MayanPage} />
         <Route path="/discover/human-design" component={HumanDesignPage} />
+        <Route path="/group-chat" component={GroupChatPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route component={NotFound} />
       </Switch>
@@ -132,6 +134,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/settings", "/notifications", "/profile", "/agent-team",
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
+  "/group-chat",
 ];
 
 function GuestAuthModal() {

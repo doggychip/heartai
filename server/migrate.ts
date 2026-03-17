@@ -155,6 +155,45 @@ export async function ensureTables() {
       )
     `);
 
+    // ─── Proactive Messages (AI主动陪伴) ──────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS proactive_messages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        tip TEXT,
+        avatar_id VARCHAR,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    // ─── Group Chat Sessions (AI群聊「论道」) ─────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_chat_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        topic TEXT NOT NULL,
+        user_context TEXT,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    // ─── Group Chat Messages ─────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS group_chat_messages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL,
+        avatar_id VARCHAR,
+        user_id VARCHAR,
+        content TEXT NOT NULL,
+        message_order INTEGER,
+        round INTEGER,
+        created_at TEXT NOT NULL
+      )
+    `);
+
     // ─── Metaphysics Results ──────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS metaphysics_results (
