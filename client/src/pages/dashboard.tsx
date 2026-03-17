@@ -357,7 +357,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══════════ Content (overlaps header) ═══════════ */}
-      <div className="relative -mt-8 px-4 pb-6 space-y-6">
+      <div className="relative -mt-8 px-4 pb-6 space-y-8">
 
         {/* ─── Proactive Message Card ──────────────── */}
         {!isGuest && <ProactiveMessageCard />}
@@ -534,7 +534,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ─── More Features Row ───────────────────── */}
-        <div className="grid grid-cols-2 gap-3 mt-1">
+        <div className="grid grid-cols-2 gap-3">
           <Link href="/culture">
             <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden bg-gradient-to-r from-red-500/10 to-amber-500/10 dark:from-red-900/20 dark:to-amber-900/20">
               <CardContent className="p-3 flex items-center gap-2">
