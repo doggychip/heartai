@@ -544,17 +544,39 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
         { role: "user", content: topic.prompt },
       ],
     });
-    const content = response.choices[0]?.message?.content?.trim();
-    if (content) {
+    let content = response.choices[0]?.message?.content?.trim();
+
+    // Retry once if content is too short (AI sometimes returns truncated responses)
+    if (content && content.length < 30) {
+      console.log(`[bot] Post too short (${content.length} chars), retrying...`);
+      const retry = await client.chat.completions.create({
+        model: DEFAULT_MODEL,
+        max_tokens: 400,
+        temperature: 0.9,
+        messages: [
+          { role: "system", content: systemPrompt + "\n\n重要：请写一段完整的帖子，至少50个字。不要只写标题或半句话。" },
+          { role: "user", content: topic.prompt },
+        ],
+      });
+      content = retry.choices[0]?.message?.content?.trim() || content;
+    }
+
+    if (content && content.length >= 20) {
       // Post-generation similarity check: skip if too similar to recent posts
       const tooSimilar = botRecentPosts.some(
-        recent => botComputeKeywordOverlap(content, recent) > 0.4
+        recent => botComputeKeywordOverlap(content!, recent) > 0.4
       );
       if (tooSimilar) {
         console.log('[bot] Skipping post due to similarity with recent content');
       } else {
-        await storage.createPost({ userId: bot.id, content, tag: topic.tag, isAnonymous: false });
+        const post = await storage.createPost({ userId: bot.id, content, tag: topic.tag, isAnonymous: false });
+        // Trigger master replies on bot posts too
+        if (post?.id) {
+          scheduleBotReply(post.id, content);
+        }
       }
+    } else {
+      console.log(`[bot] Skipping post: content too short or empty (${content?.length || 0} chars)`);
     }
   } catch (err) {
     console.error("Bot create post error:", err);
