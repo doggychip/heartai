@@ -5,6 +5,9 @@ import { createServer } from "http";
 import { ensureTables } from "./migrate";
 import { migrateAvatar } from "./migrate-avatar";
 import { backfillAvatarTags } from "./avatar-routes";
+import { ensureAgentMemoryTable } from "./agent-memory";
+import { initializeDefaultSubscriptions } from "./event-bus";
+import { pruneExpiredMemories } from "./agent-memory";
 
 const app = express();
 const httpServer = createServer(app);
@@ -66,7 +69,15 @@ app.use((req, res, next) => {
   // Create database tables if they don't exist
   await ensureTables();
   await migrateAvatar();
+  await ensureAgentMemoryTable();
   await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(() => {});
+
+  // Initialize event bus subscriptions for cross-agent collaboration
+  initializeDefaultSubscriptions();
+  log("Agent event bus initialized", "event-bus");
+
+  // Periodic cleanup of expired agent memories (every 6 hours)
+  setInterval(() => pruneExpiredMemories().catch(() => {}), 6 * 3600000);
 
   await registerRoutes(httpServer, app);
 

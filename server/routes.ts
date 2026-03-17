@@ -13,6 +13,10 @@ import { registerMetaphysicsRoutes } from "./metaphysics-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
+import { moderateContent, type ModerationResult } from "./moderation";
+import { writeMemory, queryMemories, buildAgentContext, semanticQuery } from "./agent-memory";
+import { publish, getSubscriptionStats } from "./event-bus";
+import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommunityInsights } from "./recommendations";
 import OpenAI from "openai";
 import lunisolar from "lunisolar";
 import theGods from "lunisolar/plugins/theGods";
@@ -1207,6 +1211,36 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         emotionAnalysis: { emotion: legacy.emotion, score: legacy.score, suggestion },
         deepEmotion,
       });
+
+      // ── Event Bus: mood_alert for moderate/high risk ──
+      if (deepEmotion && (deepEmotion.riskLevel === "moderate" || deepEmotion.riskLevel === "high")) {
+        publish({
+          eventType: "mood_alert",
+          publisherAgent: "main",
+          userId: String(userId),
+          data: {
+            riskLevel: deepEmotion.riskLevel,
+            primaryEmotion: deepEmotion.primary?.nameZh || emotion,
+            insight: deepEmotion.insight || "",
+            valence: deepEmotion.valence,
+            arousal: deepEmotion.arousal,
+            userMessage: message.slice(0, 100),
+          },
+        }).catch(err => console.error("[chat] mood_alert publish error:", err));
+      }
+
+      // ── Agent Memory: record emotion state ──
+      if (deepEmotion && deepEmotion.riskLevel !== "safe") {
+        writeMemory({
+          agentKey: "main",
+          userId: String(userId),
+          category: "emotion_state",
+          summary: `情绪记录: ${deepEmotion.primary?.nameZh || emotion} (${deepEmotion.riskLevel}) - ${deepEmotion.insight || ""}`,
+          details: { riskLevel: deepEmotion.riskLevel, valence: deepEmotion.valence, arousal: deepEmotion.arousal, primary: deepEmotion.primary },
+          importance: deepEmotion.riskLevel === "high" ? 10 : deepEmotion.riskLevel === "moderate" ? 8 : 4,
+          ttlHours: 24 * 7,
+        }).catch(err => console.error("[chat] memory write error:", err));
+      }
 
       // Sync to OpenClaw with deep emotion data (per-user)
       const primaryEmoji = deepEmotion?.primary.emoji || "😐";
@@ -3308,28 +3342,76 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         const msg = parsed.error.errors.map(e => e.message).join("; ");
         return res.status(400).json({ error: msg });
       }
-      const post = await storage.createPost({ userId: getUserId(req), ...parsed.data });
-      const author = await storage.getUser(getUserId(req));
+
+      const userId = getUserId(req);
+      const author = await storage.getUser(userId);
+
+      // ── Content Moderation (async, non-blocking for normal posts) ──
+      let modResult: ModerationResult | null = null;
+      try {
+        modResult = await moderateContent(parsed.data.content, {
+          authorIsAgent: author?.isAgent || false,
+          contentType: "post",
+        });
+
+        // Block only extreme content (S1 with specific methods, S5 extreme)
+        if (modResult.action === "block") {
+          console.log(`[moderation] BLOCKED post from ${userId}: ${modResult.explanation}`);
+          return res.status(403).json({
+            error: "内容未通过安全审核",
+            moderation: { action: modResult.action, explanation: modResult.explanation, categories: modResult.categories },
+          });
+        }
+      } catch (modErr) {
+        console.error("Moderation check error (allowing post):", modErr);
+      }
+
+      const post = await storage.createPost({ userId, ...parsed.data });
       res.json({
         ...post,
         authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
         authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
+        moderation: modResult && modResult.action !== "allow" ? { action: modResult.action, explanation: modResult.explanation } : undefined,
       });
 
       // HeartAI Bot auto-replies to new posts
       scheduleBotReply(post.id, parsed.data.content);
 
-      // Content moderation via OpenClaw (per-user)
+      // ── Emit post_created event to event bus ──
+      publish({
+        eventType: "post_created",
+        publisherAgent: "main",
+        userId,
+        data: { postId: post.id, content: parsed.data.content, tag: parsed.data.tag },
+      }).catch(() => {});
+
+      // ── If flagged, emit content_flagged event ──
+      if (modResult && (modResult.action === "flag" || modResult.action === "hold")) {
+        publish({
+          eventType: "content_flagged",
+          publisherAgent: "main",
+          userId,
+          data: {
+            postId: post.id,
+            action: modResult.action,
+            categories: modResult.categories,
+            riskScore: modResult.riskScore,
+            explanation: modResult.explanation,
+          },
+        }).catch(() => {});
+      }
+
+      // Content moderation via OpenClaw (per-user) — kept as secondary check
       notifyOpenClaw(
-        getUserId(req),
-        `[HeartAI 社区内容审核] 新帖子发布:\n内容: ${parsed.data.content}\n标签: ${parsed.data.tag}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n\n请审核这篇帖子是否包含：1) 自杀/自残倾向 2) 骚扰/辱骂内容 3) 虚假医疗建议。如有问题请通知我。`,
+        userId,
+        `[HeartAI 社区内容审核] 新帖子发布:\n内容: ${parsed.data.content}\n标签: ${parsed.data.tag}\n匿名: ${parsed.data.isAnonymous ? "是" : "否"}\n审核结果: ${modResult?.action || "未审核"} ${modResult?.explanation || ""}`,
         { name: "HeartAI-Moderation", deliver: false }
       );
 
       // Feishu notification for new post
       const postAuthorLabel = post.isAnonymous ? "匿名用户" : (author?.nickname || "用户");
       notifyFollowersFeishu(
-        getUserId(req),
+        userId,
         `📝 [HeartAI 新帖子] ${postAuthorLabel} 发布了一篇帖子\n内容: ${parsed.data.content.slice(0, 100)}${parsed.data.content.length > 100 ? "..." : ""}\n标签: ${parsed.data.tag}`
       );
     } catch (err) {
@@ -3390,7 +3472,32 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
     try {
       const parsed = createCommentSchema.safeParse({ ...req.body, postId: req.params.id });
       if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0]?.message || "Invalid" });
-      
+
+      // ── Content Moderation on comments ──
+      try {
+        const commentAuthor = await storage.getUser(getUserId(req));
+        const modResult = await moderateContent(parsed.data.content, {
+          authorIsAgent: commentAuthor?.isAgent || false,
+          contentType: "comment",
+        });
+        if (modResult.action === "block") {
+          return res.status(403).json({
+            error: "评论未通过安全审核",
+            moderation: { action: modResult.action, explanation: modResult.explanation },
+          });
+        }
+        if (modResult.action === "flag" || modResult.action === "hold") {
+          publish({
+            eventType: "content_flagged",
+            publisherAgent: "main",
+            userId: getUserId(req),
+            data: { commentContent: parsed.data.content, postId: req.params.id, action: modResult.action, categories: modResult.categories, explanation: modResult.explanation },
+          }).catch(() => {});
+        }
+      } catch (modErr) {
+        console.error("Comment moderation error (allowing):", modErr);
+      }
+
       const comment = await storage.createComment({ ...parsed.data, userId: getUserId(req) });
       await storage.incrementPostCommentCount(req.params.id);
       const author = await storage.getUser(getUserId(req));
@@ -7960,6 +8067,28 @@ ${name ? `姓名: ${name}` : ""}
         parsed = JSON.parse(jsonMatch?.[0] || "{}");
       } catch { parsed = { analysis: text }; }
       parsed._tokensUsed = response.usage?.total_tokens || 0;
+
+      // ── Event Bus + Agent Memory wiring ──
+      const reqUserId = req.body.userId || null;
+      publish({
+        eventType: "bazi_analyzed",
+        publisherAgent: "stella",
+        userId: reqUserId,
+        data: { birthDate, birthHour, name, dayMaster: parsed.dayMaster, fullBazi: parsed.bazi, wuxing: parsed.wuxing },
+      }).catch(err => console.error("[bazi] event publish error:", err));
+
+      if (reqUserId) {
+        writeMemory({
+          agentKey: "stella",
+          userId: reqUserId,
+          category: "bazi_reading",
+          summary: `八字分析: ${parsed.dayMaster || ""} ${parsed.bazi || ""} - ${(parsed.analysis || "").slice(0, 60)}`,
+          details: parsed,
+          importance: 8,
+          ttlHours: 24 * 90,
+        }).catch(err => console.error("[bazi] memory write error:", err));
+      }
+
       return parsed;
     });
   });
@@ -7988,6 +8117,28 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
         parsed = JSON.parse(jsonMatch?.[0] || "{}");
       } catch { parsed = { advice: text }; }
       parsed._tokensUsed = response.usage?.total_tokens || 0;
+
+      // ── Event Bus + Agent Memory wiring ──
+      const fortuneUserId = req.body.userId || null;
+      publish({
+        eventType: "fortune_shift",
+        publisherAgent: "prediction",
+        userId: fortuneUserId,
+        data: { zodiac, birthDate, overall: parsed.overall, career: parsed.career, love: parsed.love, wealth: parsed.wealth, health: parsed.health, advice: parsed.advice },
+      }).catch(err => console.error("[fortune] event publish error:", err));
+
+      if (fortuneUserId) {
+        writeMemory({
+          agentKey: "prediction",
+          userId: fortuneUserId,
+          category: "fortune_result",
+          summary: `${zodiac}运势: 综合${parsed.overall || "?"}/5 - ${(parsed.advice || "").slice(0, 60)}`,
+          details: parsed,
+          importance: 6,
+          ttlHours: 24,
+        }).catch(err => console.error("[fortune] memory write error:", err));
+      }
+
       return parsed;
     });
   });
@@ -8021,6 +8172,28 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
         parsed = JSON.parse(jsonMatch?.[0] || "{}");
       } catch { parsed = { qianNumber, qianType, interpretation: text }; }
       parsed._tokensUsed = response.usage?.total_tokens || 0;
+
+      // ── Event Bus + Agent Memory wiring ──
+      const qiuqianUserId = req.body.userId || null;
+      publish({
+        eventType: "qiuqian_drawn",
+        publisherAgent: "stella",
+        userId: qiuqianUserId,
+        data: { question, signNumber: parsed.qianNumber || qianNumber, verdict: parsed.qianType || qianType, poem: parsed.poem, interpretation: parsed.interpretation },
+      }).catch(err => console.error("[qiuqian] event publish error:", err));
+
+      if (qiuqianUserId) {
+        writeMemory({
+          agentKey: "stella",
+          userId: qiuqianUserId,
+          category: "qiuqian_result",
+          summary: `求签结果: 第${parsed.qianNumber || qianNumber}签(${parsed.qianType || qianType}) - ${(parsed.interpretation || "").slice(0, 60)}`,
+          details: parsed,
+          importance: 5,
+          ttlHours: 24 * 7,
+        }).catch(err => console.error("[qiuqian] memory write error:", err));
+      }
+
       return parsed;
     });
   });
@@ -8215,6 +8388,167 @@ Person 2: ${JSON.stringify(person2)}
       parsed._tokensUsed = response.usage?.total_tokens || 0;
       return parsed;
     });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // New: Recommendations, Agent Memory, Event Bus APIs
+  // ═══════════════════════════════════════════════════════════════
+
+  // ─── Trending Posts ──────────────────────────────────────────
+  app.get("/api/recommendations/trending", async (_req, res) => {
+    try {
+      const limit = parseInt(String(_req.query.limit)) || 10;
+      const trending = await getTrendingPosts(Math.min(limit, 30));
+      res.json(trending);
+    } catch (err) {
+      console.error("Trending error:", err);
+      res.status(500).json({ error: "获取热门失败" });
+    }
+  });
+
+  // ─── Personalized Feed ─────────────────────────────────────
+  app.get("/api/recommendations/feed", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(String(req.query.limit)) || 10;
+      const feed = await getPersonalizedFeed(getUserId(req), Math.min(limit, 20));
+      res.json(feed);
+    } catch (err) {
+      console.error("Feed error:", err);
+      res.status(500).json({ error: "获取推荐失败" });
+    }
+  });
+
+  // ─── Personality Matching ──────────────────────────────────
+  app.get("/api/recommendations/matches", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(String(req.query.limit)) || 5;
+      const matches = await getPersonalityMatches(getUserId(req), Math.min(limit, 20));
+      res.json(matches);
+    } catch (err) {
+      console.error("Matching error:", err);
+      res.status(500).json({ error: "获取匹配失败" });
+    }
+  });
+
+  // ─── Community Insights (for market agent / admin) ────────
+  app.get("/api/recommendations/insights", async (_req, res) => {
+    try {
+      const insights = await getCommunityInsights();
+      res.json(insights);
+    } catch (err) {
+      console.error("Insights error:", err);
+      res.status(500).json({ error: "获取洞察失败" });
+    }
+  });
+
+  // ─── Agent Shared Memory: Write ────────────────────────────
+  app.post("/api/agent-memory/write", requireAuth, async (req, res) => {
+    try {
+      const { agentKey, category, summary, details, importance, ttlHours, userId: targetUserId } = req.body;
+      if (!agentKey || !category || !summary) {
+        return res.status(400).json({ error: "需要 agentKey, category, summary" });
+      }
+      const entry = await writeMemory({
+        agentKey,
+        userId: targetUserId || getUserId(req),
+        category,
+        summary,
+        details,
+        importance: importance || 5,
+        ttlHours,
+      });
+      res.json(entry);
+    } catch (err) {
+      console.error("Memory write error:", err);
+      res.status(500).json({ error: "写入记忆失败" });
+    }
+  });
+
+  // ─── Agent Shared Memory: Query ────────────────────────────
+  app.get("/api/agent-memory/query", requireAuth, async (req, res) => {
+    try {
+      const { agentKey, userId: targetUserId, category, query, limit, minImportance } = req.query;
+      const memories = await queryMemories({
+        agentKey: agentKey as string,
+        userId: (targetUserId as string) || getUserId(req),
+        category: category as string,
+        query: query as string,
+        limit: parseInt(String(limit)) || 10,
+        minImportance: parseInt(String(minImportance)) || undefined,
+      });
+      res.json(memories);
+    } catch (err) {
+      console.error("Memory query error:", err);
+      res.status(500).json({ error: "查询记忆失败" });
+    }
+  });
+
+  // ─── Agent Shared Memory: Semantic Search ──────────────────
+  app.get("/api/agent-memory/search", requireAuth, async (req, res) => {
+    try {
+      const { query: q, userId: targetUserId, limit } = req.query;
+      if (!q) return res.status(400).json({ error: "需要 query 参数" });
+      const results = await semanticQuery(String(q), {
+        userId: (targetUserId as string) || getUserId(req),
+        limit: parseInt(String(limit)) || 5,
+      });
+      res.json(results);
+    } catch (err) {
+      console.error("Semantic search error:", err);
+      res.status(500).json({ error: "语义搜索失败" });
+    }
+  });
+
+  // ─── Agent Context Builder ─────────────────────────────────
+  app.get("/api/agent-memory/context", requireAuth, async (req, res) => {
+    try {
+      const agentKey = String(req.query.agentKey || "main");
+      const targetUserId = String(req.query.userId || getUserId(req));
+      const query = req.query.query ? String(req.query.query) : undefined;
+      const context = await buildAgentContext(agentKey, targetUserId, query);
+      res.json({ context });
+    } catch (err) {
+      console.error("Context build error:", err);
+      res.status(500).json({ error: "构建上下文失败" });
+    }
+  });
+
+  // ─── Event Bus: Publish Event ──────────────────────────────
+  app.post("/api/events/publish", requireAuth, async (req, res) => {
+    try {
+      const { eventType, publisherAgent, data, userId: targetUserId } = req.body;
+      if (!eventType || !publisherAgent) {
+        return res.status(400).json({ error: "需要 eventType 和 publisherAgent" });
+      }
+      const eventId = await publish({
+        eventType,
+        publisherAgent,
+        userId: targetUserId || getUserId(req),
+        data: data || {},
+      });
+      res.json({ eventId, status: "published" });
+    } catch (err) {
+      console.error("Event publish error:", err);
+      res.status(500).json({ error: "发布事件失败" });
+    }
+  });
+
+  // ─── Event Bus: Get Subscriptions ──────────────────────────
+  app.get("/api/events/subscriptions", (_req, res) => {
+    res.json(getSubscriptionStats());
+  });
+
+  // ─── Content Moderation: Direct Check ──────────────────────
+  app.post("/api/moderation/check", requireAuth, async (req, res) => {
+    try {
+      const { content, contentType } = req.body;
+      if (!content) return res.status(400).json({ error: "需要 content" });
+      const result = await moderateContent(content, { contentType: contentType || "post" });
+      res.json(result);
+    } catch (err) {
+      console.error("Moderation check error:", err);
+      res.status(500).json({ error: "审核失败" });
+    }
   });
 
   return httpServer;
