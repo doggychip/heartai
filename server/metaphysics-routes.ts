@@ -381,4 +381,398 @@ export function registerMetaphysicsRoutes(
       res.status(500).json({ error: err.message });
     }
   });
+
+  // ─── POST chakra (quiz + AI analysis) ─────────────────────
+  app.post("/api/metaphysics/chakra", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { scores } = req.body;
+      if (!scores || !Array.isArray(scores) || scores.length !== 7) {
+        return res.status(400).json({ error: "请完成所有脉轮测试题目" });
+      }
+
+      const chakraNames = ["海底轮", "脐轮", "太阳轮", "心轮", "喉轮", "眉心轮", "顶轮"];
+      const maxScore = 15;
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const scoreDesc = scores
+        .map((s: number, i: number) => `${chakraNames[i]}: ${s}/${maxScore}分`)
+        .join("、");
+
+      let analysis = "";
+      try {
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "system",
+              content: `你是一位精通脉轮能量系统的灵性导师。请根据用户的七个脉轮得分进行深度解读。
+每个脉轮满分15分，13分以上为过度活跃，10-12分为平衡，7-9分为略有不足，6分以下为不足。
+请分析：
+1. 整体能量分布特点（2-3句）
+2. 最强和最弱的脉轮及其含义
+3. 脉轮之间的关系和影响
+4. 具体的平衡建议（冥想、瑜伽、日常习惯等）
+用中文回复，温暖友善的语气，300字左右。不要用JSON格式，直接用文字段落回复。`,
+            },
+            { role: "user", content: `我的脉轮得分：${scoreDesc}` },
+          ],
+        });
+        analysis = response.choices[0]?.message?.content?.trim() || "";
+      } catch {
+        analysis = `你的脉轮能量分布显示了独特的能量模式。${
+          scores[3] >= 10 ? "心轮能量充沛，说明你具有很强的同理心和爱的能力。" : "心轮需要更多关注，尝试练习慈悲冥想来增强爱的能量。"
+        }${
+          scores[0] >= 10 ? "海底轮稳固，你有良好的安全感基础。" : "建议多进行接地练习，增强根基稳定性。"
+        }整体而言，保持规律的冥想和瑜伽练习，有助于各脉轮能量的平衡与流通。`;
+      }
+
+      const result = { scores, analysis };
+      const birthData = JSON.stringify({ type: "quiz" });
+      await storage.saveMetaphysicsResult(userId, "chakra", birthData, JSON.stringify(result));
+      res.json({ success: true, analysis });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── POST htp (House-Tree-Person AI analysis) ─────────────
+  app.post("/api/metaphysics/htp", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { selections } = req.body;
+      if (!selections || Object.keys(selections).length < 3) {
+        return res.status(400).json({ error: "请至少完成房、树、人的基本选择" });
+      }
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const selectionDesc = Object.entries(selections)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join("\n");
+
+      let result: any;
+      try {
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 2000,
+          messages: [
+            {
+              role: "system",
+              content: `你是一位精通房树人(HTP)心理测验的心理分析师。用户通过选择不同的元素完成了房树人测试。请根据他们的选择进行心理分析。
+
+HTP心理学解读要点：
+- 房子代表家庭关系和安全感（大门=开放性，窗户=与外界接触，屋顶=理想/幻想，烟囱=温暖/情感）
+- 树代表自我成长和生命力（树冠=思想/社交，树干=自我力量，根=安全感/过去，果实=成就）
+- 人代表自我形象和社交（头=智力/幻想，身体=需求/驱力，手=社交/控制，脚=稳定/独立）
+- 附加物代表环境感知（太阳=权威/温暖，云=焦虑，花草=对美的追求，动物=本能需求）
+
+请以JSON格式回复：
+{
+  "personality": "性格特质分析(100字以上)",
+  "traits": ["特质1", "特质2", "特质3", "特质4"],
+  "emotional": "情感状态分析(80字以上)",
+  "relationships": "人际关系模式(80字以上)",
+  "innerWorld": "内心世界和潜意识(80字以上)",
+  "suggestion": "成长建议(50字以上)"
+}
+只回复JSON，不要其他内容。`,
+            },
+            { role: "user", content: `我的房树人选择：\n${selectionDesc}` },
+          ],
+        });
+
+        const text = response.choices[0]?.message?.content?.trim() || "";
+        result = JSON.parse(text.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
+      } catch {
+        result = {
+          personality: "你的选择反映了一个内心丰富、注重安全感的人。你对家庭有着深厚的情感连接，同时也渴望个人的成长空间。你的思维方式倾向于实际和稳重，但内心深处保有对美好事物的追求。",
+          traits: ["稳重", "细腻", "有安全感需求", "追求美好"],
+          emotional: "你的情感表达较为含蓄，倾向于通过行动而非言语来表达感受。你重视情感的稳定性，不喜欢剧烈的情绪波动。",
+          relationships: "你在人际关系中偏向主动但不强势。你喜欢与人保持适当的距离，既不过于亲密也不过于疏远。",
+          innerWorld: "你的内心世界丰富而有序。你有清晰的价值观和目标，同时也有未被满足的深层需求等待被发现。",
+          suggestion: "建议多关注自己的情感需求，尝试更加开放地表达内心的想法和感受。",
+        };
+      }
+
+      const birthData = JSON.stringify({ type: "htp_selection" });
+      await storage.saveMetaphysicsResult(userId, "htp", birthData, JSON.stringify(result));
+      res.json({ result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── POST mayan (Kin calculation + AI) ─────────────────────
+  app.post("/api/metaphysics/mayan", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { birthDate } = req.body;
+      if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
+
+      const [yearStr, monthStr, dayStr] = birthDate.split("-");
+      const year = parseInt(yearStr, 10);
+      const month = parseInt(monthStr, 10);
+      const day = parseInt(dayStr, 10);
+
+      // Calculate Kin number using Dreamspell system
+      // Reference: Jan 1, 2000 = Kin 111
+      const refDate = new Date(2000, 0, 1);
+      const refKin = 111;
+      const targetDate = new Date(year, month - 1, day);
+      const diffDays = Math.round((targetDate.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+      let kin = ((refKin + diffDays - 1) % 260) + 1;
+      if (kin <= 0) kin += 260;
+
+      const sealIndex = (kin - 1) % 20;
+      const toneIndex = (kin - 1) % 13;
+
+      // Cross pattern
+      const supportSealIndex = (19 - sealIndex + 20) % 20;
+      const challengeSealIndex = (sealIndex + 10) % 20;
+      const hiddenPowerSealIndex = (19 - sealIndex + 20) % 20;
+
+      // Guide seal calculation
+      const guideToneGroup = toneIndex % 5;
+      const guideOffsets = [0, 16, 12, 8, 4];
+      const guideSealIndex = (sealIndex + guideOffsets[guideToneGroup]) % 20;
+
+      const sealNames = [
+        "红龙", "白风", "蓝夜", "黄种子", "红蛇",
+        "白世界桥", "蓝手", "黄星星", "红月", "白狗",
+        "蓝猴", "黄人", "红天行者", "白巫师", "蓝鹰",
+        "黄战士", "红地球", "白镜", "蓝风暴", "黄太阳",
+      ];
+
+      const toneNames = [
+        "磁性的", "月亮的", "电力的", "自存的", "超频的",
+        "韵律的", "共振的", "银河的", "太阳的", "行星的",
+        "光谱的", "水晶的", "宇宙的",
+      ];
+
+      const mainSeal = sealNames[sealIndex];
+      const tone = toneNames[toneIndex];
+
+      // AI interpretation
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      let interpretation = "";
+      try {
+        const response = await client.chat.completions.create({
+          model: "deepseek-chat",
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "system",
+              content: `你是一位精通玛雅卓尔金历的星际印记解读师。请根据用户的Kin信息进行深度解读。
+分析内容包括：
+1. 这个Kin号码的总体含义和能量特质
+2. 主图腾的性格描述和人生使命
+3. 调性的影响和生命课题
+4. 十字图腾的综合影响
+5. 人生方向建议
+用中文回复，温暖有灵性的语气，400字左右。不要用JSON格式，直接用文字段落回复。`,
+            },
+            {
+              role: "user",
+              content: `出生日期：${birthDate}
+Kin ${kin}：${tone}${mainSeal}
+调性：${toneIndex + 1} ${tone}
+主图腾：${mainSeal}
+指引：${sealNames[guideSealIndex]}
+支持：${sealNames[supportSealIndex]}
+挑战：${sealNames[challengeSealIndex]}
+推动：${sealNames[hiddenPowerSealIndex]}`,
+            },
+          ],
+        });
+        interpretation = response.choices[0]?.message?.content?.trim() || "";
+      } catch {
+        interpretation = `Kin ${kin} ${tone}${mainSeal}，你携带着独特的星际印记来到这个世界。${mainSeal}赋予你核心的生命能量，而${tone}的调性则定义了你表达这份能量的方式。你的十字图腾揭示了完整的灵魂蓝图：指引图腾引导你的方向，支持图腾给予你力量，挑战图腾带来成长的机遇，推动图腾则是你隐藏的天赋。在人生旅途中，拥抱你所有图腾的能量，让它们和谐共舞。`;
+      }
+
+      const result = {
+        kin,
+        sealIndex,
+        toneIndex,
+        guideSealIndex,
+        supportSealIndex,
+        challengeSealIndex,
+        hiddenPowerSealIndex,
+        interpretation,
+      };
+
+      const birthData2 = JSON.stringify({ birthDate });
+      await storage.saveMetaphysicsResult(userId, "mayan", birthData2, JSON.stringify(result));
+      res.json({ result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── POST human-design (AI analysis) ──────────────────────
+  app.post("/api/metaphysics/human-design", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { birthDate, birthTime, birthPlace } = req.body;
+      if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const timeLabel = birthTime || "未知";
+      const placeLabel = birthPlace || "未知";
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "system",
+            content: `你是一位精通人类图(Human Design)系统的分析师。请根据用户的出生信息，生成一份人类图分析报告。
+
+请以JSON格式回复：
+{
+  "type": "类型(显示者/生产者/显示生产者/投射者/反映者)",
+  "typeTitle": "类型的中文描述称号",
+  "typeDescription": "该类型的详细描述(100字以上)",
+  "strategy": "人生策略",
+  "strategyDesc": "策略详细说明(60字以上)",
+  "authority": "内在权威类型",
+  "authorityDesc": "权威详细说明(60字以上)",
+  "profile": "人生角色(如2/4, 3/5, 6/2等)",
+  "profileDesc": "角色详细说明(60字以上)",
+  "definition": "定义类型(单一定义/分裂定义/三分定义/四分定义)",
+  "notSelfTheme": "非自我主题",
+  "centers": [
+    { "name": "能量中心名", "status": "有定义/无定义", "description": "简述" }
+  ],
+  "summary": "综合人生建议(100字以上)"
+}
+只回复JSON，不要其他内容。`,
+          },
+          { role: "user", content: `出生日期：${birthDate}，出生时间：${timeLabel}，出生地点：${placeLabel}` },
+        ],
+      });
+
+      let result: any;
+      try {
+        const text = response.choices[0]?.message?.content?.trim() || "";
+        result = JSON.parse(text.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
+      } catch {
+        result = {
+          type: "生产者",
+          typeTitle: "世界的建设者",
+          typeDescription: "生产者是人类图中最常见的类型，约占人口的37%。你拥有持续的荐骨能量，天生就是为了回应生命中的机遇而存在。当你做着正确的事情时，你会感到满足和充实。",
+          strategy: "等待回应",
+          strategyDesc: "不要主动发起，而是等待生活向你提出邀请和机会，然后用你的荐骨直觉去回应。",
+          authority: "荐骨权威",
+          authorityDesc: "你的内在权威来自荐骨中心，它会通过身体的感觉告诉你什么是正确的。注意那些让你兴奋或抗拒的身体反应。",
+          profile: "3/5",
+          profileDesc: "探索者与救世主的结合。你通过亲身体验来学习，并因此被他人视为能够解决问题的人。",
+          definition: "单一定义",
+          notSelfTheme: "挫败感",
+          centers: [
+            { name: "荐骨", status: "有定义", description: "持久的生命力和工作能量" },
+            { name: "情绪", status: "无定义", description: "容易受他人情绪影响" },
+          ],
+          summary: "作为生产者，你的人生关键是学会等待和回应。当你跟随荐骨的指引做正确的事，你会感到深深的满足。不要害怕说不，这是你保护自己能量的方式。",
+        };
+      }
+
+      const birthData = JSON.stringify({ birthDate, birthTime, birthPlace });
+      await storage.saveMetaphysicsResult(userId, "human_design", birthData, JSON.stringify(result));
+      res.json({ result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── POST zhengyu (AI analysis) ───────────────────────────
+  app.post("/api/metaphysics/zhengyu", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { birthDate, birthTime } = req.body;
+      if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
+
+      const client = new OpenAI({
+        baseURL: "https://api.deepseek.com",
+        apiKey: process.env.DEEPSEEK_API_KEY,
+      });
+
+      const timeLabel = birthTime || "未知";
+
+      const response = await client.chat.completions.create({
+        model: "deepseek-chat",
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "system",
+            content: `你是一位精通政余分析（融合希腊占星术与中国传统命理）的分析师。请根据用户的出生信息生成分析。
+
+政余体系关键概念：
+- 格局：如"水日会合格·木星升殿格"等
+- 五星：命主(Lord)、用星(Useful)、恩星(Benefic)、难星(Malefic)、财星(Wealth)
+- 每颗星有宫位分配
+
+请以JSON格式回复：
+{
+  "pattern": "格局名称",
+  "patternDesc": "格局简述",
+  "stars": [
+    { "name": "命主", "palace": "宫位", "description": "详细分析(60字以上)" },
+    { "name": "用星", "palace": "宫位", "description": "详细分析(60字以上)" },
+    { "name": "财星", "palace": "宫位", "description": "详细分析(60字以上)" },
+    { "name": "难星", "palace": "宫位", "description": "详细分析(60字以上)" },
+    { "name": "恩星", "palace": "宫位", "description": "详细分析(60字以上)" }
+  ],
+  "lifeDirection": "整体人生方向分析(100字以上)",
+  "advice": "人生建议"
+}
+只回复JSON，不要其他内容。`,
+          },
+          { role: "user", content: `出生日期：${birthDate}，出生时间：${timeLabel}` },
+        ],
+      });
+
+      let result: any;
+      try {
+        const text = response.choices[0]?.message?.content?.trim() || "";
+        result = JSON.parse(text.replace(/```json?\n?/g, "").replace(/```/g, "").trim());
+      } catch {
+        result = {
+          pattern: "水日会合格·木星升殿格",
+          patternDesc: "智慧与机遇并存，善于在变化中把握方向",
+          stars: [
+            { name: "命主", palace: "命宫", description: "命主居于命宫，代表你有着强烈的自我意识和主导力量。你天生具有领袖气质，善于规划和执行。" },
+            { name: "用星", palace: "官禄宫", description: "用星居于官禄宫，代表你的才能最适合在事业领域发挥。你善于处理复杂事务，适合管理类工作。" },
+            { name: "财星", palace: "财帛宫", description: "财星居于财帛宫，正财运较好。你通过自身努力可以获得稳定的财富积累，中年后财运更佳。" },
+            { name: "难星", palace: "迁移宫", description: "难星居于迁移宫，提示你在外出发展时需要多加注意。异地发展可能遇到一些阻碍，但也是成长的机会。" },
+            { name: "恩星", palace: "福德宫", description: "恩星居于福德宫，为你带来精神层面的庇佑。你内心有良好的价值观指引，能够找到内心的平静。" },
+          ],
+          lifeDirection: "你的命格显示出一个智慧与行动力兼备的格局。命主之力赋予你清晰的方向感，而恩星的庇佑让你在挑战中不失本心。人生前半段以积累为主，后半段以成就为主。",
+          advice: "发挥你的智慧优势，保持内心的平衡，在变化中寻找稳定的方向。",
+        };
+      }
+
+      const birthData = JSON.stringify({ birthDate, birthTime });
+      await storage.saveMetaphysicsResult(userId, "zhengyu", birthData, JSON.stringify(result));
+      res.json({ result });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 }

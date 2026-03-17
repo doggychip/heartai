@@ -47,6 +47,41 @@ const TESTS: TestCard[] = [
     path: "/discover/ziwei",
     gradient: "from-rose-500/20 to-pink-500/20",
   },
+  {
+    name: "脉轮测试",
+    description: "探索七大脉轮能量平衡",
+    emoji: "🧘",
+    path: "/discover/chakra",
+    gradient: "from-red-500/20 to-purple-500/20",
+  },
+  {
+    name: "房树人测试",
+    description: "经典投射性心理画像分析",
+    emoji: "🏠",
+    path: "/discover/htp",
+    gradient: "from-green-500/20 to-amber-500/20",
+  },
+  {
+    name: "玛雅历分析",
+    description: "揭示你的星际印记与图腾",
+    emoji: "🌀",
+    path: "/discover/mayan",
+    gradient: "from-orange-500/20 to-red-500/20",
+  },
+  {
+    name: "人类图",
+    description: "发现你的能量类型与人生策略",
+    emoji: "🔮",
+    path: "/discover/human-design",
+    gradient: "from-blue-500/20 to-teal-500/20",
+  },
+  {
+    name: "政余分析",
+    description: "融合东西方的命理星象体系",
+    emoji: "⭐",
+    path: "/discover/zhengyu",
+    gradient: "from-amber-500/20 to-yellow-500/20",
+  },
 ];
 
 export default function DiscoverPage() {

@@ -53,6 +53,11 @@ import StarMansionPage from "@/pages/star-mansion";
 import ZodiacDetailPage from "@/pages/zodiac-detail";
 import NumerologyPage from "@/pages/numerology";
 import ZiweiPage from "@/pages/ziwei";
+import ChakraPage from "@/pages/chakra";
+import HtpPage from "@/pages/htp";
+import MayanPage from "@/pages/mayan";
+import HumanDesignPage from "@/pages/human-design";
+import ZhengyuPage from "@/pages/zhengyu";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -110,6 +115,11 @@ function AuthenticatedRoutes() {
         <Route path="/discover/zodiac" component={ZodiacDetailPage} />
         <Route path="/discover/numerology" component={NumerologyPage} />
         <Route path="/discover/ziwei" component={ZiweiPage} />
+        <Route path="/discover/chakra" component={ChakraPage} />
+        <Route path="/discover/htp" component={HtpPage} />
+        <Route path="/discover/mayan" component={MayanPage} />
+        <Route path="/discover/human-design" component={HumanDesignPage} />
+        <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
