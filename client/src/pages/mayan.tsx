@@ -135,7 +135,7 @@ export default function MayanPage() {
     const tone = TONES[result.toneIndex] || TONES[0];
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3 mb-2">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -152,7 +152,7 @@ export default function MayanPage() {
         </Card>
 
         {/* Cross Pattern */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+        <Card className="bg-card/50 border-transparent p-4 space-y-4">
           <h3 className="font-semibold text-center">十字图腾</h3>
 
           <div className="relative w-full max-w-[280px] mx-auto" style={{ height: 280 }}>
@@ -212,7 +212,7 @@ export default function MayanPage() {
         </Card>
 
         {/* Totem details */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-orange-400" /> 图腾详解
           </h3>
@@ -241,7 +241,7 @@ export default function MayanPage() {
 
         {/* AI Interpretation */}
         {result.interpretation && (
-          <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+          <Card className="bg-card/50 border-transparent p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400" /> AI 深度解读
             </h3>
@@ -264,7 +264,7 @@ export default function MayanPage() {
 
   // ─── Landing Page ──────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -291,7 +291,7 @@ export default function MayanPage() {
         </div>
       </div>
 
-      <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+      <Card className="bg-card/50 border-transparent p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input

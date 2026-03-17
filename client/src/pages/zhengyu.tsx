@@ -81,7 +81,7 @@ export default function ZhengyuPage() {
       .filter(Boolean) as StarInfo[];
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3 mb-2">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -97,7 +97,7 @@ export default function ZhengyuPage() {
         </Card>
 
         {/* Star cycle diagram */}
-        <Card className="bg-card/50 border-border/50 p-6 space-y-4">
+        <Card className="bg-card/50 border-transparent p-6 space-y-4">
           <h3 className="font-semibold text-center flex items-center justify-center gap-2">
             <CircleDot className="w-4 h-4 text-amber-400" /> 五星循环
           </h3>
@@ -187,7 +187,7 @@ export default function ZhengyuPage() {
         </div>
 
         {/* Overall analysis */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-400" /> 综合分析
           </h3>
@@ -195,7 +195,7 @@ export default function ZhengyuPage() {
         </Card>
 
         {/* Life direction */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold">人生方向</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">{result.lifeDirection}</p>
           <div className="bg-accent/30 rounded-xl p-3">
@@ -215,7 +215,7 @@ export default function ZhengyuPage() {
 
   // Landing page
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -247,7 +247,7 @@ export default function ZhengyuPage() {
         </div>
       </div>
 
-      <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+      <Card className="bg-card/50 border-transparent p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input

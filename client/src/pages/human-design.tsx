@@ -81,7 +81,7 @@ export default function HumanDesignPage() {
     const emoji = TYPE_EMOJIS[result.type] || "🔮";
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3 mb-2">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -130,7 +130,7 @@ export default function HumanDesignPage() {
         </div>
 
         {/* Strategy detail */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Compass className="w-4 h-4 text-cyan-400" /> 策略解读
           </h3>
@@ -138,7 +138,7 @@ export default function HumanDesignPage() {
         </Card>
 
         {/* Authority detail */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Shield className="w-4 h-4 text-amber-400" /> 内在权威解读
           </h3>
@@ -146,7 +146,7 @@ export default function HumanDesignPage() {
         </Card>
 
         {/* Profile detail */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Users className="w-4 h-4 text-violet-400" /> 人生角色 {result.profile}
           </h3>
@@ -154,7 +154,7 @@ export default function HumanDesignPage() {
         </Card>
 
         {/* Definition detail */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Zap className="w-4 h-4 text-emerald-400" /> {result.definition}定义
           </h3>
@@ -163,7 +163,7 @@ export default function HumanDesignPage() {
 
         {/* Energy centers */}
         {result.energyCenters && result.energyCenters.length > 0 && (
-          <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+          <Card className="bg-card/50 border-transparent p-4 space-y-4">
             <h3 className="font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-teal-400" /> 能量中心
             </h3>
@@ -192,7 +192,7 @@ export default function HumanDesignPage() {
         </Card>
 
         {/* Detailed analysis */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold">深度解读</h3>
           <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{result.detailedAnalysis}</p>
           <div className="bg-accent/30 rounded-xl p-3">
@@ -212,7 +212,7 @@ export default function HumanDesignPage() {
 
   // Landing page
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -246,7 +246,7 @@ export default function HumanDesignPage() {
         </div>
       </div>
 
-      <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+      <Card className="bg-card/50 border-transparent p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input

@@ -238,7 +238,7 @@ export default function HtpPage() {
   // ─── Landing ──────────────────────────────────────────────
   if (stage === "landing") {
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
         <div className="flex items-center gap-3">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -287,7 +287,7 @@ export default function HtpPage() {
     const tab = HTP_TABS[activeTab];
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -315,7 +315,7 @@ export default function HtpPage() {
                 className={`flex-1 py-2.5 rounded-xl text-center transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground"
-                    : "bg-card/50 border border-border/50 hover:bg-accent/30"
+                    : "bg-card/50 border border-transparent hover:bg-accent/30"
                 }`}
               >
                 <div className="text-lg">{t.emoji}</div>
@@ -331,7 +331,7 @@ export default function HtpPage() {
         {/* Categories & options */}
         <div className="space-y-4">
           {tab.categories.map((category) => (
-            <Card key={category.id} className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card key={category.id} className="bg-card/50 border-transparent p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold">{category.label}</h3>
                 {selections[category.id] && (
@@ -348,7 +348,7 @@ export default function HtpPage() {
                       className={`p-3 rounded-xl border text-center transition-all space-y-2 ${
                         isSelected
                           ? "border-primary bg-primary/10"
-                          : "border-border/50 bg-background/50 hover:bg-accent/30"
+                          : "border-transparent bg-background/50 hover:bg-accent/30"
                       }`}
                     >
                       <div className="flex justify-center items-center h-8 text-muted-foreground">
@@ -392,7 +392,7 @@ export default function HtpPage() {
 
   // ─── Result ────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
       <div className="flex items-center gap-3 mb-2">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -407,7 +407,7 @@ export default function HtpPage() {
       </Card>
 
       {/* Selection Summary */}
-      <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+      <Card className="bg-card/50 border-transparent p-4 space-y-3">
         <h3 className="font-semibold">你的选择</h3>
         <div className="grid grid-cols-2 gap-2">
           {HTP_TABS.map((tab) => (
@@ -430,7 +430,7 @@ export default function HtpPage() {
       {result && (
         <>
           {result.personality && (
-            <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card className="bg-card/50 border-transparent p-4 space-y-3">
               <h3 className="font-semibold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-purple-400" /> 性格特质
               </h3>
@@ -446,28 +446,28 @@ export default function HtpPage() {
           )}
 
           {result.emotional && (
-            <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card className="bg-card/50 border-transparent p-4 space-y-3">
               <h3 className="font-semibold">情感状态</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.emotional}</p>
             </Card>
           )}
 
           {result.relationships && (
-            <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card className="bg-card/50 border-transparent p-4 space-y-3">
               <h3 className="font-semibold">人际关系</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.relationships}</p>
             </Card>
           )}
 
           {result.innerWorld && (
-            <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card className="bg-card/50 border-transparent p-4 space-y-3">
               <h3 className="font-semibold">内心世界</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.innerWorld}</p>
             </Card>
           )}
 
           {result.suggestion && (
-            <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+            <Card className="bg-card/50 border-transparent p-4 space-y-3">
               <div className="bg-accent/30 rounded-xl p-3">
                 <p className="text-xs text-muted-foreground mb-1">💡 建议</p>
                 <p className="text-sm">{result.suggestion}</p>

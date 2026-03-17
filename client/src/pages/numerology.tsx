@@ -66,7 +66,7 @@ export default function NumerologyPage() {
     const grad = NUMBER_COLORS[result.lifePathNumber] || "from-purple-500/20 to-blue-500/20";
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3 mb-2">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -88,19 +88,19 @@ export default function NumerologyPage() {
 
         {/* Three numbers */}
         <div className="grid grid-cols-3 gap-3">
-          <Card className="bg-card/50 border-border/50 p-3 text-center space-y-1">
+          <Card className="bg-card/50 border-transparent p-3 text-center space-y-1">
             <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
               <span className="text-lg font-bold text-primary">{result.lifePathNumber}</span>
             </div>
             <p className="text-xs text-muted-foreground">生命灵数</p>
           </Card>
-          <Card className="bg-card/50 border-border/50 p-3 text-center space-y-1">
+          <Card className="bg-card/50 border-transparent p-3 text-center space-y-1">
             <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
               <span className="text-lg font-bold text-amber-400">{result.birthdayNumber}</span>
             </div>
             <p className="text-xs text-muted-foreground">生日数</p>
           </Card>
-          <Card className="bg-card/50 border-border/50 p-3 text-center space-y-1">
+          <Card className="bg-card/50 border-transparent p-3 text-center space-y-1">
             <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
               <span className="text-lg font-bold text-emerald-400">{result.talentNumber}</span>
             </div>
@@ -109,7 +109,7 @@ export default function NumerologyPage() {
         </div>
 
         {/* Number grid visualization */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Hash className="w-4 h-4" /> 灵数矩阵
           </h3>
@@ -133,7 +133,7 @@ export default function NumerologyPage() {
         </Card>
 
         {/* Traits */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-400" /> 核心特质
           </h3>
@@ -145,25 +145,25 @@ export default function NumerologyPage() {
         </Card>
 
         {/* Life path meaning */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold">生命灵数 {result.lifePathNumber} 解读</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">{result.lifePathMeaning}</p>
         </Card>
 
         {/* Birthday & Talent */}
         <div className="grid grid-cols-1 gap-3">
-          <Card className="bg-card/50 border-border/50 p-4 space-y-2">
+          <Card className="bg-card/50 border-transparent p-4 space-y-2">
             <h3 className="text-sm font-semibold">生日数 {result.birthdayNumber}</h3>
             <p className="text-sm text-muted-foreground">{result.birthdayMeaning}</p>
           </Card>
-          <Card className="bg-card/50 border-border/50 p-4 space-y-2">
+          <Card className="bg-card/50 border-transparent p-4 space-y-2">
             <h3 className="text-sm font-semibold">天赋数 {result.talentNumber}</h3>
             <p className="text-sm text-muted-foreground">{result.talentMeaning}</p>
           </Card>
         </div>
 
         {/* Strengths & Challenges */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-semibold text-emerald-400 mb-1">✨ 优势领域</h3>
@@ -177,7 +177,7 @@ export default function NumerologyPage() {
         </Card>
 
         {/* Extra info */}
-        <Card className="bg-card/50 border-border/50 p-4">
+        <Card className="bg-card/50 border-transparent p-4">
           <div className="grid grid-cols-3 gap-3 text-center text-sm">
             <div className="bg-accent/30 rounded-xl p-3">
               <p className="text-muted-foreground text-xs">最佳搭配</p>
@@ -201,7 +201,7 @@ export default function NumerologyPage() {
 
   // Landing page
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -228,7 +228,7 @@ export default function NumerologyPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+      <Card className="bg-card/50 border-transparent p-4 space-y-4">
         <label className="text-sm font-medium">出生日期</label>
         <Input
           type="date"

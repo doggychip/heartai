@@ -55,7 +55,7 @@ export default function StarMansionPage() {
     const groupEmoji = GROUP_EMOJIS[result.group] || "⭐";
 
     return (
-      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4">
+      <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-4 overflow-x-hidden">
         <div className="flex items-center gap-3 mb-2">
           <Link href="/discover">
             <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -75,7 +75,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Personality */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-400" /> 性格特质
           </h3>
@@ -88,7 +88,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Compatibility */}
-        <Card className="bg-card/50 border-border/50 p-4 space-y-3">
+        <Card className="bg-card/50 border-transparent p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Compass className="w-4 h-4 text-blue-400" /> 星宿关系
           </h3>
@@ -113,7 +113,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Lucky elements */}
-        <Card className="bg-card/50 border-border/50 p-4">
+        <Card className="bg-card/50 border-transparent p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-yellow-400" /> 幸运元素
           </h3>
@@ -140,7 +140,7 @@ export default function StarMansionPage() {
 
   // Landing page
   return (
-    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-4 pb-24 max-w-lg mx-auto space-y-6 overflow-x-hidden">
       <div className="flex items-center gap-3">
         <Link href="/discover">
           <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="w-4 h-4" /></Button>
@@ -176,7 +176,7 @@ export default function StarMansionPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 border-border/50 p-4 space-y-4">
+      <Card className="bg-card/50 border-transparent p-4 space-y-4">
         <label className="text-sm font-medium">出生日期</label>
         <Input
           type="date"
