@@ -152,7 +152,7 @@ export default function MayanPage() {
         </Card>
 
         {/* Cross Pattern */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-4">
+        <Card className="bg-transparent border-0 p-4 space-y-4">
           <h3 className="font-semibold text-center">十字图腾</h3>
 
           <div className="relative w-full max-w-[280px] mx-auto" style={{ height: 280 }}>
@@ -212,7 +212,7 @@ export default function MayanPage() {
         </Card>
 
         {/* Totem details */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-orange-400" /> 图腾详解
           </h3>
@@ -241,7 +241,7 @@ export default function MayanPage() {
 
         {/* AI Interpretation */}
         {result.interpretation && (
-          <Card className="bg-card/50 border-transparent p-4 space-y-3">
+          <Card className="bg-transparent border-0 p-4 space-y-3">
             <h3 className="font-semibold flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-purple-400" /> AI 深度解读
             </h3>
@@ -291,7 +291,7 @@ export default function MayanPage() {
         </div>
       </div>
 
-      <Card className="bg-card/50 border-transparent p-4 space-y-4">
+      <Card className="bg-transparent border-0 p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input

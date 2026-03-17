@@ -223,7 +223,7 @@ export default function EnneagramPage() {
         <div className="text-center space-y-4 py-4">
           {/* 9-type circle */}
           <div className="relative mx-auto w-52 h-52">
-            <div className="absolute inset-0 rounded-full border border-transparent" />
+            <div className="absolute inset-0 rounded-full border-0" />
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((type) => {
               const angle = ((type - 1) / 9) * Math.PI * 2 - Math.PI / 2;
               const x = 50 + 42 * Math.cos(angle);
@@ -325,7 +325,7 @@ export default function EnneagramPage() {
               className={`w-full p-4 rounded-xl border text-left transition-all ${
                 answers[currentQ] === opt.value
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-transparent bg-card/50 hover:bg-accent/30"
+                  : "border-transparent bg-transparent hover:bg-accent/30"
               }`}
             >
               <span className="text-sm">{opt.label}</span>
@@ -375,14 +375,14 @@ export default function EnneagramPage() {
       </Card>
 
       {/* Description */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">人格描述</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">{info.description}</p>
       </Card>
 
       {/* Traits */}
       <div className="grid grid-cols-2 gap-3">
-        <Card className="bg-emerald-500/5 border-transparent p-4 space-y-2">
+        <Card className="bg-emerald-500/5 border-0 p-4 space-y-2">
           <h3 className="text-sm font-semibold text-emerald-400">✨ 优势</h3>
           <div className="flex flex-wrap gap-1">
             {info.strengths.map((s, i) => (
@@ -390,7 +390,7 @@ export default function EnneagramPage() {
             ))}
           </div>
         </Card>
-        <Card className="bg-orange-500/5 border-transparent p-4 space-y-2">
+        <Card className="bg-orange-500/5 border-0 p-4 space-y-2">
           <h3 className="text-sm font-semibold text-orange-400">⚡ 盲区</h3>
           <div className="flex flex-wrap gap-1">
             {info.weaknesses.map((w, i) => (
@@ -401,7 +401,7 @@ export default function EnneagramPage() {
       </div>
 
       {/* Growth & Stress */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">成长与压力方向</h3>
         <div className="space-y-2 text-sm">
           <div className="flex items-start gap-2">
@@ -416,7 +416,7 @@ export default function EnneagramPage() {
       </Card>
 
       {/* Compatible types */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">最佳搭配</h3>
         <div className="flex gap-2">
           {info.compatible.map((t) => {
@@ -432,7 +432,7 @@ export default function EnneagramPage() {
       </Card>
 
       {/* Score chart */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">得分分布</h3>
         <div className="space-y-2">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((t) => {

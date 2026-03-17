@@ -75,7 +75,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Personality */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-400" /> 性格特质
           </h3>
@@ -88,7 +88,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Compatibility */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Compass className="w-4 h-4 text-blue-400" /> 星宿关系
           </h3>
@@ -113,7 +113,7 @@ export default function StarMansionPage() {
         </Card>
 
         {/* Lucky elements */}
-        <Card className="bg-card/50 border-transparent p-4">
+        <Card className="bg-transparent border-0 p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-yellow-400" /> 幸运元素
           </h3>
@@ -176,7 +176,7 @@ export default function StarMansionPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 border-transparent p-4 space-y-4">
+      <Card className="bg-transparent border-0 p-4 space-y-4">
         <label className="text-sm font-medium">出生日期</label>
         <Input
           type="date"

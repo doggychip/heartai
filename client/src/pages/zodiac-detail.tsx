@@ -66,14 +66,14 @@ export default function ZodiacDetailPage() {
         </Card>
 
         {/* Personality */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold">性格描述</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">{result.personality}</p>
         </Card>
 
         {/* Strengths & Weaknesses */}
         <div className="grid grid-cols-2 gap-3">
-          <Card className="bg-emerald-500/5 border-transparent p-4 space-y-2">
+          <Card className="bg-emerald-500/5 border-0 p-4 space-y-2">
             <h3 className="text-sm font-semibold text-emerald-400">✨ 优点</h3>
             <div className="space-y-1">
               {result.strengths.map((s, i) => (
@@ -81,7 +81,7 @@ export default function ZodiacDetailPage() {
               ))}
             </div>
           </Card>
-          <Card className="bg-orange-500/5 border-transparent p-4 space-y-2">
+          <Card className="bg-orange-500/5 border-0 p-4 space-y-2">
             <h3 className="text-sm font-semibold text-orange-400">⚡ 缺点</h3>
             <div className="space-y-1">
               {result.weaknesses.map((w, i) => (
@@ -92,7 +92,7 @@ export default function ZodiacDetailPage() {
         </div>
 
         {/* Compatibility */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold">生肖关系</h3>
           <div className="space-y-2">
             <div>
@@ -119,7 +119,7 @@ export default function ZodiacDetailPage() {
         </Card>
 
         {/* Career & Love */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <div className="space-y-3">
             <div>
               <h3 className="text-sm font-semibold flex items-center gap-2 mb-1">
@@ -137,7 +137,7 @@ export default function ZodiacDetailPage() {
         </Card>
 
         {/* Lucky elements */}
-        <Card className="bg-card/50 border-transparent p-4">
+        <Card className="bg-transparent border-0 p-4">
           <h3 className="font-semibold flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-yellow-400" /> 幸运元素
           </h3>
@@ -197,7 +197,7 @@ export default function ZodiacDetailPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 border-transparent p-4 space-y-4">
+      <Card className="bg-transparent border-0 p-4 space-y-4">
         <label className="text-sm font-medium">出生年份</label>
         <Input
           type="number"

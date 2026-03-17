@@ -315,7 +315,7 @@ export default function HtpPage() {
                 className={`flex-1 py-2.5 rounded-xl text-center transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground"
-                    : "bg-card/50 border border-transparent hover:bg-accent/30"
+                    : "bg-transparent border border-transparent hover:bg-accent/30"
                 }`}
               >
                 <div className="text-lg">{t.emoji}</div>
@@ -331,7 +331,7 @@ export default function HtpPage() {
         {/* Categories & options */}
         <div className="space-y-4">
           {tab.categories.map((category) => (
-            <Card key={category.id} className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card key={category.id} className="bg-transparent border-0 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold">{category.label}</h3>
                 {selections[category.id] && (
@@ -407,7 +407,7 @@ export default function HtpPage() {
       </Card>
 
       {/* Selection Summary */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">你的选择</h3>
         <div className="grid grid-cols-2 gap-2">
           {HTP_TABS.map((tab) => (
@@ -430,7 +430,7 @@ export default function HtpPage() {
       {result && (
         <>
           {result.personality && (
-            <Card className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card className="bg-transparent border-0 p-4 space-y-3">
               <h3 className="font-semibold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-purple-400" /> 性格特质
               </h3>
@@ -446,28 +446,28 @@ export default function HtpPage() {
           )}
 
           {result.emotional && (
-            <Card className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card className="bg-transparent border-0 p-4 space-y-3">
               <h3 className="font-semibold">情感状态</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.emotional}</p>
             </Card>
           )}
 
           {result.relationships && (
-            <Card className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card className="bg-transparent border-0 p-4 space-y-3">
               <h3 className="font-semibold">人际关系</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.relationships}</p>
             </Card>
           )}
 
           {result.innerWorld && (
-            <Card className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card className="bg-transparent border-0 p-4 space-y-3">
               <h3 className="font-semibold">内心世界</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">{result.innerWorld}</p>
             </Card>
           )}
 
           {result.suggestion && (
-            <Card className="bg-card/50 border-transparent p-4 space-y-3">
+            <Card className="bg-transparent border-0 p-4 space-y-3">
               <div className="bg-accent/30 rounded-xl p-3">
                 <p className="text-xs text-muted-foreground mb-1">💡 建议</p>
                 <p className="text-sm">{result.suggestion}</p>

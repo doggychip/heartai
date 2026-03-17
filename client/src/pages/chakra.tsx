@@ -218,7 +218,7 @@ export default function ChakraPage() {
               className={`w-full p-4 rounded-xl border text-left transition-all ${
                 answers[currentQ] === opt.value
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-transparent bg-card/50 hover:bg-accent/30"
+                  : "border-transparent bg-transparent hover:bg-accent/30"
               }`}
             >
               <span className="text-sm">{opt.label}</span>
@@ -260,7 +260,7 @@ export default function ChakraPage() {
       </Card>
 
       {/* Vertical chakra diagram with scores */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         {[...CHAKRAS].reverse().map((chakra, reverseIdx) => {
           const idx = 6 - reverseIdx;
           const score = chakraScores[idx];
@@ -298,7 +298,7 @@ export default function ChakraPage() {
 
       {/* AI Analysis */}
       {(analysisMutation.isPending || aiAnalysis) && (
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400" /> AI 脉轮解读
           </h3>
@@ -316,7 +316,7 @@ export default function ChakraPage() {
       )}
 
       {/* Chakra details */}
-      <Card className="bg-card/50 border-transparent p-4 space-y-3">
+      <Card className="bg-transparent border-0 p-4 space-y-3">
         <h3 className="font-semibold">各脉轮详情</h3>
         {CHAKRAS.map((chakra, idx) => {
           const score = chakraScores[idx];

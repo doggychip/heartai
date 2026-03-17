@@ -97,7 +97,7 @@ export default function ZhengyuPage() {
         </Card>
 
         {/* Star cycle diagram */}
-        <Card className="bg-card/50 border-transparent p-6 space-y-4">
+        <Card className="bg-transparent border-0 p-6 space-y-4">
           <h3 className="font-semibold text-center flex items-center justify-center gap-2">
             <CircleDot className="w-4 h-4 text-amber-400" /> 五星循环
           </h3>
@@ -187,7 +187,7 @@ export default function ZhengyuPage() {
         </div>
 
         {/* Overall analysis */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-400" /> 综合分析
           </h3>
@@ -195,7 +195,7 @@ export default function ZhengyuPage() {
         </Card>
 
         {/* Life direction */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold">人生方向</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">{result.lifeDirection}</p>
           <div className="bg-accent/30 rounded-xl p-3">
@@ -247,7 +247,7 @@ export default function ZhengyuPage() {
         </div>
       </div>
 
-      <Card className="bg-card/50 border-transparent p-4 space-y-4">
+      <Card className="bg-transparent border-0 p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input

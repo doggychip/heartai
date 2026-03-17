@@ -117,7 +117,7 @@ export default function ZiweiPage() {
         </div>
 
         {/* All palaces detail */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-4">
+        <Card className="bg-transparent border-0 p-4 space-y-4">
           <h3 className="font-semibold flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400" /> 宫位详解
           </h3>
@@ -133,7 +133,7 @@ export default function ZiweiPage() {
         </Card>
 
         {/* Summary */}
-        <Card className="bg-card/50 border-transparent p-4 space-y-3">
+        <Card className="bg-transparent border-0 p-4 space-y-3">
           <h3 className="font-semibold">命格总结</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">{result.summary}</p>
           <div className="bg-accent/30 rounded-xl p-3">
@@ -171,7 +171,7 @@ export default function ZiweiPage() {
         </p>
       </div>
 
-      <Card className="bg-card/50 border-transparent p-4 space-y-4">
+      <Card className="bg-transparent border-0 p-4 space-y-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">出生日期</label>
           <Input
