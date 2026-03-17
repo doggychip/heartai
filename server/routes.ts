@@ -312,22 +312,29 @@ const BOT_REPLY_PROMPT = `你是观星社区的小助手，在社区帖子下面
 只返回评论内容，不要JSON、不要markdown、不要标签。`;
 
 const BOT_POST_TOPICS = [
-  { tag: "encouragement", prompt: "Write a short encouraging community post (50-150 chars) about mental wellness, self-care, or emotional resilience. Use Chinese. Add 1-2 emojis. Be warm and authentic, not generic." },
-  { tag: "question", prompt: "Write a thought-provoking community discussion question (50-120 chars) about emotions, relationships, personal growth, or mindfulness. Use Chinese. Make it engaging so agents want to respond." },
-  { tag: "sharing", prompt: "Write a brief insightful observation (50-150 chars) about mental health, emotional intelligence, or human connection. Use Chinese. Be genuine and thoughtful." },
-  { tag: "resource", prompt: "Share a practical mental wellness tip (50-150 chars) like a breathing exercise, journaling prompt, or stress relief technique. Use Chinese. Be specific and actionable." },
-  { tag: "sharing", prompt: "结合今日运势写一条关于五行养生或情绪调节的帖子(50-150字)。用今日五行的特点来给出实用建议，比如今天水旺适合静心冥想，火旺适合运动释放能量等。用中文，加1-2个emoji，要有洞察力。" },
-  { tag: "question", prompt: "从玄学角度发起一个有趣的社区讨论(50-120字)，可以是关于：你觉得五行中哪个最像你的性格？今天的天干地支让你想到什么？你相信运势会影响心情吗？等等。用中文，要引发思考和讨论。" },
-  { tag: "sharing", prompt: "分享一个有趣的玄学小知识(50-150字)，可以是关于：天干地支的由来、五行相生相克的生活应用、风水与居家心理学、面相与第一印象等。用中文，要通俗易懂，不要太学术。" },
-  { tag: "resource", prompt: "根据今日宜忌，给出一条实用的生活建议(50-150字)。把传统玄学智慧和现代生活结合，比如今天宜出行就聊聊换个环境对心情的好处，忌口舌就聊聊沟通技巧。用中文，加1-2个emoji。" },
-  { tag: "sharing", prompt: '聊聊你对"缘分"这个概念的看法，结合一个生活中的小例子。用中文，50-150字。' },
-  { tag: "question", prompt: "发起一个关于生活节奏的讨论：你觉得现代人最缺少的是什么？用中文，50-120字，要引发共鸣。" },
-  { tag: "encouragement", prompt: "用一句有力量的话鼓励正在经历困难的人。不要鸡汤，要真诚。用中文，50-100字。" },
-  { tag: "sharing", prompt: "分享一个你觉得被低估的生活智慧或习惯。用中文，50-150字，要具体不要空泛。" },
-  { tag: "question", prompt: "如果可以改变一个社会现象，你会选什么？为什么？用中文，50-120字。" },
-  { tag: "resource", prompt: "推荐一个简单的每日小仪式，帮助人们保持内心平静。用中文，50-150字，要可操作。" },
-  { tag: "sharing", prompt: "用一个比喻来形容今天的能量氛围。用中文，50-150字，要有画面感。" },
-  { tag: "question", prompt: "你相信直觉吗？分享一个直觉带给你启发的时刻。用中文，50-120字。" },
+  // Specific metaphysics knowledge
+  { tag: "sharing", prompt: "选一个具体的天干(甲乙丙丁戊己庚辛壬癸中的一个)，用100-200字解释它在命理中代表什么性格特征，举一个生活中的具体例子。不要泛泛而谈，要像给朋友科普一样。用中文。" },
+  { tag: "sharing", prompt: "讲解一个具体的五行相生或相克关系(比如水生木、金克木等)，用一个现实生活中的比喻来说明。100-200字，用中文。不要用'就像XX一样'这种笼统比喻，要讲一个具体的场景。" },
+  { tag: "question", prompt: "发起一个二选一投票：给出两个具体的玄学观点让大家选择。比如'你觉得八字准还是星座准？'或'择日重要还是风水重要？'。50-100字，用中文，要有趣。" },
+  { tag: "sharing", prompt: "分享一个关于十二地支(子丑寅卯辰巳午未申酉戌亥)中某一个的冷知识或有趣故事。100-150字，用中文。要有具体的历史典故或民间传说。" },
+
+  // Practical & specific tips
+  { tag: "resource", prompt: "根据今天是星期几，给出一个对应的五行养生建议。要非常具体：吃什么食物、做什么运动、穿什么颜色。80-150字，用中文。" },
+  { tag: "resource", prompt: "教大家一个简单的风水小调整，针对具体空间(比如书桌、床头、玄关)。要说清楚为什么这样做、具体怎么操作。100-150字，用中文。" },
+  { tag: "resource", prompt: "分享一个用五行理论改善人际关系的具体技巧。比如和火命的朋友相处要注意什么，水命的人适合什么沟通方式。80-150字，用中文。" },
+
+  // Engaging discussion starters
+  { tag: "question", prompt: "问一个关于玄学和现代生活碰撞的具体问题。比如：'程序员的八字是不是金水多？'、'你会因为水逆推迟签合同吗？'、'相亲前你会先合八字吗？'。选一个类似的具体话题展开，50-100字，用中文。" },
+  { tag: "question", prompt: "分享一个'玄学翻车'的有趣场景，然后问大家有没有类似经历。比如算命说今天财运好结果丢了钱包。50-120字，用中文，语气要幽默。" },
+  { tag: "question", prompt: "发起一个关于12星座的具体讨论，比如'哪个星座最难追？'、'你见过最准的星座描述是什么？'、'你觉得太阳星座和月亮星座哪个更像真实的你？'。选一个展开，50-100字，用中文。" },
+
+  // Mini-teachings
+  { tag: "sharing", prompt: "用'你知道吗？'开头，分享一个大多数人不知道的玄学冷知识。可以是关于：为什么初一十五要吃素、本命年为什么穿红色、为什么说'男怕四九女怕十三'等。80-150字，用中文。" },
+  { tag: "sharing", prompt: "解读一个常见的民间说法背后的玄学原理。比如'左眼跳财右眼跳灾'、'梦见蛇要发财'、'打喷嚏是有人想你'等。100-150字，用中文，要科普但不要说教。" },
+
+  // Personal & relatable
+  { tag: "sharing", prompt: "以第一人称写一段关于今天在观星平台上看到的有趣现象的感想。比如发现很多人在问感情问题、或者今天求签的人特别多。80-150字，用中文，语气自然随意。" },
+  { tag: "encouragement", prompt: "针对一个具体的人生困境(失恋/裁员/考试失利/和父母吵架，选一个)，从命理角度给出一个独特的安慰视角。不要说'一切都会好的'这种空话，要结合五行或运势给出具体的看法。80-150字，用中文。" },
 ];
 
 // Bot style modifiers for additional diversity
@@ -512,8 +519,21 @@ async function botReplyToPost(postId: string, postContent: string) {
   }
 }
 
+let botPostCountToday = 0;
+let botPostCountDate = '';
+
 async function botCreatePost() {
   try {
+    // Daily post cap: max 8 posts per day
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (botPostCountDate !== todayStr) {
+      botPostCountToday = 0;
+      botPostCountDate = todayStr;
+    }
+    if (botPostCountToday >= 8) {
+      console.log('[bot] Daily post cap reached (8), skipping');
+      return;
+    }
     const bot = await ensureHeartAIBot();
     const topic = BOT_POST_TOPICS[Math.floor(Math.random() * BOT_POST_TOPICS.length)];
     const styleModifier = BOT_STYLE_MODIFIERS[Math.floor(Math.random() * BOT_STYLE_MODIFIERS.length)];
@@ -523,7 +543,7 @@ async function botCreatePost() {
     const allPosts = await storage.getAllPosts();
     const botRecentPosts = allPosts
       .filter(p => p.userId === bot.id)
-      .slice(0, 5)
+      .slice(0, 20)
       .map(p => p.content.slice(0, 80));
     const dedupCtx = botRecentPosts.length > 0
       ? `\n\n## 你最近发过的帖子（不要重复类似的话题和句式，换一个全新的角度）\n${botRecentPosts.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
@@ -538,7 +558,7 @@ ${styleModifier}
 ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}${dedupCtx}`;
     const response = await client.chat.completions.create({
       model: DEFAULT_MODEL,
-      max_tokens: 300,
+      max_tokens: 500,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: topic.prompt },
@@ -547,7 +567,7 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
     let content = response.choices[0]?.message?.content?.trim();
 
     // Retry once if content is too short (AI sometimes returns truncated responses)
-    if (content && content.length < 30) {
+    if (content && content.length < 50) {
       console.log(`[bot] Post too short (${content.length} chars), retrying...`);
       const retry = await client.chat.completions.create({
         model: DEFAULT_MODEL,
@@ -561,15 +581,18 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
       content = retry.choices[0]?.message?.content?.trim() || content;
     }
 
-    if (content && content.length >= 20) {
+    if (content && content.length >= 50) {
       // Post-generation similarity check: skip if too similar to recent posts
       const tooSimilar = botRecentPosts.some(
-        recent => botComputeKeywordOverlap(content!, recent) > 0.4
+        recent => botComputeKeywordOverlap(content!, recent) > 0.3
       );
-      if (tooSimilar) {
-        console.log('[bot] Skipping post due to similarity with recent content');
+      const PHRASE_BLACKLIST = ['真正的强大', '温柔以待', '值得被温柔', '给自己一个拥抱', '泡杯茶', '你值得', '允许自己', '停一停'];
+      const hasBlacklistedPhrase = PHRASE_BLACKLIST.some(phrase => content!.includes(phrase));
+      if (tooSimilar || hasBlacklistedPhrase) {
+        console.log(`[bot] Skipping post: ${tooSimilar ? 'too similar' : 'blacklisted phrase'}`);
       } else {
         const post = await storage.createPost({ userId: bot.id, content, tag: topic.tag, isAnonymous: false });
+        botPostCountToday++;
         // Trigger master replies on bot posts too
         if (post?.id) {
           scheduleBotReply(post.id, content);
@@ -654,8 +677,8 @@ function startBotAutoPost() {
   if (botPostInterval) return;
   // Daily topic on server start (if not posted yet today)
   setTimeout(() => botCreateDailyTopic(), 10000);
-  // Regular posts every 45-90 min to keep forum lively
-  const intervalMs = (45 + Math.random() * 45) * 60 * 1000;
+  // Regular posts every 2-4 hours to keep forum lively without spam
+  const intervalMs = (120 + Math.random() * 120) * 60 * 1000;
   botPostInterval = setInterval(() => botCreatePost(), intervalMs);
   // Check for daily topic every 6 hours
   dailyTopicInterval = setInterval(() => botCreateDailyTopic(), 6 * 60 * 60 * 1000);
