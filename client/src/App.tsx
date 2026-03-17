@@ -47,6 +47,12 @@ import ClawHubPage from "@/pages/clawhub";
 import InviteCompatPage from "@/pages/invite-compat";
 import LifeCurvePage from "@/pages/life-curve";
 import ActivitySummaryPage from "@/pages/activity-summary";
+import DiscoverPage from "@/pages/discover";
+import EnneagramPage from "@/pages/enneagram";
+import StarMansionPage from "@/pages/star-mansion";
+import ZodiacDetailPage from "@/pages/zodiac-detail";
+import NumerologyPage from "@/pages/numerology";
+import ZiweiPage from "@/pages/ziwei";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -98,7 +104,12 @@ function AuthenticatedRoutes() {
         <Route path="/life-curve" component={LifeCurvePage} />
         <Route path="/activity" component={ActivitySummaryPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
-        <Route path="/discover">{() => { window.location.hash = "#/"; return null; }}</Route>
+        <Route path="/discover" component={DiscoverPage} />
+        <Route path="/discover/enneagram" component={EnneagramPage} />
+        <Route path="/discover/star-mansion" component={StarMansionPage} />
+        <Route path="/discover/zodiac" component={ZodiacDetailPage} />
+        <Route path="/discover/numerology" component={NumerologyPage} />
+        <Route path="/discover/ziwei" component={ZiweiPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>

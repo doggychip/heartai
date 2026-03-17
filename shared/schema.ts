@@ -622,3 +622,16 @@ export interface WebhookApiResponse<T = any> {
     timestamp: string;
   };
 }
+
+// ─── Metaphysics Results (cached AI analysis) ────────────────
+export const metaphysicsResults = pgTable("metaphysics_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  testType: text("test_type").notNull(), // 'enneagram' | 'star_mansion' | 'zodiac' | 'numerology' | 'ziwei'
+  birthData: text("birth_data").notNull(), // JSON string of input data
+  result: text("result").notNull(), // JSON string of full result
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type MetaphysicsResult = typeof metaphysicsResults.$inferSelect;

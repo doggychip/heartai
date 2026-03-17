@@ -16,12 +16,14 @@ import {
   type Notification,
   type AgentTeamMember, type AgentDispatchRecord, type AgentEvent,
   type DeveloperApp, type InsertDeveloperApp, type WebhookLog,
+  type MetaphysicsResult,
   users, conversations, messages, moodEntries, assessments, assessmentResults,
   communityPosts, postLikes, postComments, agentFollows,
   avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages,
   notifications,
   agentTeam, agentDispatchLog, agentEvents,
   developerApps, webhookLogs,
+  metaphysicsResults,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, count } from "drizzle-orm";
@@ -163,6 +165,10 @@ export interface IStorage {
   createWebhookLog(data: Omit<WebhookLog, 'id'>): Promise<WebhookLog>;
   getWebhookLogsByApp(appId: string, limit?: number): Promise<WebhookLog[]>;
   getWebhookLogStats(appId: string): Promise<{ totalCalls: number; todayCalls: number; avgLatency: number }>;
+
+  // Metaphysics Results
+  getMetaphysicsResult(userId: string, testType: string): Promise<MetaphysicsResult | undefined>;
+  saveMetaphysicsResult(userId: string, testType: string, birthData: string, result: string): Promise<MetaphysicsResult>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -831,18 +837,41 @@ export class DatabaseStorage implements IStorage {
   async getWebhookLogStats(appId: string): Promise<{ totalCalls: number; todayCalls: number; avgLatency: number }> {
     const allLogs = await db.select().from(webhookLogs)
       .where(eq(webhookLogs.appId, appId));
-    
+
     const today = new Date().toISOString().split("T")[0];
     const todayLogs = allLogs.filter(l => l.createdAt.startsWith(today));
     const avgLatency = allLogs.length > 0
       ? Math.round(allLogs.reduce((sum, l) => sum + l.latencyMs, 0) / allLogs.length)
       : 0;
-    
+
     return {
       totalCalls: allLogs.length,
       todayCalls: todayLogs.length,
       avgLatency,
     };
+  }
+
+  // ─── Metaphysics Results ────────────────────────────────────
+
+  async getMetaphysicsResult(userId: string, testType: string): Promise<MetaphysicsResult | undefined> {
+    const [row] = await db.select().from(metaphysicsResults)
+      .where(and(eq(metaphysicsResults.userId, userId), eq(metaphysicsResults.testType, testType)))
+      .orderBy(desc(metaphysicsResults.createdAt))
+      .limit(1);
+    return row;
+  }
+
+  async saveMetaphysicsResult(userId: string, testType: string, birthData: string, result: string): Promise<MetaphysicsResult> {
+    const now = new Date().toISOString();
+    const [row] = await db.insert(metaphysicsResults).values({
+      userId,
+      testType,
+      birthData,
+      result,
+      createdAt: now,
+      updatedAt: now,
+    }).returning();
+    return row;
   }
 }
 

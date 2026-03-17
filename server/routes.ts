@@ -9,6 +9,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes, generateAvatarTags } from "./avatar-routes";
+import { registerMetaphysicsRoutes } from "./metaphysics-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
@@ -4874,6 +4875,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   // ─── AI 分身 (Avatar) Routes ─────────────────────────────
   registerAvatarRoutes(app, requireAuth);
+
+  // ─── Metaphysics Tests Routes ─────────────────────────────
+  registerMetaphysicsRoutes(app, requireAuth);
 
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.
