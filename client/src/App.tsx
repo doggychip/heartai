@@ -60,6 +60,8 @@ import ZhengyuPage from "@/pages/zhengyu";
 import GroupChatPage from "@/pages/group-chat";
 import LeaderboardPage from "@/pages/leaderboard";
 import MatchingPage from "@/pages/matching";
+import FriendsPage from "@/pages/friends";
+import DmPage from "@/pages/dm";
 import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import NotFound from "@/pages/not-found";
 
@@ -124,6 +126,8 @@ function AuthenticatedRoutes() {
         <Route path="/group-chat" component={GroupChatPage} />
         <Route path="/leaderboard" component={LeaderboardPage} />
         <Route path="/matching" component={MatchingPage} />
+        <Route path="/friends" component={FriendsPage} />
+        <Route path="/dm/:friendId" component={DmPage} />
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route component={NotFound} />
@@ -140,7 +144,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/settings", "/notifications", "/profile", "/agent-team",
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
-  "/group-chat", "/leaderboard", "/matching",
+  "/group-chat", "/leaderboard", "/matching", "/friends", "/dm",
 ];
 
 function GuestAuthModal() {

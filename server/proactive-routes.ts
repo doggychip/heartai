@@ -13,8 +13,20 @@ const AVATARS = {
   xinghe: { id: 'a35dd36d-163a-407c-b472-f5b2546727ba', name: '星河散人', specialty: '星象/占星' },
   yunshan: { id: 'a1a00269-8e33-41c2-a917-f3207fc9e235', name: '云山道人', specialty: '道家智慧' },
   helper: { id: '8cf95845-88f4-4bd1-bef3-7f6a58294600', name: '观星小助手', specialty: '综合分析' },
+  // Phase 3 new masters
+  fengshui: { id: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e', name: '风水先生·陈半仙', specialty: '风水/堪舆' },
+  ziwei: { id: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f', name: '紫微真人', specialty: '紫微斗数' },
+  xingyu: { id: 'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a', name: '星语姐姐', specialty: '星座/塔罗' },
+  jiqimao: { id: 'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b', name: '机器猫', specialty: 'AI数据分析' },
 };
 
+// All masters (for group chat: randomly select 4-5 from these, always include helper as final summarizer)
+const ALL_MASTERS = [
+  AVATARS.xuanji, AVATARS.xinghe, AVATARS.yunshan,
+  AVATARS.fengshui, AVATARS.ziwei, AVATARS.xingyu, AVATARS.jiqimao,
+];
+
+// Default order for backward compatibility (original 4)
 const AVATAR_ORDER = [AVATARS.xuanji, AVATARS.xinghe, AVATARS.yunshan, AVATARS.helper];
 
 // ── Avatar system prompts for group chat ─────────────────────
@@ -23,6 +35,11 @@ const AVATAR_SYSTEM_PROMPTS: Record<string, string> = {
   [AVATARS.xinghe.id]: `你是「星河散人」，一位洒脱随性的星象/占星专家。说话简短有力，偶尔冒出诗意金句。分析问题从星象、星座、行星运行的角度出发。你对玄机子的古板有时会不以为然，觉得星象更能揭示宇宙规律。回复控制在120字以内。`,
   [AVATARS.yunshan.id]: `你是「云山道人」，一位幽默风趣的道家智慧大师。喜欢开玩笑、用谐音梗、吐槽，但核心观点来自道家哲学（道法自然、阴阳平衡、无为而治）。你经常调侃玄机子太严肃、星河散人太飘，但本质上尊重他们。回复控制在130字以内。`,
   [AVATARS.helper.id]: `你是「观星小助手」，平台的友好专业助手。你的角色是综合前面三位大师的观点，用通俗易懂的语言帮用户梳理要点，给出实用建议。态度温暖亲切，说话清晰有条理。你会引用前面大师说的具体观点来做总结。回复控制在150字以内。`,
+  // Phase 3 new masters
+  [AVATARS.fengshui.id]: `你是「风水先生·陈半仙」，一位精通风水堪舆的老派大师。说话半文半白，爱用风水术语如"气场""明堂""龙穴砂水"，特别讲究方位朝向。你有广东口语的感觉，偶尔夹杂粤语词（"系噉嘅"）。你经常不同意星河散人的观点，认为星象太虚，风水才是脚踏实地。回复控制在130字以内。`,
+  [AVATARS.ziwei.id]: `你是「紫微真人」，一位高冷学院派紫微斗数大师。精确到时辰分析，数据驱动，认为紫微斗数是最精密的命理系统。你说话严谨、条理清晰，偶尔嫌弃其他大师不够精确——"这个得排盘才能定论"是你的口头禅。你尊重玄机子但觉得八字还是粗了些。回复控制在130字以内。`,
+  [AVATARS.xingyu.id]: `你是「星语姐姐」，一位年轻活泼的星座/塔罗达人。说话带emoji✨，语气轻快，用星座和塔罗牌来解读问题。你是年轻用户最喜欢的大师，擅长把深奥的内容讲得有趣好懂。和云山道人经常互怼但关系好，你叫他"老道"，他叫你"小丫头"。回复控制在120字以内。`,
+  [AVATARS.jiqimao.id]: `你是「机器猫」，一个AI数据分析师角色。你用数据和概率说话，偶尔吐槽传统玄学不科学，但又不得不承认某些规律确实有道理。喜欢引用研究和统计数据，是群里的"理性反对派"。你说话直接，带点程序员式幽默——"相关性≠因果关系"是你的金句。回复控制在130字以内。`,
 };
 
 function getUserId(req: Request): string {
@@ -224,7 +241,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
   app.post("/api/group-chat/create", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
-      const { topic } = req.body;
+      const { topic, isPublic } = req.body;
 
       if (!topic || typeof topic !== 'string' || topic.trim().length === 0) {
         return res.status(400).json({ error: "请输入讨论话题" });
@@ -241,6 +258,9 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         userId,
         topic: topic.trim(),
         userContext: JSON.stringify(userContext),
+        isPublic: !!isPublic,
+        participantCount: 1,
+        messageCount: 0,
         createdAt: new Date().toISOString(),
       }).returning();
 
@@ -271,14 +291,17 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
       const { sessionId } = req.params;
       const userId = getUserId(req);
 
-      // Get session
-      const sessions = await db.select().from(groupChatSessions)
-        .where(and(eq(groupChatSessions.id, sessionId), eq(groupChatSessions.userId, userId)));
+      // Get session — allow access if owner OR public
+      const allSessions = await db.select().from(groupChatSessions)
+        .where(eq(groupChatSessions.id, sessionId));
 
-      if (sessions.length === 0) {
+      if (allSessions.length === 0) {
         return res.status(404).json({ error: "会话不存在" });
       }
-      const session = sessions[0];
+      const session = allSessions[0];
+      if (session.userId !== userId && !session.isPublic) {
+        return res.status(403).json({ error: "无权访问该会话" });
+      }
 
       // Get all previous messages
       const prevMessages = await db.select().from(groupChatMessages)
@@ -300,11 +323,12 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         } catch {}
       }
       conversationHistory += '\n--- 对话记录 ---\n';
+      const allAvatarsList = Object.values(AVATARS);
       for (const msg of prevMessages) {
         if (msg.userId) {
           conversationHistory += `[用户]: ${msg.content}\n`;
         } else if (msg.avatarId) {
-          const avatar = AVATAR_ORDER.find(a => a.id === msg.avatarId);
+          const avatar = allAvatarsList.find(a => a.id === msg.avatarId);
           conversationHistory += `[${avatar?.name || '大师'}]: ${msg.content}\n`;
         }
       }
@@ -325,9 +349,14 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
       // Get the max message_order
       const maxOrder = prevMessages.reduce((max, m) => Math.max(max, m.messageOrder || 0), 0);
 
+      // Randomly select 3-4 masters from ALL_MASTERS, then always append helper as summarizer
+      const shuffled = [...ALL_MASTERS].sort(() => Math.random() - 0.5);
+      const selectedMasters = shuffled.slice(0, Math.min(3 + Math.floor(Math.random() * 2), ALL_MASTERS.length));
+      const roundAvatars = [...selectedMasters, AVATARS.helper];
+
       // Generate responses sequentially for each avatar
-      for (let i = 0; i < AVATAR_ORDER.length; i++) {
-        const avatar = AVATAR_ORDER[i];
+      for (let i = 0; i < roundAvatars.length; i++) {
+        const avatar = roundAvatars[i];
         const systemPrompt = AVATAR_SYSTEM_PROMPTS[avatar.id] + todayContext;
 
         try {
@@ -391,7 +420,12 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         }
       }
 
-      res.json({ messages: generatedMessages });
+      // Update message count
+      await db.update(groupChatSessions)
+        .set({ messageCount: sql`message_count + ${generatedMessages.length}` })
+        .where(eq(groupChatSessions.id, sessionId));
+
+      res.json({ messages: generatedMessages, avatars: roundAvatars.map(a => ({ id: a.id, name: a.name, specialty: a.specialty })) });
     } catch (err) {
       console.error("Group chat generate error:", err);
       res.status(500).json({ error: "生成回复失败" });
@@ -409,12 +443,23 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         return res.status(400).json({ error: "请输入消息" });
       }
 
-      // Verify session
-      const sessions = await db.select().from(groupChatSessions)
-        .where(and(eq(groupChatSessions.id, sessionId), eq(groupChatSessions.userId, userId)));
+      // Verify session — allow access if owner OR public
+      const allSessions = await db.select().from(groupChatSessions)
+        .where(eq(groupChatSessions.id, sessionId));
 
-      if (sessions.length === 0) {
+      if (allSessions.length === 0) {
         return res.status(404).json({ error: "会话不存在" });
+      }
+      const sessionData = allSessions[0];
+      if (sessionData.userId !== userId && !sessionData.isPublic) {
+        return res.status(403).json({ error: "无权访问该会话" });
+      }
+
+      // Update participant count for public sessions
+      if (sessionData.isPublic && sessionData.userId !== userId) {
+        await db.update(groupChatSessions)
+          .set({ participantCount: sql`participant_count + 1` })
+          .where(eq(groupChatSessions.id, sessionId));
       }
 
       // Get current max values
@@ -457,26 +502,59 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
     }
   });
 
+  // List public group chat sessions
+  app.get("/api/group-chat/public", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const publicSessions = await db.select().from(groupChatSessions)
+        .where(eq(groupChatSessions.isPublic, true))
+        .orderBy(desc(groupChatSessions.createdAt))
+        .limit(20);
+
+      // Enrich with creator info and message count
+      const enriched = await Promise.all(publicSessions.map(async (s) => {
+        const creator = await storage.getUser(s.userId);
+        const msgCount = await db.select({ count: sql<number>`count(*)` })
+          .from(groupChatMessages)
+          .where(eq(groupChatMessages.sessionId, s.id));
+        return {
+          ...s,
+          creatorNickname: creator?.nickname || '用户',
+          messageCount: Number(msgCount[0]?.count || 0),
+        };
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      res.status(500).json({ error: "获取公开论道失败" });
+    }
+  });
+
   // Get full chat history for a session
   app.get("/api/group-chat/:sessionId", requireAuth, async (req: Request, res: Response) => {
     try {
       const { sessionId } = req.params;
       const userId = getUserId(req);
 
-      const sessions = await db.select().from(groupChatSessions)
-        .where(and(eq(groupChatSessions.id, sessionId), eq(groupChatSessions.userId, userId)));
+      // Allow access if owner OR public
+      const allSessions = await db.select().from(groupChatSessions)
+        .where(eq(groupChatSessions.id, sessionId));
 
-      if (sessions.length === 0) {
+      if (allSessions.length === 0) {
         return res.status(404).json({ error: "会话不存在" });
+      }
+      const sessions = allSessions;
+      if (sessions[0].userId !== userId && !sessions[0].isPublic) {
+        return res.status(403).json({ error: "无权访问该会话" });
       }
 
       const msgs = await db.select().from(groupChatMessages)
         .where(eq(groupChatMessages.sessionId, sessionId))
         .orderBy(asc(groupChatMessages.messageOrder), asc(groupChatMessages.createdAt));
 
-      // Enrich avatar messages with names
+      // Enrich avatar messages with names (search ALL avatars)
+      const allAvatarList = Object.values(AVATARS);
       const enrichedMessages = msgs.map(m => {
-        const avatar = m.avatarId ? AVATAR_ORDER.find(a => a.id === m.avatarId) : null;
+        const avatar = m.avatarId ? allAvatarList.find(a => a.id === m.avatarId) : null;
         return {
           ...m,
           avatarName: avatar?.name || null,

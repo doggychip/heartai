@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import { useLocation } from "wouter";
@@ -16,6 +17,9 @@ import {
   ChevronRight,
   Clock,
   MessageCircle,
+  Globe,
+  Flame,
+  Users,
 } from "lucide-react";
 
 // ── Avatar config ─────────────────────────────────────────────
@@ -24,6 +28,11 @@ const AVATARS: Record<string, { name: string; specialty: string; color: string; 
   'a35dd36d-163a-407c-b472-f5b2546727ba': { name: '星河散人', specialty: '星象/占星', color: '#6366f1', bgGradient: 'from-indigo-500 to-violet-600', emoji: '🌌' },
   'a1a00269-8e33-41c2-a917-f3207fc9e235': { name: '云山道人', specialty: '道家智慧', color: '#10b981', bgGradient: 'from-emerald-500 to-teal-600', emoji: '🏔️' },
   '8cf95845-88f4-4bd1-bef3-7f6a58294600': { name: '观星小助手', specialty: '综合分析', color: '#f59e0b', bgGradient: 'from-amber-400 to-orange-500', emoji: '⭐' },
+  // Phase 3 new masters
+  'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e': { name: '风水先生·陈半仙', specialty: '风水/堪舆', color: '#d97706', bgGradient: 'from-yellow-600 to-amber-700', emoji: '🧭' },
+  'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f': { name: '紫微真人', specialty: '紫微斗数', color: '#7c3aed', bgGradient: 'from-violet-600 to-purple-700', emoji: '🔮' },
+  'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a': { name: '星语姐姐', specialty: '星座/塔罗', color: '#ec4899', bgGradient: 'from-pink-500 to-rose-500', emoji: '💫' },
+  'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b': { name: '机器猫', specialty: 'AI数据分析', color: '#06b6d4', bgGradient: 'from-cyan-500 to-blue-500', emoji: '🤖' },
 };
 
 const SUGGESTED_TOPICS = [
@@ -116,11 +125,13 @@ export default function GroupChatPage() {
   const [, navigate] = useLocation();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [followUp, setFollowUp] = useState("");
   const [displayedMessages, setDisplayedMessages] = useState<ChatMessage[]>([]);
   const [visibleCount, setVisibleCount] = useState(0);
   const [typingAvatar, setTypingAvatar] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeAvatars, setActiveAvatars] = useState<Array<{id: string; name: string}>>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -135,10 +146,16 @@ export default function GroupChatPage() {
     staleTime: 30_000,
   });
 
+  // Public sessions
+  const { data: publicSessions } = useQuery<any[]>({
+    queryKey: ["/api/group-chat/public"],
+    staleTime: 30_000,
+  });
+
   // Create session mutation
   const createSession = useMutation({
     mutationFn: async (topicText: string) => {
-      const resp = await apiRequest("POST", "/api/group-chat/create", { topic: topicText });
+      const resp = await apiRequest("POST", "/api/group-chat/create", { topic: topicText, isPublic });
       return resp.json();
     },
     onSuccess: (data) => {
@@ -166,18 +183,18 @@ export default function GroupChatPage() {
 
   async function generateResponses(sid: string) {
     setIsGenerating(true);
-
-    // Show typing indicator for first avatar
-    const avatarOrder = [
-      { id: 'cfd2636b-fcb0-498b-891d-a576fead3139', name: '玄机子' },
-      { id: 'a35dd36d-163a-407c-b472-f5b2546727ba', name: '星河散人' },
-      { id: 'a1a00269-8e33-41c2-a917-f3207fc9e235', name: '云山道人' },
-      { id: '8cf95845-88f4-4bd1-bef3-7f6a58294600', name: '观星小助手' },
-    ];
-    setTypingAvatar(avatarOrder[0].name);
+    setTypingAvatar("大师们");
 
     try {
       const result = await generateMutation.mutateAsync(sid);
+
+      // Server returns which avatars participated this round
+      const roundAvatars = result.avatars || [];
+      if (roundAvatars.length > 0) {
+        setActiveAvatars(roundAvatars);
+        setTypingAvatar(roundAvatars[0]?.name || "大师");
+      }
+
       const newMessages: ChatMessage[] = result.messages.map((m: any) => ({
         id: m.id,
         avatarId: m.avatarId,
@@ -191,7 +208,8 @@ export default function GroupChatPage() {
       // Stagger message appearance
       for (let i = 0; i < newMessages.length; i++) {
         if (i < newMessages.length - 1) {
-          setTypingAvatar(avatarOrder[i + 1]?.name || null);
+          const nextAvatar = roundAvatars[i + 1] || newMessages[i + 1];
+          setTypingAvatar(nextAvatar?.name || nextAvatar?.avatarName || null);
         } else {
           setTypingAvatar(null);
         }
@@ -269,9 +287,11 @@ export default function GroupChatPage() {
     setDisplayedMessages([]);
     setVisibleCount(0);
     setTopic("");
+    setIsPublic(false);
     setFollowUp("");
     setIsGenerating(false);
     setTypingAvatar(null);
+    setActiveAvatars([]);
   }
 
   function handleSubmitTopic() {
@@ -302,6 +322,38 @@ export default function GroupChatPage() {
         </div>
 
         <div className="px-4 py-6 space-y-6">
+          {/* Hot Public Sessions */}
+          {publicSessions && publicSessions.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Flame className="w-4 h-4 text-orange-500" />
+                <span className="text-sm font-semibold">热门论道</span>
+              </div>
+              <div className="space-y-2">
+                {publicSessions.slice(0, 3).map((s: any) => (
+                  <button
+                    key={s.id}
+                    onClick={() => loadSession(s.id)}
+                    className="w-full text-left px-3.5 py-3 rounded-xl bg-gradient-to-r from-orange-500/5 to-amber-500/5 dark:from-orange-900/15 dark:to-amber-900/15 border border-orange-500/10 hover:border-orange-500/30 transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium truncate">{s.topic}</p>
+                      <Badge variant="secondary" className="text-[9px] h-4 px-1.5 flex-shrink-0 bg-orange-500/10 text-orange-600 border-0">
+                        <Flame className="w-2.5 h-2.5 mr-0.5" /> 热
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                      <span className="flex items-center gap-0.5"><Users className="w-3 h-3" /> {s.participantCount || 1}</span>
+                      <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" /> {s.messageCount || 0}</span>
+                      <span>{s.creatorNickname}</span>
+                      <span>{new Date(s.createdAt).toLocaleDateString('zh-CN')}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Hero */}
           <div className="text-center py-4">
             <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg mb-4">
@@ -309,20 +361,22 @@ export default function GroupChatPage() {
             </div>
             <h2 className="text-xl font-bold mb-2">向大师们提问</h2>
             <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              四位AI大师从不同角度为你解答，观点碰撞更有启发
+              八位AI大师从不同角度为你解答，每次随机4-5位参与讨论
             </p>
           </div>
 
-          {/* Avatar lineup */}
-          <div className="flex justify-center gap-3">
-            {Object.entries(AVATARS).map(([id, av]) => (
-              <div key={id} className="flex flex-col items-center gap-1">
-                <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${av.bgGradient} flex items-center justify-center shadow-sm text-lg`}>
-                  {av.emoji}
+          {/* Avatar lineup — scrollable */}
+          <div className="overflow-x-auto -mx-4 px-4 pb-1">
+            <div className="flex gap-3 w-max">
+              {Object.entries(AVATARS).map(([id, av]) => (
+                <div key={id} className="flex flex-col items-center gap-1 w-14">
+                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${av.bgGradient} flex items-center justify-center shadow-sm text-base`}>
+                    {av.emoji}
+                  </div>
+                  <span className="text-[9px] text-muted-foreground font-medium text-center leading-tight">{av.name}</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground font-medium">{av.name}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           {/* Input */}
@@ -350,6 +404,20 @@ export default function GroupChatPage() {
                 )}
               </button>
             </div>
+
+            {/* Public toggle */}
+            <label className="flex items-center gap-2.5 px-1 cursor-pointer select-none">
+              <div
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative w-9 h-5 rounded-full transition-colors ${isPublic ? 'bg-indigo-500' : 'bg-muted'}`}
+              >
+                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isPublic ? 'translate-x-4' : ''}`} />
+              </div>
+              <div className="flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="text-xs text-muted-foreground">公开论道（其他用户可加入讨论）</span>
+              </div>
+            </label>
 
             {/* Suggested topics */}
             <div className="space-y-2">

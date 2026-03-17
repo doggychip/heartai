@@ -643,6 +643,9 @@ export const groupChatSessions = pgTable("group_chat_sessions", {
   userId: varchar("user_id").notNull(),
   topic: text("topic").notNull(),
   userContext: text("user_context"), // JSON string
+  isPublic: boolean("is_public").notNull().default(false),
+  participantCount: integer("participant_count").notNull().default(1),
+  messageCount: integer("message_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 
@@ -661,6 +664,30 @@ export const groupChatMessages = pgTable("group_chat_messages", {
 });
 
 export type GroupChatMessage = typeof groupChatMessages.$inferSelect;
+
+// ─── Friendships ─────────────────────────────────────────────
+export const friendships = pgTable("friendships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: text("user_id").notNull(),
+  friendId: text("friend_id").notNull(),
+  status: text("status").notNull().default("pending"), // pending, accepted, rejected
+  compatibilityScore: integer("compatibility_score"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type Friendship = typeof friendships.$inferSelect;
+
+// ─── Direct Messages ─────────────────────────────────────────
+export const directMessages = pgTable("direct_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  senderId: text("sender_id").notNull(),
+  receiverId: text("receiver_id").notNull(),
+  content: text("content").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+export type DirectMessage = typeof directMessages.$inferSelect;
 
 // ─── Metaphysics Results (cached AI analysis) ────────────────
 export const metaphysicsResults = pgTable("metaphysics_results", {

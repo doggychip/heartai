@@ -308,6 +308,62 @@ export async function ensureTables() {
       ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS ama_session_id VARCHAR
     `);
 
+    // ─── Friendships ──────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS friendships (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        friend_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        compatibility_score INTEGER,
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT
+      )
+    `);
+
+    // ─── Direct Messages ──────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        sender_id TEXT NOT NULL,
+        receiver_id TEXT NOT NULL,
+        content TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT
+      )
+    `);
+
+    // ─── Add is_public to group_chat_sessions ─────────────────────
+    await client.query(`
+      ALTER TABLE group_chat_sessions ADD COLUMN IF NOT EXISTS is_public BOOLEAN NOT NULL DEFAULT false
+    `);
+    await client.query(`
+      ALTER TABLE group_chat_sessions ADD COLUMN IF NOT EXISTS participant_count INTEGER NOT NULL DEFAULT 1
+    `);
+    await client.query(`
+      ALTER TABLE group_chat_sessions ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NULL DEFAULT 0
+    `);
+
+    // ─── Seed new AI masters into community_avatars (Phase 3) ───
+    const newMasters = [
+      { id: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e', name: '风水先生·陈半仙', specialty: '风水/堪舆', personality: '半文半白广东风味风水大师' },
+      { id: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f', name: '紫微真人', specialty: '紫微斗数', personality: '高冷学院派紫微斗数大师' },
+      { id: 'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a', name: '星语姐姐', specialty: '星座/塔罗', personality: '年轻活泼星座塔罗达人' },
+      { id: 'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b', name: '机器猫', specialty: 'AI数据分析', personality: '理性数据驱动分析师' },
+    ];
+
+    for (const master of newMasters) {
+      const exists = await client.query(`SELECT 1 FROM community_avatars WHERE id = $1`, [master.id]);
+      if (exists.rows.length === 0) {
+        await client.query(
+          `INSERT INTO community_avatars (id, name, specialty, personality, created_at)
+           VALUES ($1, $2, $3, $4, NOW()::TEXT)
+           ON CONFLICT (id) DO NOTHING`,
+          [master.id, master.name, master.specialty, master.personality]
+        );
+        console.log(`[db] Seeded new master: ${master.name}`);
+      }
+    }
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {
