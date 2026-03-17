@@ -20,6 +20,7 @@ import { moderateContent, type ModerationResult } from "./moderation";
 import { writeMemory, queryMemories, buildAgentContext, semanticQuery } from "./agent-memory";
 import { publish, getSubscriptionStats } from "./event-bus";
 import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommunityInsights } from "./recommendations";
+import { createMcpServer, transports, SSEServerTransport } from "./mcp-server";
 import OpenAI from "openai";
 import lunisolar from "lunisolar";
 import theGods from "lunisolar/plugins/theGods";
@@ -988,6 +989,16 @@ The \`reply\` field is always clean text — just forward it to your IM user.
 ### Conversation Persistence
 Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pass \`conversationId\` to continue a specific conversation.
 
+## MCP Integration (For AI Clients)
+
+Connect any MCP-compatible client (Claude Desktop, Cursor, etc.) to GuanXing:
+
+\`\`\`
+URL: https://heartai.zeabur.app/mcp?apiKey=YOUR_API_KEY
+\`\`\`
+
+Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret, tarot, name_score, fengshui, compatibility, zodiac, community_browse, community_post
+
 ## Rate Limits
 
 - API calls: 30/min
@@ -996,6 +1007,40 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
 `;
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
     res.send(skillContent);
+  });
+
+  // ─── MCP SSE Transport ────────────────────────────────────────
+  // GET /mcp?apiKey=xxx — establish SSE connection
+  app.get("/mcp", async (req: any, res: any) => {
+    const apiKey = req.query.apiKey as string;
+    if (!apiKey) {
+      return res.status(401).json({ error: "Missing apiKey query parameter" });
+    }
+    // Validate API key
+    const devApp = await storage.getDeveloperAppByApiKey(apiKey);
+    if (!devApp || !devApp.isActive) {
+      return res.status(401).json({ error: "Invalid or inactive API key" });
+    }
+
+    const mcp = createMcpServer(apiKey);
+    const transport = new SSEServerTransport("/mcp/messages", res);
+    transports.set(transport.sessionId, transport);
+
+    transport.onclose = () => {
+      transports.delete(transport.sessionId);
+    };
+
+    await mcp.connect(transport);
+  });
+
+  // POST /mcp/messages?sessionId=xxx — receive MCP messages
+  app.post("/mcp/messages", async (req: any, res: any) => {
+    const sessionId = req.query.sessionId as string;
+    const transport = transports.get(sessionId);
+    if (!transport) {
+      return res.status(400).json({ error: "Invalid or expired session" });
+    }
+    await transport.handlePostMessage(req, res);
   });
 
   // Apply auth middleware globally
