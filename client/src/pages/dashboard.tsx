@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,6 @@ import {
   TrendingUp,
   Zap,
   MessageSquare,
-  ThumbsUp,
   Star,
   Calendar,
   Layers,
@@ -85,6 +84,96 @@ const DIMENSION_CONFIG = [
 const TAG_LABELS: Record<string, string> = {
   sharing: "分享", question: "提问", encouragement: "鼓励", resource: "资源",
 };
+
+/* ─── Hot Posts Ticker ────────────────────────────────────── */
+function HotPostsTicker({ posts }: { posts: { id: string; content: string; tag: string; likeCount: number; commentCount: number; authorName: string }[] }) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const count = posts.length;
+
+  const advance = useCallback(() => {
+    setAnimating(true);
+    // After slide-up animation completes (500ms), switch to next post
+    setTimeout(() => {
+      setActiveIdx((prev) => (prev + 1) % count);
+      setAnimating(false);
+    }, 500);
+  }, [count]);
+
+  useEffect(() => {
+    if (count <= 1) return;
+    const id = setInterval(advance, 3000);
+    timerRef.current = id;
+    return () => clearInterval(id);
+  }, [advance, count]);
+
+  const current = posts[activeIdx];
+  const next = posts[(activeIdx + 1) % count];
+  const rankColors = ["bg-orange-500 text-white", "bg-amber-500 text-white", "bg-yellow-500 text-white", "bg-muted text-muted-foreground", "bg-muted text-muted-foreground"];
+
+  const renderPost = (post: typeof current, idx: number) => (
+    <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer" data-testid={`post-${post.id}`}>
+      <CardContent className="p-3">
+        <div className="flex items-start gap-2.5">
+          <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${rankColors[idx] || rankColors[3]}`}>
+            {idx + 1}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-foreground/90 line-clamp-2 leading-snug">{post.content}</p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-[10px] text-muted-foreground">{post.authorName}</span>
+              <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{TAG_LABELS[post.tag] || post.tag}</Badge>
+              <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-0.5">
+                <Heart className="w-3 h-3 text-red-400" />{post.likeCount}
+              </span>
+              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                <MessageSquare className="w-3 h-3" />{post.commentCount}
+              </span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="relative overflow-hidden" style={{ height: 80 }}>
+      <style>{`
+        @keyframes ticker-slide-up {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-100%); }
+        }
+        @keyframes ticker-slide-in {
+          0% { transform: translateY(100%); }
+          100% { transform: translateY(0); }
+        }
+      `}</style>
+      <div
+        className="absolute inset-x-0"
+        style={{
+          animation: animating ? "ticker-slide-up 500ms ease-in-out forwards" : "none",
+        }}
+      >
+        <Link href={`/community/${current.id}`}>
+          {renderPost(current, activeIdx)}
+        </Link>
+      </div>
+      {animating && (
+        <div
+          className="absolute inset-x-0"
+          style={{
+            animation: "ticker-slide-in 500ms ease-in-out forwards",
+          }}
+        >
+          <Link href={`/community/${next.id}`}>
+            {renderPost(next, (activeIdx + 1) % count)}
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Feature grid icons — 2 rows of 5 (like 测测 app)
 const FEATURE_GRID = [
@@ -502,40 +591,7 @@ export default function DashboardPage() {
           </div>
 
           {(dashboard?.hotPosts?.length ?? 0) > 0 ? (
-            <div className="space-y-2.5">
-              {dashboard!.hotPosts.slice(0, 5).map((post, idx) => (
-                <Link key={post.id} href={`/community/${post.id}`}>
-                  <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer" data-testid={`post-${post.id}`}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start gap-2.5">
-                        {/* Rank number */}
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                          idx === 0 ? "bg-orange-500 text-white" :
-                          idx === 1 ? "bg-amber-500 text-white" :
-                          idx === 2 ? "bg-yellow-500 text-white" :
-                          "bg-muted text-muted-foreground"
-                        }`}>
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-foreground/90 line-clamp-2 leading-snug">{post.content}</p>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[10px] text-muted-foreground">{post.authorName}</span>
-                            <Badge variant="secondary" className="text-[9px] h-4 px-1.5">{TAG_LABELS[post.tag] || post.tag}</Badge>
-                            <span className="text-[10px] text-muted-foreground ml-auto flex items-center gap-0.5">
-                              <ThumbsUp className="w-3 h-3" />{post.likeCount}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                              <MessageSquare className="w-3 h-3" />{post.commentCount}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+            <HotPostsTicker posts={dashboard!.hotPosts.slice(0, 5)} />
           ) : (
             <Card className="border-0 shadow-sm">
               <CardContent className="py-8 flex flex-col items-center gap-2">

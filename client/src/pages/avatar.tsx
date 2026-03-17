@@ -15,7 +15,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { clientAvatarSvg } from "@/lib/avatar";
 import {
-  Zap, Brain, MessageCircle, ThumbsUp, Eye, SkipForward, Send,
+  Zap, Brain, MessageCircle, Heart, Eye, SkipForward, Send,
   RefreshCw, Power, PowerOff, Plus, Trash2, Sparkles, Activity,
   Database, ShieldCheck, User, Bell,
 } from "lucide-react";
@@ -395,7 +395,7 @@ function AvatarDashboard({ avatar, memories, recentActions }: { avatar: any; mem
                   <CardContent className="py-3 px-4">
                     <div className="flex items-start gap-2">
                       <div className="mt-0.5">
-                        {a.actionType === 'like' && <ThumbsUp className="w-4 h-4 text-pink-500" />}
+                        {a.actionType === 'like' && <Heart className="w-4 h-4 text-pink-500" fill="currentColor" />}
                         {a.actionType === 'comment' && <MessageCircle className="w-4 h-4 text-blue-500" />}
                         {a.actionType === 'browse' && <Eye className="w-4 h-4 text-gray-500" />}
                         {a.actionType === 'skip' && <SkipForward className="w-4 h-4 text-gray-400" />}

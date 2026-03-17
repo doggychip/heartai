@@ -27,7 +27,6 @@ import {
   Eye,
   RefreshCw,
   Zap,
-  ThumbsUp,
 } from "lucide-react";
 import type { CommunityPost } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";

@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { pool, db } from "./db";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries } from "@shared/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes, generateAvatarTags } from "./avatar-routes";
@@ -645,9 +645,66 @@ function getUserId(req: Request): string {
   return (req as any).userId;
 }
 
+// ─── Random Likes for 0-Like Posts ─────────────────────────
+const AI_AVATAR_USER_IDS = [
+  "cfd2636b-fcb0-498b-891d-a576fead3139", // 玄机子
+  "a35dd36d-163a-407c-b472-f5b2546727ba", // 星河散人
+  "8cf95845-88f4-4bd1-bef3-7f6a58294600", // 观星小助手
+  "a1a00269-8e33-41c2-a917-f3207fc9e235", // 云山道人
+];
+
+async function seedRandomLikesForZeroPosts(): Promise<void> {
+  try {
+    const zeroPosts = await db.select({ id: communityPosts.id })
+      .from(communityPosts)
+      .where(eq(communityPosts.likeCount, 0));
+
+    for (const post of zeroPosts) {
+      await addRandomLikesToPost(post.id);
+    }
+    if (zeroPosts.length > 0) {
+      console.log(`[seed-likes] Added random likes to ${zeroPosts.length} zero-like posts`);
+    }
+  } catch (err) {
+    console.error("[seed-likes] Error seeding random likes:", err);
+  }
+}
+
+async function addRandomLikesToPost(postId: string): Promise<void> {
+  try {
+    const numLikes = 1 + Math.floor(Math.random() * 5); // 1-5 likes
+    // Shuffle avatar IDs and pick numLikes of them
+    const shuffled = [...AI_AVATAR_USER_IDS].sort(() => Math.random() - 0.5);
+    const selectedAvatars = shuffled.slice(0, Math.min(numLikes, shuffled.length));
+
+    let added = 0;
+    for (const avatarUserId of selectedAvatars) {
+      // Check if this avatar already liked this post
+      const existing = await storage.getPostLike(postId, avatarUserId);
+      if (!existing) {
+        await db.insert(postLikes).values({
+          postId,
+          userId: avatarUserId,
+          isFromAvatar: true,
+          createdAt: new Date().toISOString(),
+        });
+        added++;
+      }
+    }
+    if (added > 0) {
+      await storage.incrementPostLikeCount(postId, added);
+    }
+  } catch (err) {
+    console.error(`[seed-likes] Error adding likes to post ${postId}:`, err);
+  }
+}
+
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // Seed assessments
   await seedAssessments();
+
+  // Seed random likes for existing 0-like posts on startup
+  seedRandomLikesForZeroPosts();
 
   // ─── Serve skill.md for agent onboarding (like Moltbook) ────
   app.get("/skill.md", (_req, res) => {
@@ -3377,6 +3434,10 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
       // HeartAI Bot auto-replies to new posts
       scheduleBotReply(post.id, parsed.data.content);
+
+      // Auto-add random likes from AI avatars after a random delay (5-30s)
+      const delay = 5000 + Math.floor(Math.random() * 25000);
+      setTimeout(() => addRandomLikesToPost(post.id), delay);
 
       // ── Emit post_created event to event bus ──
       publish({
