@@ -126,10 +126,10 @@ export default function ZodiacPage() {
         </div>
 
         {/* Input Form */}
-        <Card data-testid="card-zodiac-form">
-          <CardContent className="pt-6 space-y-4">
+        <Card className="rounded-xl bg-card/30 border-0" data-testid="card-zodiac-form">
+          <CardContent className="pt-6 space-y-3">
             <div className="space-y-2">
-              <Label className="flex items-center gap-1.5">
+              <Label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
                 <Calendar className="w-3.5 h-3.5" />
                 出生日期
               </Label>
@@ -137,6 +137,7 @@ export default function ZodiacPage() {
                 type="date"
                 value={birthday}
                 onChange={(e) => setBirthday(e.target.value)}
+                className="h-10 text-sm"
                 data-testid="input-birthday"
               />
             </div>

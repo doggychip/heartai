@@ -291,14 +291,14 @@ export default function MayanPage() {
         </div>
       </div>
 
-      <Card className="bg-transparent border-0 p-4 space-y-4">
+      <Card className="rounded-xl bg-card/30 border-0 p-4 space-y-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium">出生日期</label>
+          <label className="text-sm font-medium text-muted-foreground">出生日期</label>
           <Input
             type="date"
             value={birthDate}
             onChange={(e) => setBirthDate(e.target.value)}
-            className="bg-background"
+            className="h-10 text-sm bg-background"
           />
         </div>
 

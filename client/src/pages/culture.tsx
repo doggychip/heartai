@@ -550,7 +550,7 @@ function BaziView() {
         </h3>
         <div className="space-y-3">
           <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-            className="text-sm" data-testid="input-birth-date" />
+            className="h-10 text-sm" data-testid="input-birth-date" />
           <div>
             <label className="text-[10px] text-muted-foreground mb-1 block">出生时辰</label>
             <div className="grid grid-cols-4 gap-1">
@@ -795,7 +795,7 @@ function FortuneView() {
           </div>
           <div className="space-y-3">
             <Input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-              className="text-sm" data-testid="input-fortune-date" />
+              className="h-10 text-sm" data-testid="input-fortune-date" />
             <Button className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
               onClick={() => fortuneMutation.mutate()} disabled={!birthDate || fortuneMutation.isPending}
               data-testid="button-fortune">
@@ -912,13 +912,13 @@ function CompatibilityView() {
           <div className="space-y-3">
             <div className="bg-accent/30 rounded-lg p-3 space-y-2">
               <div className="text-[10px] font-medium text-pink-500">甲方</div>
-              <Input placeholder="姓名（选填）" value={p1Name} onChange={(e) => setP1Name(e.target.value)} className="text-sm h-8" />
-              <Input type="date" value={p1Date} onChange={(e) => setP1Date(e.target.value)} className="text-sm h-8" data-testid="input-p1-date" />
+              <Input placeholder="姓名（选填）" value={p1Name} onChange={(e) => setP1Name(e.target.value)} className="text-sm h-10" />
+              <Input type="date" value={p1Date} onChange={(e) => setP1Date(e.target.value)} className="text-sm h-10" data-testid="input-p1-date" />
             </div>
             <div className="bg-accent/30 rounded-lg p-3 space-y-2">
               <div className="text-[10px] font-medium text-indigo-500">乙方</div>
-              <Input placeholder="姓名（选填）" value={p2Name} onChange={(e) => setP2Name(e.target.value)} className="text-sm h-8" />
-              <Input type="date" value={p2Date} onChange={(e) => setP2Date(e.target.value)} className="text-sm h-8" data-testid="input-p2-date" />
+              <Input placeholder="姓名（选填）" value={p2Name} onChange={(e) => setP2Name(e.target.value)} className="text-sm h-10" />
+              <Input type="date" value={p2Date} onChange={(e) => setP2Date(e.target.value)} className="text-sm h-10" data-testid="input-p2-date" />
             </div>
             <Button className="w-full bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700"
               onClick={() => mutation.mutate()} disabled={!p1Date || !p2Date || mutation.isPending}

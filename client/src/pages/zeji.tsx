@@ -169,7 +169,7 @@ export default function ZejiPage() {
                   setStartDate(e.target.value);
                   setSearching(false);
                 }}
-                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 ring-amber-400 outline-none"
+                className="w-full h-10 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 ring-amber-400 outline-none appearance-none"
                 data-testid="input-start-date"
               />
             </div>
@@ -183,7 +183,7 @@ export default function ZejiPage() {
                   setEndDate(e.target.value);
                   setSearching(false);
                 }}
-                className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 ring-amber-400 outline-none"
+                className="w-full h-10 text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:ring-2 ring-amber-400 outline-none appearance-none"
                 data-testid="input-end-date"
               />
             </div>

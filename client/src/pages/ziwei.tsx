@@ -171,19 +171,19 @@ export default function ZiweiPage() {
         </p>
       </div>
 
-      <Card className="bg-transparent border-0 p-4 space-y-4">
+      <Card className="rounded-xl bg-card/30 border-0 p-4 space-y-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium">出生日期</label>
+          <label className="text-sm font-medium text-muted-foreground">出生日期</label>
           <Input
             type="date"
             value={birthDate}
             onChange={(e) => setBirthDate(e.target.value)}
-            className="bg-background"
+            className="h-10 text-sm bg-background"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">出生时辰</label>
+          <label className="text-sm font-medium text-muted-foreground">出生时辰</label>
           <Select value={birthHour} onValueChange={setBirthHour}>
             <SelectTrigger className="bg-background">
               <SelectValue placeholder="选择时辰（可选）" />
@@ -197,7 +197,7 @@ export default function ZiweiPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">性别</label>
+          <label className="text-sm font-medium text-muted-foreground">性别</label>
           <div className="flex gap-3">
             <Button
               variant={gender === "male" ? "default" : "outline"}

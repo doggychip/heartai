@@ -246,20 +246,20 @@ export default function HumanDesignPage() {
         </div>
       </div>
 
-      <Card className="bg-transparent border-0 p-4 space-y-4">
+      <Card className="rounded-xl bg-card/30 border-0 p-4 space-y-3">
         <div className="space-y-2">
-          <label className="text-sm font-medium">出生日期</label>
+          <label className="text-sm font-medium text-muted-foreground">出生日期</label>
           <Input
             type="date"
             value={birthDate}
             onChange={(e) => setBirthDate(e.target.value)}
-            className="bg-background"
+            className="h-10 text-sm bg-background"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <label className="text-sm font-medium">出生时间（小时）</label>
+            <label className="text-sm font-medium text-muted-foreground">出生时间（小时）</label>
             <Select value={birthHour} onValueChange={setBirthHour}>
               <SelectTrigger className="bg-background">
                 <SelectValue placeholder="时" />
@@ -272,7 +272,7 @@ export default function HumanDesignPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">分钟</label>
+            <label className="text-sm font-medium text-muted-foreground">分钟</label>
             <Input
               type="number"
               min={0}
@@ -286,7 +286,7 @@ export default function HumanDesignPage() {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium">出生地点</label>
+          <label className="text-sm font-medium text-muted-foreground">出生地点</label>
           <Input
             type="text"
             placeholder="例如：北京、上海、广州"

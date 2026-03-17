@@ -420,21 +420,22 @@ export default function SoulmatePage() {
           </p>
         </div>
 
-        <Card>
-          <CardContent className="pt-6 space-y-4">
+        <Card className="rounded-xl bg-card/30 border-0">
+          <CardContent className="pt-6 space-y-3">
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">出生日期 *</label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">出生日期 *</label>
               <Input
                 type="date"
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
+                className="h-10 text-sm"
                 data-testid="input-soulmate-birthdate"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">星座 (选填)</label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">星座 (选填)</label>
                 <Select value={zodiacSign} onValueChange={setZodiacSign}>
                   <SelectTrigger data-testid="select-soulmate-zodiac">
                     <SelectValue placeholder="选择星座" />
@@ -447,7 +448,7 @@ export default function SoulmatePage() {
                 </Select>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">MBTI (选填)</label>
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">MBTI (选填)</label>
                 <Select value={mbtiType} onValueChange={setMbtiType}>
                   <SelectTrigger data-testid="select-soulmate-mbti">
                     <SelectValue placeholder="选择MBTI" />
@@ -462,7 +463,7 @@ export default function SoulmatePage() {
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">性别 (选填)</label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">性别 (选填)</label>
               <Select value={gender} onValueChange={setGender}>
                 <SelectTrigger data-testid="select-soulmate-gender">
                   <SelectValue placeholder="选择性别" />
@@ -475,7 +476,7 @@ export default function SoulmatePage() {
             </div>
 
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">对理想伴侣的期望 (选填)</label>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">对理想伴侣的期望 (选填)</label>
               <Textarea
                 placeholder="例：希望对方有幽默感，能一起旅行..."
                 value={concerns}

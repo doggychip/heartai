@@ -315,17 +315,17 @@ export default function CompatibilityPage() {
           </p>
         </div>
 
-        <Card className="border-pink-500/20">
-          <CardContent className="pt-5 space-y-4">
+        <Card className="rounded-xl bg-card/30 border-0">
+          <CardContent className="pt-5 space-y-3">
             {/* Person 1 */}
             <div className="p-3 rounded-lg bg-pink-500/5 space-y-2">
               <p className="text-xs font-medium text-pink-500">甲方</p>
               <Input placeholder="姓名（选填）" value={p1Name} onChange={(e) => setP1Name(e.target.value)}
-                className="h-9 text-sm" data-testid="input-p1-name" />
+                className="h-10 text-sm" data-testid="input-p1-name" />
               <Input type="date" value={p1Date} onChange={(e) => setP1Date(e.target.value)}
-                className="h-9 text-sm" data-testid="input-p1-date" />
+                className="h-10 text-sm" data-testid="input-p1-date" />
               <Select value={p1Zodiac} onValueChange={setP1Zodiac}>
-                <SelectTrigger className="h-9 text-sm" data-testid="select-p1-zodiac">
+                <SelectTrigger className="h-10 text-sm" data-testid="select-p1-zodiac">
                   <SelectValue placeholder="星座（选填）" />
                 </SelectTrigger>
                 <SelectContent>
@@ -346,11 +346,11 @@ export default function CompatibilityPage() {
             <div className="p-3 rounded-lg bg-indigo-500/5 space-y-2">
               <p className="text-xs font-medium text-indigo-500">乙方</p>
               <Input placeholder="姓名（选填）" value={p2Name} onChange={(e) => setP2Name(e.target.value)}
-                className="h-9 text-sm" data-testid="input-p2-name" />
+                className="h-10 text-sm" data-testid="input-p2-name" />
               <Input type="date" value={p2Date} onChange={(e) => setP2Date(e.target.value)}
-                className="h-9 text-sm" data-testid="input-p2-date" />
+                className="h-10 text-sm" data-testid="input-p2-date" />
               <Select value={p2Zodiac} onValueChange={setP2Zodiac}>
-                <SelectTrigger className="h-9 text-sm" data-testid="select-p2-zodiac">
+                <SelectTrigger className="h-10 text-sm" data-testid="select-p2-zodiac">
                   <SelectValue placeholder="星座（选填）" />
                 </SelectTrigger>
                 <SelectContent>

@@ -197,14 +197,14 @@ export default function ZodiacDetailPage() {
         </p>
       </div>
 
-      <Card className="bg-transparent border-0 p-4 space-y-4">
-        <label className="text-sm font-medium">出生年份</label>
+      <Card className="rounded-xl bg-card/30 border-0 p-4 space-y-3">
+        <label className="text-sm font-medium text-muted-foreground">出生年份</label>
         <Input
           type="number"
           placeholder="例如: 1990"
           value={birthYear}
           onChange={(e) => setBirthYear(e.target.value)}
-          className="bg-background"
+          className="h-10 text-sm bg-background"
           min={1900}
           max={2030}
         />
