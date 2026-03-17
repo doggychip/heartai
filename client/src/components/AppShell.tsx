@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -185,10 +185,13 @@ const GUEST_MOBILE_TABS: NavItem[] = [
   { path: "/agents", label: "Agent", icon: Bot, guestVisible: true },
 ];
 
+// Paths promoted to the main discover page — excluded from the overlay
+const PROMOTED_PATHS = new Set(["/fengshui", "/discover/enneagram", "/discover/star-mansion"]);
+
 // ─── Discover Panel (mobile "more" menu) ─────────────────
 function DiscoverPanel({ onClose, isGuest }: { onClose: () => void; isGuest: boolean }) {
   const groups = NAV_GROUPS.filter((g) => g.label !== "首页");
-  
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col" data-testid="discover-panel">
       {/* Backdrop */}
@@ -205,9 +208,10 @@ function DiscoverPanel({ onClose, isGuest }: { onClose: () => void; isGuest: boo
         
         <div className="overflow-y-auto p-4 space-y-5">
           {groups.map((group) => {
-            const visibleItems = isGuest
+            const visibleItems = (isGuest
               ? group.items.filter((i) => i.guestVisible)
-              : group.items;
+              : group.items
+            ).filter((i) => !PROMOTED_PATHS.has(i.path));
             if (visibleItems.length === 0) return null;
             
             return (
@@ -353,6 +357,12 @@ function NotificationBell() {
   );
 }
 
+// ─── Discover context — lets child pages open the overlay ────
+const DiscoverContext = createContext<{ openDiscover: () => void }>({ openDiscover: () => {} });
+export function useDiscoverOverlay() {
+  return useContext(DiscoverContext);
+}
+
 // ─── Main AppShell ──────────────────────────────────────────
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -375,9 +385,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const mobileTabs = isGuest ? GUEST_MOBILE_TABS : MOBILE_TABS;
 
+  const discoverCtx = { openDiscover: () => setShowDiscover(true) };
+
   // ─── Mobile Layout ──────────────────────────────────────
   if (isMobile) {
     return (
+      <DiscoverContext.Provider value={discoverCtx}>
       <div className="flex flex-col h-screen bg-background" data-testid="app-shell-mobile">
         {/* Top bar */}
         <header className="h-12 border-b border-border flex items-center justify-between px-4 bg-card/50 flex-shrink-0">
@@ -433,26 +446,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="border-t border-border bg-card/80 backdrop-blur-sm flex-shrink-0" data-testid="bottom-nav">
           <div className="flex items-center justify-around h-14 px-1">
             {mobileTabs.map((item) => {
-              const isDiscover = item.path === "/discover";
-              const active = isDiscover ? showDiscover : isActive(item.path);
+              const active = isActive(item.path);
               const Icon = item.icon;
-              
-              if (isDiscover) {
-                return (
-                  <div
-                    key="discover"
-                    className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                      active ? "text-primary" : "text-muted-foreground"
-                    }`}
-                    onClick={() => setShowDiscover(true)}
-                    data-testid="nav-mobile-discover"
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span className="text-[10px] leading-none">{item.label}</span>
-                  </div>
-                );
-              }
-              
+
               return (
                 <Link key={item.path} href={item.path}>
                   <div
@@ -471,16 +467,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* Discover overlay */}
+        {/* Discover overlay — triggered from discover page */}
         {showDiscover && (
           <DiscoverPanel onClose={() => setShowDiscover(false)} isGuest={isGuest} />
         )}
       </div>
+      </DiscoverContext.Provider>
     );
   }
 
   // ─── Desktop Layout ─────────────────────────────────────
   return (
+    <DiscoverContext.Provider value={discoverCtx}>
     <div className="flex h-screen bg-background" data-testid="app-shell">
       {/* Sidebar */}
       <aside className="w-56 border-r border-border flex flex-col bg-card/50" data-testid="sidebar">
@@ -593,5 +591,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+    </DiscoverContext.Provider>
   );
 }
