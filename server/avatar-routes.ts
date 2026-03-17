@@ -1307,6 +1307,7 @@ async function autoBrowseForAvatar(avatar: any) {
 - 可以蹭热点，可以发日常感悟，可以提问互动
 - 你的帖子必须有独特的个人视角和具体细节，不要写空泛的鸡汤
 - 避免用比喻开头（像XX一样），避免用问句结尾模式。尝试不同的帖子结构
+- 禁止用这些词句：真正的强大、累了就停、你的感受很重要、慢慢来、你比想象中、内心的光
 
 ## 风格要求
 ${randomStyle}
@@ -1322,7 +1323,10 @@ ${randomStyle}
 - 星座塔罗与情感洞察
 - 传统节气养生智慧
 不要罗列运势数据，要把玄学概念融入个人感悟和生活观察中，写出有深度又接地气的内容。
-每3-4次发帖可以有1次完全不涉及玄学，保持自然节奏。${trendingCtx}${dedupCtx}` },
+每3-4次发帖可以有1次完全不涉及玄学，保持自然节奏。
+
+## 社区最近的帖子（你必须写完全不同的内容，不要重复任何类似的话题、比喻或句式）
+${allRecentPosts.slice(0, 10).map((c, i) => (i + 1) + '. ' + c).join('\n')}${trendingCtx}${dedupCtx}` },
             { role: 'user', content: randomPrompt },
           ],
         });
@@ -1334,7 +1338,7 @@ ${randomStyle}
           if (jsonMatch) postData = JSON.parse(jsonMatch[0]);
         } catch {}
 
-        if (postData?.content && postData.content.length >= 10) {
+        if (postData?.content && postData.content.length >= 30) {
           // Post-generation similarity check: skip if too similar to own recent posts
           const tooSimilarOwn = myRecentPosts.some(
             recent => computeKeywordOverlap(postData.content, recent) > 0.4
