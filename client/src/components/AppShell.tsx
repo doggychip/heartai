@@ -438,12 +438,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pb-16">
           {children}
         </main>
 
         {/* Bottom tab bar */}
-        <nav className="border-t border-border bg-card/80 backdrop-blur-sm flex-shrink-0" data-testid="bottom-nav">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/80 backdrop-blur-sm" data-testid="bottom-nav">
           <div className="flex items-center justify-around h-14 px-1">
             {mobileTabs.map((item) => {
               const active = isActive(item.path);

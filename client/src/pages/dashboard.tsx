@@ -266,6 +266,33 @@ export default function DashboardPage() {
       {/* ═══════════ Content (overlaps header) ═══════════ */}
       <div className="relative -mt-8 px-4 pb-6 space-y-4">
 
+        {/* ─── AI Avatar Quick Card ──────────────── */}
+        {dashboard?.avatar && (
+          <Link href="/avatar">
+            <Card className="border-0 shadow-sm bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-900/20 dark:to-purple-900/20 hover:shadow-md transition-shadow cursor-pointer" data-testid="card-avatar-quick">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {dashboard.avatar.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">{dashboard.avatar.name}</p>
+                    <Badge variant={dashboard.avatar.isActive ? "default" : "secondary"} className="text-[9px] h-4">
+                      {dashboard.avatar.isActive ? "活跃中" : "已暂停"}
+                    </Badge>
+                  </div>
+                  {dashboard.avatar.recentActions.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {dashboard.avatar.recentActions[0].innerThought || "正在社区浏览中..."}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         {/* ─── "自己" Fortune Card ─────────────────── */}
         {isGuest ? (
           <Card className="border-0 shadow-lg rounded-2xl overflow-hidden" data-testid="card-fortune">
@@ -500,33 +527,6 @@ export default function DashboardPage() {
             </Card>
           )}
         </div>
-
-        {/* ─── AI Avatar Quick Card ──────────────── */}
-        {dashboard?.avatar && (
-          <Link href="/avatar">
-            <Card className="border-0 shadow-sm bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-900/20 dark:to-purple-900/20 hover:shadow-md transition-shadow cursor-pointer" data-testid="card-avatar-quick">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                  {dashboard.avatar.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">{dashboard.avatar.name}</p>
-                    <Badge variant={dashboard.avatar.isActive ? "default" : "secondary"} className="text-[9px] h-4">
-                      {dashboard.avatar.isActive ? "活跃中" : "已暂停"}
-                    </Badge>
-                  </div>
-                  {dashboard.avatar.recentActions.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      {dashboard.avatar.recentActions[0].innerThought || "正在社区浏览中..."}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
 
         {/* Spacer for bottom nav */}
         <div className="h-2" />
