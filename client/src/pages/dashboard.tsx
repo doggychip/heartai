@@ -38,7 +38,11 @@ import {
   Moon,
   ChevronRight,
   Activity,
+  Hexagon,
+  CircleDot,
+  Grid3X3,
 } from "lucide-react";
+import { useDiscoverOverlay } from "@/components/AppShell";
 
 // ─── Types ──────────────────────────────────────────────────
 interface FortuneData {
@@ -93,6 +97,9 @@ const FEATURE_GRID = [
   { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
   { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
   { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
+  { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
+  { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
+  { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, color: "#d97706" },
 ];
 
 // ─── Live clock hook (updates every minute) ─────────────────
@@ -123,6 +130,7 @@ export default function DashboardPage() {
   const { user, isGuest, logout } = useAuth();
   const [, navigate] = useLocation();
   const clock = useLiveClock();
+  const { openDiscover } = useDiscoverOverlay();
 
   const { data: dashboard, isLoading: dashLoading, refetch: refetchDash } = useQuery<DashboardData>({
     queryKey: ["/api/dashboard"],
@@ -365,7 +373,7 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* ─── Feature Icon Grid (2 rows × 5) ──────── */}
+        {/* ─── Feature Icon Grid (3 rows × 5) ──────── */}
         <div className="grid grid-cols-5 gap-y-3" data-testid="feature-grid">
           {FEATURE_GRID.map((item) => {
             const Icon = item.icon;
@@ -383,6 +391,20 @@ export default function DashboardPage() {
               </Link>
             );
           })}
+          {/* Discover more button */}
+          <div
+            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            data-testid="feature-discover-more"
+            onClick={openDiscover}
+          >
+            <div
+              className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+              style={{ background: "linear-gradient(135deg, #6b7280cc, #6b7280)" }}
+            >
+              <Grid3X3 className="w-5 h-5 text-white" strokeWidth={1.8} />
+            </div>
+            <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">发现更多</span>
+          </div>
         </div>
 
         {/* ─── More Features Row ───────────────────── */}
