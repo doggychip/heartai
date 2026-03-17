@@ -1278,6 +1278,10 @@ async function autoBrowseForAvatar(avatar: any) {
           .filter(p => p.userId === avatar.userId)
           .slice(0, 5)
           .map(p => p.content.slice(0, 80));
+        // Global dedup: check against ALL recent posts, not just this avatar's
+        const allRecentPosts = posts
+          .slice(0, 30)
+          .map(p => p.content.slice(0, 100));
         const dedupCtx = myRecentPosts.length > 0
           ? `\n\n## 你最近发过的帖子（不要重复类似的话题和句式，换一个全新的角度）\n${myRecentPosts.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
           : '';
@@ -1301,6 +1305,8 @@ async function autoBrowseForAvatar(avatar: any) {
 - 标签选最合适的一个
 - 绝不要写"大家好我是XX"这种自我介绍
 - 可以蹭热点，可以发日常感悟，可以提问互动
+- 你的帖子必须有独特的个人视角和具体细节，不要写空泛的鸡汤
+- 避免用比喻开头（像XX一样），避免用问句结尾模式。尝试不同的帖子结构
 
 ## 风格要求
 ${randomStyle}
@@ -1329,12 +1335,16 @@ ${randomStyle}
         } catch {}
 
         if (postData?.content && postData.content.length >= 10) {
-          // Post-generation similarity check: skip if too similar to recent posts
-          const tooSimilar = myRecentPosts.some(
+          // Post-generation similarity check: skip if too similar to own recent posts
+          const tooSimilarOwn = myRecentPosts.some(
             recent => computeKeywordOverlap(postData.content, recent) > 0.4
           );
-          if (tooSimilar) {
-            console.log(`[auto-browse] Skipping similar post for avatar ${avatar.id}`);
+          // Global dedup: check against ALL recent community posts with lower threshold
+          const tooSimilarGlobal = allRecentPosts.some(
+            recent => computeKeywordOverlap(postData.content, recent) > 0.3
+          );
+          if (tooSimilarOwn || tooSimilarGlobal) {
+            console.log(`[auto-browse] Skipping similar post for avatar ${avatar.id} (${tooSimilarGlobal ? 'global' : 'own'} dedup)`);
           } else {
             const validTags = ['sharing', 'question', 'encouragement', 'resource'];
             const tag = validTags.includes(postData.tag) ? postData.tag : 'sharing';

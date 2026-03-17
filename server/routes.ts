@@ -336,6 +336,29 @@ const BOT_POST_TOPICS = [
   // Personal & relatable
   { tag: "sharing", prompt: "以第一人称写一段关于今天在观星平台上看到的有趣现象的感想。比如发现很多人在问感情问题、或者今天求签的人特别多。80-150字，用中文，语气自然随意。" },
   { tag: "encouragement", prompt: "针对一个具体的人生困境(失恋/裁员/考试失利/和父母吵架，选一个)，从命理角度给出一个独特的安慰视角。不要说'一切都会好的'这种空话，要结合五行或运势给出具体的看法。80-150字，用中文。" },
+
+  // 玄学冷知识
+  { tag: "sharing", prompt: "分享一个关于古代皇帝或名人用玄学决策的真实历史故事。比如刘伯温、诸葛亮、袁天罡的轶事。100-180字，用中文，要有具体细节，像讲故事一样。" },
+  { tag: "sharing", prompt: "讲一个大多数人不知道的风水冷知识，比如为什么故宫的门钉是九九八十一个、为什么银行门口要放石狮子。100-150字，用中文。" },
+
+  // Crypto/投资 × 玄学
+  { tag: "sharing", prompt: "从五行的角度聊聊今天适合什么投资心态。比如今天金旺适合保守观望，或者水旺适合灵活操作。80-150字，用中文，要有趣不要太严肃，可以带点自嘲。" },
+  { tag: "question", prompt: "发起一个'玄学炒币'的讨论：你觉得水逆期间真的不适合交易吗？或者选一个类似的crypto×玄学话题。50-120字，用中文，语气轻松。" },
+
+  // 节气/天文
+  { tag: "sharing", prompt: "结合当前时节，分享一个关于二十四节气的冷知识或传统习俗。比如这个节气古人都做什么、有什么讲究。100-150字，用中文。" },
+  { tag: "resource", prompt: "根据当前农历时节，推荐一个应季的养生方法或饮食建议，结合五行理论解释为什么。80-150字，用中文，要具体实用。" },
+
+  // 命理 case studies / historical anecdotes
+  { tag: "sharing", prompt: "讲一个你'见过最神奇的八字案例'（可以编一个有趣的故事），比如某人八字全是某一行、或者双胞胎命运截然不同。100-180字，用中文。" },
+  { tag: "sharing", prompt: "聊一个关于面相或手相的趣味观察，比如为什么说'天庭饱满'的人运气好，或者手上的某条线代表什么。80-150字，用中文，要通俗易懂。" },
+
+  // Internet/tech culture + 玄学 crossover
+  { tag: "question", prompt: "把一个互联网梗和玄学结合起来讨论。比如'程序员996是不是因为八字劳碌命？'或者'AI算命和真人算命你信哪个？'。50-120字，用中文。" },
+  { tag: "sharing", prompt: "从玄学角度分析一个科技现象或互联网文化。比如为什么大厂喜欢用某些数字、为什么某些App的logo用特定颜色。80-150字，用中文，要有趣。" },
+
+  // Controversial/debate-sparking
+  { tag: "question", prompt: "抛出一个有争议的玄学观点让大家辩论。比如'八字能不能决定一个人的上限？'或者'风水到底是科学还是迷信？'。50-120字，用中文，要引导讨论而不是给答案。" },
 ];
 
 // Bot style modifiers for additional diversity
@@ -380,6 +403,15 @@ const DAILY_TOPIC_PROMPTS = [
   "生成一个关于'人际关系'的社区话题，探讨一个关于沟通、友情或家庭的小话题(80-150字)，引导讨论。格式：以'💬 今日话题'开头。用中文。",
   "生成一个关于'自我成长'的社区话题，分享一个关于个人成长的思考或小挑战(80-150字)。格式：以'🌱 今日话题'开头。用中文。",
   "生成一个关于'正念冥想'的社区话题，引导大家做一个简短的正念练习(80-150字)。格式：以'🧠 今日话题'开头。用中文。",
+  "生成一个关于'玄学冷知识'的社区话题，分享一个大多数人不知道的命理或风水趣味知识(80-150字)，引导大家讨论。格式：以'🔮 今日话题'开头。用中文。",
+  "生成一个关于'crypto与五行'的社区话题，从五行角度聊聊今天适合什么投资心态或策略(80-150字)，要有趣不要太严肃。格式：以'💰 今日话题'开头。用中文。",
+  "生成一个关于'节气养生'的社区话题，结合当前时节聊聊传统养生智慧和现代生活(80-150字)，提出讨论问题。格式：以'🍃 今日话题'开头。用中文。",
+  "生成一个关于'历史上的命理趣事'的社区话题，讲一个古代名人与玄学的小故事(80-150字)，引导讨论。格式：以'📜 今日话题'开头。用中文。",
+  "生成一个关于'科技与玄学碰撞'的社区话题，探讨一个现代科技和传统玄学交叉的有趣话题(80-150字)。格式：以'⚡ 今日话题'开头。用中文。",
+  "生成一个关于'今日辩论'的社区话题，提出一个有争议的玄学观点让大家讨论(80-150字)，要有两面性。格式：以'🔥 今日话题'开头。用中文。",
+  "生成一个关于'生活中的风水'的社区话题，聊聊日常居家或工作环境中的风水小知识(80-150字)，要具体实用。格式：以'🏠 今日话题'开头。用中文。",
+  "生成一个关于'互联网梗与玄学'的社区话题，把一个流行梗或热点和玄学概念结合起来讨论(80-150字)。格式：以'😂 今日话题'开头。用中文。",
+  "生成一个关于'奇葩星座/八字体验'的社区话题，邀请大家分享自己或身边人最准/最离谱的玄学经历(80-150字)。格式：以'✨ 今日话题'开头。用中文。",
 ];
 
 let lastDailyTopicDate = "";
@@ -568,26 +600,26 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
     let content = response.choices[0]?.message?.content?.trim();
 
     // Retry once if content is too short (AI sometimes returns truncated responses)
-    if (content && content.length < 50) {
+    if (content && content.length < 80) {
       console.log(`[bot] Post too short (${content.length} chars), retrying...`);
       const retry = await client.chat.completions.create({
         model: DEFAULT_MODEL,
         max_tokens: 400,
         temperature: 0.9,
         messages: [
-          { role: "system", content: systemPrompt + "\n\n重要：请写一段完整的帖子，至少50个字。不要只写标题或半句话。" },
+          { role: "system", content: systemPrompt + "\n\n重要：请写一段完整的帖子，至少80个字。不要只写标题或半句话。" },
           { role: "user", content: topic.prompt },
         ],
       });
       content = retry.choices[0]?.message?.content?.trim() || content;
     }
 
-    if (content && content.length >= 50) {
+    if (content && content.length >= 80) {
       // Post-generation similarity check: skip if too similar to recent posts
       const tooSimilar = botRecentPosts.some(
         recent => botComputeKeywordOverlap(content!, recent) > 0.3
       );
-      const PHRASE_BLACKLIST = ['真正的强大', '温柔以待', '值得被温柔', '给自己一个拥抱', '泡杯茶', '你值得', '允许自己', '停一停'];
+      const PHRASE_BLACKLIST = ['真正的强大', '温柔以待', '值得被温柔', '给自己一个拥抱', '泡杯茶', '你值得', '允许自己', '停一停', '累了就停', '累了就歇', '深呼吸', '478呼吸', '感恩小事', '三件感恩', '你的感受很重要', '慢慢来', '你比想象中', '内心的光'];
       const hasBlacklistedPhrase = PHRASE_BLACKLIST.some(phrase => content!.includes(phrase));
       if (tooSimilar || hasBlacklistedPhrase) {
         console.log(`[bot] Skipping post: ${tooSimilar ? 'too similar' : 'blacklisted phrase'}`);
