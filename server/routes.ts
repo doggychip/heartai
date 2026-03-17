@@ -24,6 +24,7 @@ import theGods from "lunisolar/plugins/theGods";
 import takeSound from "lunisolar/plugins/takeSound";
 import fetalGod from "lunisolar/plugins/fetalGod";
 import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
+import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL } from "./ai-config";
 
 // Initialize lunisolar plugins — locale must be loaded before fetalGod
 lunisolar.locale(theGodsZhCn);
@@ -393,12 +394,9 @@ async function botCreateDailyTopic() {
   try {
     const bot = await ensureHeartAIBot();
     const prompt = DAILY_TOPIC_PROMPTS[Math.floor(Math.random() * DAILY_TOPIC_PROMPTS.length)];
-    const client = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 400,
       messages: [
         { role: "system", content: `You are 观星小助手 (GuanXing Bot), the warm and engaging community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown code blocks. Use Chinese. Make it feel like a friendly daily ritual.
@@ -488,12 +486,9 @@ async function botReplyToPost(postId: string, postContent: string) {
       }
     }
 
-    const client = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 200,
       temperature: 0.95,
       messages: [
@@ -528,10 +523,7 @@ async function botCreatePost() {
       ? `\n\n## 你最近发过的帖子（不要重复类似的话题和句式，换一个全新的角度）\n${botRecentPosts.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
       : '';
 
-    const client = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    const client = getAIClient();
     const systemPrompt = `You are 观星小助手 (GuanXing Bot), the warm and knowledgeable community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown. Use Chinese.
 
 ## 风格要求
@@ -539,7 +531,7 @@ ${styleModifier}
 
 ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}${dedupCtx}`;
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 300,
       messages: [
         { role: "system", content: systemPrompt },
@@ -1221,12 +1213,9 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
 
       let aiText = "";
       try {
-        const client = new OpenAI({
-          baseURL: "https://api.deepseek.com",
-          apiKey: process.env.DEEPSEEK_API_KEY,
-        });
+        const client = getAIClient();
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 1024,
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
@@ -2292,10 +2281,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
         }
       } catch (e) {}
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const prompt = `你是一位精通中国传统命理学的AI顾问。请根据以下信息生成今日个人运势报告。
 
@@ -2330,7 +2316,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
 }`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 500,
         temperature: 0.8,
         messages: [
@@ -2405,10 +2391,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       const elemCount1 = countElements(d1);
       const elemCount2 = countElements(d2);
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const prompt = `你是一位精通中国传统八字合婚的命理AI。请分析以下两人的缘分。
 
@@ -2440,7 +2423,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
 }`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 600,
         temperature: 0.7,
         messages: [
@@ -2626,10 +2609,7 @@ Pass \`platform\` + \`userId\` to maintain conversation history per IM user. Pas
       }));
 
       // AI 解读
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const najiaDesc = yaoDetails.map(y =>
         `${y.position}爻: ${y.type} ${y.ganZhi}${y.element} ${y.liuQin} ${y.liuShen}${y.isShi?' 世':y.isYing?' 应':''}${y.isChanging?' 动':''}`
@@ -2661,7 +2641,7 @@ ${najiaDesc}
 }`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 600,
         temperature: 0.85,
         messages: [
@@ -2856,10 +2836,7 @@ ${najiaDesc}
       // AI解签 (with graceful fallback)
       let aiReading: any;
       try {
-        const client = new OpenAI({
-          baseURL: "https://api.deepseek.com",
-          apiKey: process.env.DEEPSEEK_API_KEY || 'sk-placeholder',
-        });
+        const client = getFortuneClient();
 
         const aiPrompt = `你是一位慈悲智慧的古寺住持，正在为香客解签。请基于签文内容，结合求签者的问题和个人信息，给出温暖、正面、有建设性的解读。
 
@@ -2882,7 +2859,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 }`;
 
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: FORTUNE_MODEL,
           max_tokens: 800,
           temperature: 0.85,
           messages: [
@@ -3768,12 +3745,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
           let aiText = "";
           try {
-            const client = new OpenAI({
-              baseURL: "https://api.deepseek.com",
-              apiKey: process.env.DEEPSEEK_API_KEY,
-            });
+            const client = getAIClient();
             const response = await client.chat.completions.create({
-              model: "deepseek-chat",
+              model: DEFAULT_MODEL,
               max_tokens: 1024,
               messages: [
                 { role: "system", content: agentSystemPrompt },
@@ -4151,9 +4125,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           }
 
           try {
-            const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+            const client = getAIClient();
             const resp = await client.chat.completions.create({
-              model: 'deepseek-chat', max_tokens: 300,
+              model: DEFAULT_MODEL, max_tokens: 300,
               temperature: 0.95,
               messages: [
                 { role: 'system', content: composeCtx.join('\n') || '你是一个社区成员。' },
@@ -4432,15 +4406,12 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       (async () => {
         try {
           const bot = await ensureHeartAIBot();
-          const client = new OpenAI({
-            baseURL: "https://api.deepseek.com",
-            apiKey: process.env.DEEPSEEK_API_KEY,
-          });
+          const client = getAIClient();
           // Generate a personalized welcome post
           let welcomeContent = `🌟 欢迎新 Agent「${agentName}」加入 HeartAI 社区！${description ? ` 简介: ${description}` : ""} 期待你的分享和互动 💜`;
           try {
             const resp = await client.chat.completions.create({
-              model: "deepseek-chat",
+              model: DEFAULT_MODEL,
               max_tokens: 200,
               messages: [
                 { role: "system", content: "你是 HeartAI Bot，社区官方欢迎大使。为新加入的 AI Agent 写一段热情的欢迎词(80-150字)。要温暖、有趣、个性化。直接输出文字，不要 JSON 或 markdown。" },
@@ -5262,7 +5233,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           const question = msg.replace(/[占卜算一卦六爷占卦求签占一下起卦算一下帮我我想，。？?]/g, '').trim() || '总运';
 
           // Use AI to interpret
-          const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+          const client = getAIClient();
           const yaoDesc = yaos.map((y, i) => {
             const names = ['初', '二', '三', '四', '五', '上'];
             const type = y === 6 ? '老阴(动)' : y === 7 ? '少阳' : y === 8 ? '少阴' : '老阳(动)';
@@ -5270,7 +5241,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           }).join('\n');
 
           const divResp = await client.chat.completions.create({
-            model: 'deepseek-chat', max_tokens: 500,
+            model: DEFAULT_MODEL, max_tokens: 500,
             messages: [
               { role: 'system', content: `你是一位精通周易的占卜师。根据所得爷象，给出解读。简洁明了，200字内。用中文。${personalityCtx ? `\n问卦者命格: ${personalityCtx}` : ''}` },
               { role: 'user', content: `问题: ${question}\n\n爷象:\n${yaoDesc}\n\n请解读此卦。` },
@@ -5345,9 +5316,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       let aiText = '';
       try {
-        const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+        const client = getAIClient();
         const resp = await client.chat.completions.create({
-          model: 'deepseek-chat', max_tokens: 1024,
+          model: DEFAULT_MODEL, max_tokens: 1024,
           messages: [{ role: 'system', content: sysPrompt }, ...ctxMsgs],
         });
         aiText = resp.choices[0]?.message?.content || '暂时无法回复';
@@ -5446,9 +5417,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   "aiInsight": "150-200字的AI深度解读，结合星座特点给出具体建议"
 }`;
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1000,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的星座分析AI。返回严格的JSON，不要包含markdown代码块标记。分数在50-95之间波动，要合理。" },
@@ -5562,9 +5533,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const personality = MBTI_PERSONALITY_DATA[type];
 
       // Get AI description
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 800,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的MBTI人格分析AI。返回严格的JSON，不要包含markdown代码块标记。" },
@@ -6041,7 +6012,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       // AI enrichment with personalized context
       try {
         const seed = `${dateStr}-${userId.slice(0, 8)}`;
-        const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+        const client = getAIClient();
 
         // Build personalized prompt context
         let personalContext = '';
@@ -6061,7 +6032,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         }
 
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 600,
           messages: [
             { role: "system", content: `你是观星(GuanXing)的命理运势AI。${isPersonalized ? '基于用户八字命盘和流日天干地支的五行生克关系，生成个性化运势解读。' : '根据日期生成运势数据。'}返回严格JSON，不要markdown标记。种子: ${seed}` },
@@ -6146,9 +6117,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const dayPillar = char8.day.toString();
       const hourPillar = hour !== undefined ? char8.hour.toString() : "未知";
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1500,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的八字命理大师，精通中国传统命理学。返回严格的JSON，不要包含markdown代码块标记。注意：以娱乐和文化探索为目的，结果仅供参考。" },
@@ -6226,9 +6197,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       const cardDesc = drawn.map((c, i) => `${positions[i]}: ${c.name}(${c.nameEn}) ${c.reversed ? '逆位' : '正位'}`).join('\n');
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1200,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的塔罗解读大师，精通塔罗牌的象征意义。返回严格的JSON，不要包含markdown代码块标记。注意：以娱乐和文化探索为目的，结果仅供参考。" },
@@ -6269,9 +6240,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         return res.status(400).json({ error: "请选择空间类型" });
       }
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1500,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的风水顾问，精通中国传统风水学。返回严格的JSON，不要包含markdown代码块标记。注意：以文化探索和塢舆为目的，结果仅供参考。" },
@@ -6315,9 +6286,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 6);
       const dateRange = `${today.getMonth()+1}/${today.getDate()} - ${weekEnd.getMonth()+1}/${weekEnd.getDate()}`;
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1200,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的星座运势分析师。返回严格的JSON，不要包含markdown代码块标记。" },
@@ -6388,9 +6359,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       if (mbtiType) contextParts.push(`MBTI: ${mbtiType}`);
       const userContext = contextParts.length > 0 ? `\n用户信息: ${contextParts.join('，')}` : '';
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1000,
         messages: [
           { role: "system", content: `你是观星(GuanXing)的智慧问答大师，融合星座学、MBTI心理学、中国传统命理（八字/风水/周易）给出个性化解答。
@@ -6454,9 +6425,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const elem1 = getStemElement(dm1);
       const elem2 = getStemElement(dm2);
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1200,
         messages: [
           { role: "system", content: "你是观星(GuanXing)缘分分析师，精通八字合婚与心理学。返回严格JSON，不要markdown代码块。" },
@@ -6544,9 +6515,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       if (gender) contextParts.push(`性别: ${gender}`);
       if (concerns) contextParts.push(`期望: ${concerns}`);
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 2000,
         messages: [
           { role: "system", content: "你是观星(GuanXing)的AI正缘画像分析师，融合八字命理、星座学和心理学来描绘理想伴侣的完整画像。返回严格JSON，不要markdown代码块。内容要具体生动，像给朋友描述一个真实的人。" },
@@ -6995,12 +6966,12 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         }
       } catch {}
 
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "", baseURL: "https://api.deepseek.com" });
+      const openai = getAIClient();
 
       let interpretation = "";
       try {
         const resp = await openai.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           messages: [
             {
               role: "system",
@@ -7341,12 +7312,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       let aiText = "";
       let tokensUsed = 0;
       try {
-        const client = new OpenAI({
-          baseURL: "https://api.deepseek.com",
-          apiKey: process.env.DEEPSEEK_API_KEY,
-        });
+        const client = getAIClient();
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 1024,
           messages: [
             { role: "system", content: `${agentPrompt}\n\n你是观星Agent Team中的「${agentMember?.name || '观星助手'}」。请以专业角度回答用户的问题。使用简体中文回答。` },
@@ -8112,7 +8080,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const { birthDate, birthHour, name } = req.body;
       if (!birthDate) throw new Error("缺少 birthDate 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getFortuneClient();
       const prompt = `请对以下八字信息进行专业命理分析，返回JSON格式：
 出生日期: ${birthDate}
 ${birthHour !== undefined ? `出生时辰: ${birthHour}时` : ""}
@@ -8121,7 +8089,7 @@ ${name ? `姓名: ${name}` : ""}
 返回格式: {"bazi": "八字四柱", "wuxing": {"金":N,"木":N,"水":N,"火":N,"土":N}, "dayMaster": "日主", "analysis": "详细分析200字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 800,
+        model: FORTUNE_MODEL, max_tokens: 800,
         messages: [{ role: "system", content: "你是专业八字命理分析师，以JSON格式返回分析结果" }, { role: "user", content: prompt }],
       });
 
@@ -8165,13 +8133,13 @@ ${name ? `姓名: ${name}` : ""}
       if (!zodiac) throw new Error("缺少 zodiac 参数");
 
       const today = new Date().toLocaleDateString("zh-CN");
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getFortuneClient();
       const prompt = `为${zodiac}生成${today}的运势报告，返回JSON:
 ${birthDate ? `出生日期: ${birthDate}` : ""}
 {"overall":1-5, "career":1-5, "love":1-5, "wealth":1-5, "health":1-5, "advice":"今日建议50字", "luckyColor":"幸运色", "luckyNumber":N, "keywords":["关键词"]}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 500,
+        model: FORTUNE_MODEL, max_tokens: 500,
         messages: [{ role: "system", content: "你是运势预测专家，以JSON格式返回" }, { role: "user", content: prompt }],
       });
 
@@ -8218,7 +8186,7 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
       const qianTypes = ["上上", "上", "中上", "中", "中下", "下", "下下"];
       const qianType = qianTypes[Math.floor(Math.random() * qianTypes.length)];
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getFortuneClient();
       const prompt = `用户求签问: "${question}"
 签号: 第${qianNumber}签 (${type === "guandi" ? "关帝灵签" : "观音灵签"})
 签等: ${qianType}
@@ -8226,7 +8194,7 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
 请返回JSON: {"qianNumber":${qianNumber}, "qianTitle":"签名", "qianType":"${qianType}", "poem":"签诗四句", "interpretation":"详细解签200字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: FORTUNE_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你是资深解签大师" }, { role: "user", content: prompt }],
       });
 
@@ -8269,12 +8237,12 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
       const { date } = req.body;
       const targetDate = date || new Date().toISOString().split("T")[0];
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getFortuneClient();
       const prompt = `请查询${targetDate}的黄历信息，返回JSON:
 {"lunarDate":"农历日期", "ganzhi":"干支", "yi":["宜做的事3-5项"], "ji":["忌做的事3-5项"], "chongsha":"冲煞", "jishi":[{"hour":"时辰","luck":"吉/凶"}], "summary":"今日综述50字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 500,
+        model: FORTUNE_MODEL, max_tokens: 500,
         messages: [{ role: "system", content: "你是黄历专家" }, { role: "user", content: prompt }],
       });
 
@@ -8295,12 +8263,12 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
       const { zodiac, aspect } = req.body;
       if (!zodiac) throw new Error("缺少 zodiac 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `深度分析${zodiac}的${aspect || "personality"}维度，返回JSON:
 {"analysis":"详细分析200字", "traits":["特质1","特质2"], "element":"元素", "rulingPlanet":"守护星", "compatibility":["最配星座"]}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: DEFAULT_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你是西方占星专家" }, { role: "user", content: prompt }],
       });
 
@@ -8321,13 +8289,13 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
       const { dream, mood } = req.body;
       if (!dream) throw new Error("缺少 dream 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `解析这个梦境: "${dream}"
 ${mood ? `梦醒情绪: ${mood}` : ""}
 返回JSON: {"symbols":["意象"], "interpretation":"解梦200字", "psychAnalysis":"心理学分析100字", "advice":"建议50字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: DEFAULT_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你精通周公解梦和现代心理学" }, { role: "user", content: prompt }],
       });
 
@@ -8348,14 +8316,14 @@ ${mood ? `梦醒情绪: ${mood}` : ""}
       const { question, spread } = req.body;
       if (!question) throw new Error("缺少 question 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `塔罗占卜问题: "${question}"
 牌阵: ${spread || "single"}
 随机抽牌并解读，返回JSON:
 {"cards":[{"name":"牌名","reversed":false,"meaning":"牌义"}], "spread":"牌阵名", "interpretation":"综合解读200字", "advice":"建议50字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 800,
+        model: DEFAULT_MODEL, max_tokens: 800,
         messages: [{ role: "system", content: "你是塔罗大师，熟悉78张大小阿尔卡那" }, { role: "user", content: prompt }],
       });
 
@@ -8376,14 +8344,14 @@ ${mood ? `梦醒情绪: ${mood}` : ""}
       const { surname, givenName, birthDate } = req.body;
       if (!surname || !givenName) throw new Error("缺少 surname/givenName 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `姓名打分分析:
 姓: ${surname} 名: ${givenName}
 ${birthDate ? `出生日期: ${birthDate}` : ""}
 返回JSON: {"totalScore":0-100, "breakdown":{"tianGe":N,"renGe":N,"diGe":N,"waiGe":N,"zongGe":N}, "wuxingAnalysis":"五行分析", "analysis":"综合评语200字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: DEFAULT_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你是姓名学专家，精通五格剖象法" }, { role: "user", content: prompt }],
       });
 
@@ -8404,7 +8372,7 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}
       const { direction, spaceType, concerns } = req.body;
       if (!spaceType) throw new Error("缺少 spaceType 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `风水评估:
 空间: ${spaceType === "home" ? "居家" : spaceType === "office" ? "办公室" : "商铺"}
 ${direction ? `朝向: ${direction}` : ""}
@@ -8412,7 +8380,7 @@ ${concerns ? `关注: ${concerns}` : ""}
 返回JSON: {"score":0-100, "analysis":"风水分析200字", "suggestions":["建议1","建议2"], "luckyItems":["开运物"], "avoidItems":["忌讳物"]}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: DEFAULT_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你是风水堪舆大师" }, { role: "user", content: prompt }],
       });
 
@@ -8433,14 +8401,14 @@ ${concerns ? `关注: ${concerns}` : ""}
       const { person1, person2 } = req.body;
       if (!person1 || !person2) throw new Error("缺少 person1/person2 参数");
 
-      const client = new OpenAI({ baseURL: "https://api.deepseek.com", apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
       const prompt = `缘分配对分析:
 Person 1: ${JSON.stringify(person1)}
 Person 2: ${JSON.stringify(person2)}
 返回JSON: {"score":0-100, "dimensions":{"love":1-100,"career":1-100,"friendship":1-100}, "analysis":"配对分析200字", "advice":"相处建议100字"}`;
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat", max_tokens: 600,
+        model: DEFAULT_MODEL, max_tokens: 600,
         messages: [{ role: "system", content: "你是星座和命理配对专家" }, { role: "user", content: prompt }],
       });
 

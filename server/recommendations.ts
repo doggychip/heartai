@@ -14,6 +14,7 @@
 import OpenAI from "openai";
 import { pool } from "./db";
 import { queryMemories } from "./agent-memory";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -58,10 +59,7 @@ export interface CommunityInsights {
 let cachedClient: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!cachedClient) {
-    cachedClient = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    cachedClient = getAIClient();
   }
   return cachedClient;
 }
@@ -165,7 +163,7 @@ export async function getPersonalizedFeed(userId: string, limit = 10): Promise<P
     ].filter(Boolean).join("; ");
 
     const response = await deepseekClient.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 400,
       temperature: 0.2,
       messages: [

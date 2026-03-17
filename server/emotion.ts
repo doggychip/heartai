@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { DeepEmotionAnalysis, EmotionDimension } from "@shared/schema";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 /**
  * HeartAI 深度情感分析引擎
@@ -48,10 +49,7 @@ confusion(困惑❓), tiredness(疲惫😴)
 let cachedClient: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!cachedClient) {
-    cachedClient = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    cachedClient = getAIClient();
   }
   return cachedClient;
 }
@@ -68,7 +66,7 @@ export async function analyzeEmotion(userMessage: string, conversationContext?: 
       : userMessage;
 
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 500,
       temperature: 0.3, // Low temperature for consistent analysis
       messages: [

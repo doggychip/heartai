@@ -18,6 +18,7 @@
 
 import OpenAI from "openai";
 import { pool } from "./db";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -92,10 +93,7 @@ export async function ensureAgentMemoryTable(): Promise<void> {
 let cachedClient: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!cachedClient) {
-    cachedClient = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    cachedClient = getAIClient();
   }
   return cachedClient;
 }
@@ -199,7 +197,7 @@ export async function semanticQuery(
     const summaries = candidates.map((m, i) => `[${i}] ${m.category}: ${m.summary}`).join("\n");
 
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 200,
       temperature: 0.1,
       messages: [

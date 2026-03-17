@@ -2,6 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage } from "./storage";
 import OpenAI from "openai";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 function getUserId(req: Request): string {
   return (req as any).userId;
@@ -45,13 +46,10 @@ export function registerMetaphysicsRoutes(
       const { birthDate } = req.body;
       if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1500,
         messages: [
           {
@@ -120,13 +118,10 @@ export function registerMetaphysicsRoutes(
       const animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"];
       const animal = animals[(birthYear - 4) % 12];
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1500,
         messages: [
           {
@@ -213,13 +208,10 @@ export function registerMetaphysicsRoutes(
         talentNum = talentNum.toString().split("").map(Number).reduce((a: number, b: number) => a + b, 0);
       }
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 1500,
         messages: [
           {
@@ -289,16 +281,13 @@ export function registerMetaphysicsRoutes(
       const { birthDate, birthHour, gender } = req.body;
       if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const genderLabel = gender === "female" ? "女" : "男";
       const hourLabel = birthHour !== undefined ? `${birthHour}时` : "未知";
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 2000,
         messages: [
           {
@@ -394,10 +383,7 @@ export function registerMetaphysicsRoutes(
       const chakraNames = ["海底轮", "脐轮", "太阳轮", "心轮", "喉轮", "眉心轮", "顶轮"];
       const maxScore = 15;
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const scoreDesc = scores
         .map((s: number, i: number) => `${chakraNames[i]}: ${s}/${maxScore}分`)
@@ -406,7 +392,7 @@ export function registerMetaphysicsRoutes(
       let analysis = "";
       try {
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 1500,
           messages: [
             {
@@ -450,10 +436,7 @@ export function registerMetaphysicsRoutes(
         return res.status(400).json({ error: "请至少完成房、树、人的基本选择" });
       }
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const selectionDesc = Object.entries(selections)
         .map(([key, value]) => `${key}: ${value}`)
@@ -462,7 +445,7 @@ export function registerMetaphysicsRoutes(
       let result: any;
       try {
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 2000,
           messages: [
             {
@@ -562,15 +545,12 @@ HTP心理学解读要点：
       const tone = toneNames[toneIndex];
 
       // AI interpretation
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       let interpretation = "";
       try {
         const response = await client.chat.completions.create({
-          model: "deepseek-chat",
+          model: DEFAULT_MODEL,
           max_tokens: 1500,
           messages: [
             {
@@ -628,16 +608,13 @@ Kin ${kin}：${tone}${mainSeal}
       const { birthDate, birthTime, birthPlace } = req.body;
       if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const timeLabel = birthTime || "未知";
       const placeLabel = birthPlace || "未知";
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 2000,
         messages: [
           {
@@ -708,15 +685,12 @@ Kin ${kin}：${tone}${mainSeal}
       const { birthDate, birthTime } = req.body;
       if (!birthDate) return res.status(400).json({ error: "请输入出生日期" });
 
-      const client = new OpenAI({
-        baseURL: "https://api.deepseek.com",
-        apiKey: process.env.DEEPSEEK_API_KEY,
-      });
+      const client = getAIClient();
 
       const timeLabel = birthTime || "未知";
 
       const response = await client.chat.completions.create({
-        model: "deepseek-chat",
+        model: DEFAULT_MODEL,
         max_tokens: 2000,
         messages: [
           {

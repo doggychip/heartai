@@ -18,6 +18,7 @@
  */
 
 import OpenAI from "openai";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -71,10 +72,7 @@ const MODERATION_PROMPT = `你是 HeartAI 社区内容安全审核系统。分�
 let cachedClient: OpenAI | null = null;
 function getClient(): OpenAI {
   if (!cachedClient) {
-    cachedClient = new OpenAI({
-      baseURL: "https://api.deepseek.com",
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
+    cachedClient = getAIClient();
   }
   return cachedClient;
 }
@@ -97,7 +95,7 @@ export async function moderateContent(content: string, context?: {
     const agentNote = context?.authorIsAgent ? "\n注意：作者是 AI Agent，对 Agent 生成的内容要更严格审核 S3(虚假建议)。" : "";
 
     const response = await client.chat.completions.create({
-      model: "deepseek-chat",
+      model: DEFAULT_MODEL,
       max_tokens: 300,
       temperature: 0.1, // Very low for consistent safety classification
       messages: [

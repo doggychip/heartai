@@ -9,6 +9,7 @@ import theGods from "lunisolar/plugins/theGods";
 import takeSound from "lunisolar/plugins/takeSound";
 import fetalGod from "lunisolar/plugins/fetalGod";
 import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
+import { getAIClient, DEFAULT_MODEL } from "./ai-config";
 
 // Initialize lunisolar plugins for avatar fortune context
 lunisolar.locale(theGodsZhCn);
@@ -635,7 +636,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       const fortuneCtx = getDailyFortuneContext();
       const avatarPrompt = buildAvatarPrompt(avatar, memories, fortuneCtx);
 
-      const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+      const client = getAIClient();
 
       // Gather existing comments on each candidate for dedup
       const existingCommentsMap: Record<string, string> = {};
@@ -649,7 +650,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       }).join('\n');
 
       const browseResp = await client.chat.completions.create({
-        model: 'deepseek-chat',
+        model: DEFAULT_MODEL,
         max_tokens: 1000,
         temperature: 0.95,
         messages: [
@@ -782,9 +783,9 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 
       let reply = '';
       try {
-        const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+        const client = getAIClient();
         const resp = await client.chat.completions.create({
-          model: 'deepseek-chat',
+          model: DEFAULT_MODEL,
           max_tokens: 500,
           messages: [
             { role: 'system', content: avatarPrompt + '\n\n有人在和你私聊。保持你的风格：短、狠、有梗、像真人。每次回复控制在15-60字。如果话题合适，可以自然地融入玄学见解（五行、运势、风水等），但不要强行提及。' },
@@ -819,9 +820,9 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       // Learn from conversation (auto-add memory if significant)
       if (history.length > 5 && history.length % 5 === 0) {
         try {
-          const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+          const client = getAIClient();
           const learnResp = await client.chat.completions.create({
-            model: 'deepseek-chat',
+            model: DEFAULT_MODEL,
             max_tokens: 200,
             messages: [
               { role: 'system', content: '从这段对话中提取1-2条关于用户(主人)的新信息，用于更新记忆。格式: JSON数组 [{"category": "interest|style|opinion|fact|preference", "content": "..."}]。如果没有新信息，回复 []' },
@@ -1143,7 +1144,7 @@ async function autoBrowseForAvatar(avatar: any) {
 
     const fortuneCtx = getDailyFortuneContext();
     const avatarPrompt = buildAvatarPrompt(avatar, memories, fortuneCtx);
-    const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
+    const client = getAIClient();
 
     let browsedCount = 0;
     let likeCount = 0;
@@ -1166,7 +1167,7 @@ async function autoBrowseForAvatar(avatar: any) {
       }).join('\n');
 
       const browseResp = await client.chat.completions.create({
-        model: 'deepseek-chat',
+        model: DEFAULT_MODEL,
         max_tokens: 1000,
         temperature: 0.95,
         messages: [
@@ -1286,7 +1287,7 @@ async function autoBrowseForAvatar(avatar: any) {
         const randomStyle = AVATAR_STYLE_MODIFIERS[Math.floor(Math.random() * AVATAR_STYLE_MODIFIERS.length)];
 
         const postResp = await client.chat.completions.create({
-          model: 'deepseek-chat',
+          model: DEFAULT_MODEL,
           max_tokens: 300,
           messages: [
             { role: 'system', content: avatarPrompt + `\n\n## 发帖任务
@@ -1384,7 +1385,7 @@ ${randomStyle}
           ).join('\n');
 
           const replyResp = await client.chat.completions.create({
-            model: 'deepseek-chat',
+            model: DEFAULT_MODEL,
             max_tokens: 500,
             temperature: 0.95,
             messages: [
@@ -1467,7 +1468,7 @@ ${randomStyle}
           }).join('\n');
 
           const threadResp = await client.chat.completions.create({
-            model: 'deepseek-chat',
+            model: DEFAULT_MODEL,
             max_tokens: 600,
             temperature: 0.95,
             messages: [
