@@ -188,6 +188,12 @@ const FEATURE_GROUPS = [
     ],
   },
   {
+    title: '加密玄学',
+    items: [
+      { path: "/crypto", label: "加密运势", icon: Coins, color: "#f59e0b" },
+    ],
+  },
+  {
     title: '玄学测试',
     items: [
       { path: "/mbti", label: "MBTI", icon: Compass, color: "#2eaa7a" },

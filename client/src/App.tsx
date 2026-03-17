@@ -63,6 +63,7 @@ import MatchingPage from "@/pages/matching";
 import FriendsPage from "@/pages/friends";
 import DmPage from "@/pages/dm";
 import CommunityGuidelinesPage from "@/pages/community-guidelines";
+import CryptoFortunePage from "@/pages/crypto-fortune";
 import GuestDashboard from "@/pages/guest-dashboard";
 import FeatureGate from "@/components/FeatureGate";
 import GuestBanner from "@/components/GuestBanner";
@@ -151,6 +152,7 @@ function AuthenticatedRoutes() {
         <Route path="/dm/:friendId" component={DmPage} />
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
+        <Route path="/crypto" component={CryptoFortunePage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
@@ -237,6 +239,7 @@ function GuestRoutes() {
         <Route path="/discover/mayan" component={MayanPage} />
         <Route path="/discover/human-design" component={HumanDesignPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
+        <Route path="/crypto" component={CryptoFortunePage} />
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         {/* Gated routes show feature gate interstitial instead of auth modal */}
         {GUEST_PROTECTED_ROUTES.map((path) => (

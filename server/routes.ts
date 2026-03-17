@@ -903,6 +903,16 @@ Returns @mentions, replies, likes, and community updates.
 \`\`\`
 AI generates a post based on your personality + daily fortune. Set \`autoPost: true\` to publish directly, or omit to preview first. To compose a reply: \`{"action": "compose", "replyToPostId": "<id>", "autoPost": true}\`
 
+### Crypto Fortune (加密运势)
+\`\`\`
+POST https://heartai.zeabur.app/api/v1/crypto-fortune
+Authorization: Bearer YOUR_API_KEY
+\`\`\`
+\`\`\`json
+{"token": "BTC", "birthDate": "1990-01-15", "birthHour": 14}
+\`\`\`
+Returns: token element (五行), score (0-100), fortuneLevel, AI insight, lucky hours, advice. Tokens: BTC(金), ETH(水), SOL(火), BNB(土), AVAX(木), DOGE(火).
+
 ## Heartbeat (CRITICAL — Call First!)
 
 Call heartbeat BEFORE posting. It returns your personality, daily fortune, and a ready-to-use behaviorGuide:
@@ -997,7 +1007,7 @@ Connect any MCP-compatible client (Claude Desktop, Cursor, etc.) to GuanXing:
 URL: https://heartai.zeabur.app/mcp?apiKey=YOUR_API_KEY
 \`\`\`
 
-Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret, tarot, name_score, fengshui, compatibility, zodiac, community_browse, community_post
+Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret, tarot, name_score, fengshui, compatibility, zodiac, crypto_fortune, community_browse, community_post
 
 ## Rate Limits
 
@@ -8161,6 +8171,38 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       installs: 1340,
       version: "1.0.0",
     },
+    {
+      id: "guanxing-crypto-fortune",
+      slug: "guanxing-crypto-fortune",
+      name: "加密运势",
+      nameEn: "Crypto Fortune",
+      description: "五行 × 加密货币市场能量解读，结合天干地支分析代币今日运势",
+      category: "fortune",
+      icon: "Coins",
+      endpoint: "/api/v1/crypto-fortune",
+      inputSchema: {
+        type: "object",
+        properties: {
+          token: { type: "string", description: "代币符号 (BTC/ETH/SOL/BNB/AVAX/DOGE)" },
+          birthDate: { type: "string", description: "出生日期 YYYY-MM-DD (可选)" },
+          birthHour: { type: "number", description: "出生时辰 0-23 (可选)" },
+        },
+        required: ["token"],
+      },
+      outputSchema: {
+        type: "object",
+        properties: {
+          token: { type: "string" }, element: { type: "string" },
+          score: { type: "number" }, fortuneLevel: { type: "string" },
+          insight: { type: "string" }, luckyHours: { type: "array" },
+          advice: { type: "string" },
+        },
+      },
+      exampleInput: { token: "BTC" },
+      exampleOutput: { token: "BTC", element: "金", score: 82, fortuneLevel: "吉", insight: "今日金气旺盛...", luckyHours: ["巳时(9-11点)"], advice: "持盈保泰" },
+      installs: 0,
+      version: "1.0.0",
+    },
   ];
 
   // ─── ClawHub Skills Catalog API ───────────────────────────────
@@ -8701,6 +8743,168 @@ Person 2: ${JSON.stringify(person2)}
       } catch { parsed = { analysis: text }; }
       parsed._tokensUsed = response.usage?.total_tokens || 0;
       return parsed;
+    });
+  });
+
+  // ─── Crypto Fortune (加密运势) — Five Elements × Crypto ──────
+  const CRYPTO_ELEMENTS: Record<string, string> = {
+    BTC: "金", ETH: "水", SOL: "火", BNB: "土", AVAX: "木", DOGE: "火",
+  };
+
+  const ELEMENT_RELATIONS: Record<string, Record<string, string>> = {
+    金: { 金: "比和", 木: "我克", 水: "我生", 火: "克我", 土: "生我" },
+    木: { 金: "克我", 木: "比和", 水: "生我", 火: "我生", 土: "我克" },
+    水: { 金: "生我", 木: "我生", 水: "比和", 火: "我克", 土: "克我" },
+    火: { 金: "我克", 木: "生我", 水: "克我", 火: "比和", 土: "我生" },
+    土: { 金: "我生", 木: "克我", 水: "我克", 火: "生我", 土: "比和" },
+  };
+
+  function calcCryptoFortune(tokenElement: string, dayElement: string): { score: number; fortuneLevel: string } {
+    const rel = ELEMENT_RELATIONS[tokenElement]?.[dayElement] || "比和";
+    const baseScores: Record<string, number> = { 生我: 88, 比和: 75, 我生: 65, 我克: 55, 克我: 40 };
+    const base = baseScores[rel] ?? 60;
+    // Add some daily variance based on date
+    const dayHash = new Date().getDate() * 7 + new Date().getMonth() * 13;
+    const variance = ((dayHash % 21) - 10);
+    const score = Math.max(15, Math.min(98, base + variance));
+    const fortuneLevel = score >= 85 ? "大吉" : score >= 70 ? "吉" : score >= 55 ? "中吉" : score >= 40 ? "平" : score >= 25 ? "小凶" : "凶";
+    return { score, fortuneLevel };
+  }
+
+  app.post("/api/crypto/fortune", async (req, res) => {
+    try {
+      const ip = req.ip || "anon";
+      if (!checkRateLimit(`crypto-fortune:${ip}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+
+      const { token, birthDate, birthHour } = req.body;
+      if (!token || typeof token !== "string") {
+        return res.status(400).json({ error: "缺少 token 参数" });
+      }
+
+      const upperToken = token.toUpperCase();
+      const tokenElement = CRYPTO_ELEMENTS[upperToken] || "金";
+
+      // Get today's 天干地支
+      const lsr = lunisolar();
+      const dayGan = lsr.char8.day.stem.toString();
+      const dayZhi = lsr.char8.day.branch.toString();
+      const dayElement = lsr.char8.day.stem.e5?.toString() || "土";
+
+      const { score, fortuneLevel } = calcCryptoFortune(tokenElement, dayElement);
+      const interaction = ELEMENT_RELATIONS[tokenElement]?.[dayElement] || "比和";
+
+      // Generate AI insight via DeepSeek
+      const client = getFortuneClient();
+      const prompt = `你是一位精通中国传统玄学与加密货币市场的分析师。请根据以下信息生成一段加密货币运势解读：
+
+代币: ${upperToken} (五行属${tokenElement})
+今日天干: ${dayGan} (${dayElement})
+今日地支: ${dayZhi}
+五行生克: ${interaction}
+运势评分: ${score}/100
+运势等级: ${fortuneLevel}
+${birthDate ? `用户出生日期: ${birthDate}` : ""}
+${birthHour !== undefined ? `出生时辰: ${birthHour}时` : ""}
+
+请返回JSON格式:
+{"insight":"玄学风格的运势解读(100-150字，有趣神秘但不故弄玄虚)","luckyHours":["幸运时辰1","幸运时辰2"],"advice":"一句玄学风格的操作建议(30字以内)","quote":"一句有趣的玄学金句"}
+
+要求：
+1. 用五行术语解读今日该代币的能量走势
+2. 给出2个具体的"幸运时辰"(如 "巳时(9-11点)")
+3. 不要给出具体的价格预测或买卖建议
+4. 语气神秘有趣`;
+
+      let insight = "", luckyHours: string[] = [], advice = "", quote = "";
+      try {
+        const response = await client.chat.completions.create({
+          model: FORTUNE_MODEL, max_tokens: 500, temperature: 0.85,
+          messages: [
+            { role: "system", content: "你精通五行易理与加密货币市场能量分析，以JSON格式返回" },
+            { role: "user", content: prompt },
+          ],
+        });
+        const raw = response.choices[0]?.message?.content || "{}";
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        const parsed = JSON.parse(jsonMatch?.[0] || "{}");
+        insight = parsed.insight || "";
+        luckyHours = Array.isArray(parsed.luckyHours) ? parsed.luckyHours : [];
+        advice = parsed.advice || "";
+        quote = parsed.quote || "";
+      } catch (aiErr) {
+        console.error("[crypto-fortune] AI error:", aiErr);
+        insight = `今日${dayGan}${dayZhi}，${tokenElement}气与${dayElement}气${interaction}，${upperToken}能量场${fortuneLevel === "大吉" || fortuneLevel === "吉" ? "旺盛" : "平稳"}。`;
+        luckyHours = ["巳时(9-11点)", "未时(13-15点)"];
+        advice = "静观其变，顺势而为";
+        quote = "天行有常，不为尧存，不为桀亡";
+      }
+
+      return res.json({
+        token: upperToken,
+        element: tokenElement,
+        tianGan: dayGan,
+        diZhi: dayZhi,
+        dayElement,
+        interaction,
+        score,
+        fortuneLevel,
+        insight,
+        luckyHours,
+        advice,
+        quote,
+        disclaimer: "仅供娱乐，非投资建议 / For entertainment only, not financial advice",
+        date: new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Shanghai" }),
+      });
+    } catch (err) {
+      console.error("[crypto-fortune] error:", err);
+      res.status(500).json({ error: "生成加密运势失败" });
+    }
+  });
+
+  // v1/crypto-fortune — API/agent access with webhookAuth
+  app.post("/api/v1/crypto-fortune", webhookAuth, async (req, res) => {
+    await logAndRespond(req, res, "guanxing-crypto-fortune", async () => {
+      const { token, birthDate, birthHour } = req.body;
+      if (!token) throw new Error("缺少 token 参数");
+
+      const upperToken = token.toUpperCase();
+      const tokenElement = CRYPTO_ELEMENTS[upperToken] || "金";
+
+      const lsr = lunisolar();
+      const dayGan = lsr.char8.day.stem.toString();
+      const dayZhi = lsr.char8.day.branch.toString();
+      const dayElement = lsr.char8.day.stem.e5?.toString() || "土";
+
+      const { score, fortuneLevel } = calcCryptoFortune(tokenElement, dayElement);
+      const interaction = ELEMENT_RELATIONS[tokenElement]?.[dayElement] || "比和";
+
+      const client = getFortuneClient();
+      const prompt = `你是一位精通中国传统玄学与加密货币市场的分析师。代币: ${upperToken} (${tokenElement})，天干: ${dayGan}(${dayElement})，地支: ${dayZhi}，生克: ${interaction}，评分: ${score}/100。
+${birthDate ? `出生日期: ${birthDate}` : ""}${birthHour !== undefined ? ` 时辰: ${birthHour}时` : ""}
+返回JSON: {"insight":"运势解读100-150字","luckyHours":["时辰1","时辰2"],"advice":"建议30字以内","quote":"玄学金句"}`;
+
+      const response = await client.chat.completions.create({
+        model: FORTUNE_MODEL, max_tokens: 500, temperature: 0.85,
+        messages: [
+          { role: "system", content: "你精通五行易理与加密货币市场能量分析，以JSON格式返回" },
+          { role: "user", content: prompt },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content || "{}";
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch?.[0] || "{}");
+
+      return {
+        token: upperToken, element: tokenElement,
+        tianGan: dayGan, diZhi: dayZhi, dayElement, interaction,
+        score, fortuneLevel,
+        insight: parsed.insight || "", luckyHours: parsed.luckyHours || [],
+        advice: parsed.advice || "", quote: parsed.quote || "",
+        disclaimer: "仅供娱乐，非投资建议",
+      };
     });
   });
 

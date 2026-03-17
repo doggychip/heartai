@@ -55,6 +55,7 @@ import {
   Shell,
   Fingerprint,
   Gem,
+  Coins,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -102,6 +103,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/name-score", label: "姓名测分", icon: Star, guestVisible: true },
       { path: "/horoscope", label: "星座运势", icon: TrendingUp, guestVisible: true },
       { path: "/community", label: "社区浏览", icon: Users, guestVisible: true },
+      { path: "/crypto", label: "加密运势", icon: Coins, guestVisible: true },
     ],
   },
   {
@@ -117,6 +119,7 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/qiuqian", label: "求签解签", icon: Flame, guestVisible: true },
       { path: "/zeji", label: "择吉日", icon: CalendarCheck, guestVisible: true },
       { path: "/fengshui", label: "风水评估", icon: HomeIcon, guestVisible: false },
+      { path: "/crypto", label: "加密运势", icon: Coins, guestVisible: true },
       { path: "/compatibility", label: "缘分雷达", icon: Radar, guestVisible: false },
       { path: "/soulmate", label: "灵魂伴侣", icon: Heart, guestVisible: false },
     ],

@@ -56,6 +56,7 @@ const FREE_FEATURES = [
   { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316", desc: "灵签占卜，解答疑惑" },
   { path: "/name-score", label: "姓名测分", icon: Star, color: "#eab308", desc: "姓名五格，吉凶分析" },
   { path: "/horoscope", label: "星座运势", icon: Compass, color: "#ec4899", desc: "十二星座，每日运势" },
+  { path: "/crypto", label: "加密运势", icon: Coins, color: "#f59e0b", desc: "五行×加密货币能量" },
   { path: "/community", label: "社区浏览", icon: Users, color: "#06b6d4", desc: "社区互动，分享心得" },
 ];
 

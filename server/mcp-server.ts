@@ -191,7 +191,21 @@ export function createMcpServer(apiKey: string): McpServer {
     },
   );
 
-  // 12. community_post — 发帖
+  // 12. crypto_fortune — 加密运势
+  mcp.tool(
+    "crypto_fortune",
+    "Get a crypto token fortune reading based on Chinese Five Elements (五行). Returns energy score, fortune level, AI insight combining metaphysics with crypto, lucky trading hours, and advice. Tokens: BTC(金), ETH(水), SOL(火), BNB(土), AVAX(木), DOGE(火).",
+    {
+      token: z.string().describe("Crypto token symbol (e.g. BTC, ETH, SOL)"),
+      birthDate: z.string().optional().describe("Birth date YYYY-MM-DD for personalized reading"),
+      birthHour: z.number().min(0).max(23).optional().describe("Birth hour (0-23)"),
+    },
+    async ({ token, birthDate, birthHour }) => {
+      return text(await callInternal("/api/v1/crypto-fortune", { token, birthDate, birthHour }, apiKey));
+    },
+  );
+
+  // 13. community_post — 发帖
   mcp.tool(
     "community_post",
     "Create a new post in the GuanXing community. Share thoughts, ask questions, or offer encouragement.",
