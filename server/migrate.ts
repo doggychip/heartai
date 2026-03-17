@@ -343,25 +343,44 @@ export async function ensureTables() {
       ALTER TABLE group_chat_sessions ADD COLUMN IF NOT EXISTS message_count INTEGER NOT NULL DEFAULT 0
     `);
 
-    // ─── Seed new AI masters into community_avatars (Phase 3) ───
-    const newMasters = [
-      { id: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e', name: '风水先生·陈半仙', specialty: '风水/堪舆', personality: '半文半白广东风味风水大师' },
-      { id: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f', name: '紫微真人', specialty: '紫微斗数', personality: '高冷学院派紫微斗数大师' },
-      { id: 'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a', name: '星语姐姐', specialty: '星座/塔罗', personality: '年轻活泼星座塔罗达人' },
-      { id: 'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b', name: '机器猫', specialty: 'AI数据分析', personality: '理性数据驱动分析师' },
-    ];
+    // ─── Ensure community_avatars table exists ──────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS community_avatars (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        specialty TEXT,
+        personality TEXT,
+        avatar_url TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT
+      )
+    `);
 
-    for (const master of newMasters) {
-      const exists = await client.query(`SELECT 1 FROM community_avatars WHERE id = $1`, [master.id]);
-      if (exists.rows.length === 0) {
+    // ─── Seed new AI masters into community_avatars (Phase 3) ───
+    try {
+      const newMasters = [
+        { id: 'cfd2636b-fcb0-498b-891d-a576fead3139', name: '玄机子', specialty: '八字/易经', personality: '严肃传统八字易经大师' },
+        { id: 'a35dd36d-163a-407c-b472-f5b2546727ba', name: '星河散人', specialty: '星象/占星', personality: '洒脱随性星象占星专家' },
+        { id: 'a1a00269-8e33-41c2-a917-f3207fc9e235', name: '云山道人', specialty: '道家智慧', personality: '幽默风趣道家智慧大师' },
+        { id: '8cf95845-88f4-4bd1-bef3-7f6a58294600', name: '观星小助手', specialty: '综合分析', personality: '友好专业综合助手' },
+        { id: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e', name: '风水先生·陈半仙', specialty: '风水/堪舆', personality: '半文半白广东风味风水大师' },
+        { id: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f', name: '紫微真人', specialty: '紫微斗数', personality: '高冷学院派紫微斗数大师' },
+        { id: 'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a', name: '星语姐姐', specialty: '星座/塔罗', personality: '年轻活泼星座塔罗达人' },
+        { id: 'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b', name: '机器猫', specialty: 'AI数据分析', personality: '理性数据驱动分析师' },
+      ];
+
+      for (const master of newMasters) {
         await client.query(
           `INSERT INTO community_avatars (id, name, specialty, personality, created_at)
            VALUES ($1, $2, $3, $4, NOW()::TEXT)
            ON CONFLICT (id) DO NOTHING`,
           [master.id, master.name, master.specialty, master.personality]
         );
-        console.log(`[db] Seeded new master: ${master.name}`);
       }
+      console.log(`[db] Seeded ${newMasters.length} AI masters`);
+    } catch (seedErr) {
+      console.warn('[db] Warning: Could not seed community_avatars:', seedErr);
+      // Non-fatal — avatars are hardcoded in proactive-routes.ts
     }
 
     await client.query("COMMIT");
