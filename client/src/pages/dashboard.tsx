@@ -176,23 +176,43 @@ function HotPostsTicker({ posts }: { posts: { id: string; content: string; tag: 
   );
 }
 
-// Feature grid icons — 2 rows of 5 (like 测测 app)
-const FEATURE_GRID = [
-  { path: "/bazi", label: "八字命理", icon: Calendar, color: "#b8863e" },
-  { path: "/zodiac", label: "星座解读", icon: Star, color: "#d4467a" },
-  { path: "/mbti", label: "MBTI", icon: Compass, color: "#2eaa7a" },
-  { path: "/fortune", label: "今日运势", icon: Gauge, color: "#e8922e" },
-  { path: "/compatibility", label: "缘分雷达", icon: Radar, color: "#ec4899" },
-  { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
-  { path: "/soulmate", label: "正缘画像", icon: Heart, color: "#f43f5e" },
-  { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
-  { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
-  { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
-  { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
-  { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
-  { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
-  { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, color: "#d97706" },
-  { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
+// Feature grid icons — grouped by category
+const FEATURE_GROUPS = [
+  {
+    title: '命理探索',
+    items: [
+      { path: "/bazi", label: "八字命理", icon: Calendar, color: "#b8863e" },
+      { path: "/fortune", label: "今日运势", icon: Gauge, color: "#e8922e" },
+      { path: "/zodiac", label: "星座解读", icon: Star, color: "#d4467a" },
+      { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, color: "#d97706" },
+    ],
+  },
+  {
+    title: '玄学测试',
+    items: [
+      { path: "/mbti", label: "MBTI", icon: Compass, color: "#2eaa7a" },
+      { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
+      { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
+      { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
+      { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
+    ],
+  },
+  {
+    title: '缘分互动',
+    items: [
+      { path: "/compatibility", label: "缘分雷达", icon: Radar, color: "#ec4899" },
+      { path: "/soulmate", label: "正缘画像", icon: Heart, color: "#f43f5e" },
+      { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
+      { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
+    ],
+  },
+  {
+    title: '社区生活',
+    items: [
+      { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
+      { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
+    ],
+  },
 ];
 
 // ─── Live clock hook (updates every minute) ─────────────────
@@ -499,38 +519,51 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* ─── Feature Icon Grid (3 rows × 5) ──────── */}
-        <div className="grid grid-cols-5 gap-y-3" data-testid="feature-grid">
-          {FEATURE_GRID.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.path} href={item.path}>
-                <div className="flex flex-col items-center gap-1.5 cursor-pointer group" data-testid={`feature-${item.path.replace("/", "")}`}>
+        {/* ─── Feature Icon Grid (grouped by category) ── */}
+        <div className="space-y-4" data-testid="feature-grid">
+          {FEATURE_GROUPS.map((group) => (
+            <div key={group.title} className="space-y-2">
+              <h3 className="text-[11px] font-medium text-muted-foreground/70 tracking-wider uppercase pl-1">
+                {group.title}
+              </h3>
+              <div className="grid grid-cols-5 gap-y-3" data-testid={`feature-group-${group.title}`}>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link key={item.path} href={item.path}>
+                      <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
+                        <div
+                          className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+                          style={{ background: `linear-gradient(135deg, ${item.color}cc, ${item.color})` }}
+                        >
+                          <Icon className="w-5 h-5 text-white" strokeWidth={1.8} />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
+                          {item.label}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+                {group.title === '社区生活' && (
                   <div
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
-                    style={{ background: `linear-gradient(135deg, ${item.color}cc, ${item.color})` }}
+                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
+                    onClick={openDiscover}
                   >
-                    <Icon className="w-5 h-5 text-white" strokeWidth={1.8} />
+                    <div
+                      className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+                      style={{ background: "linear-gradient(135deg, #6b7280cc, #6b7280)" }}
+                    >
+                      <Grid3X3 className="w-5 h-5 text-white" strokeWidth={1.8} />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
+                      发现更多
+                    </span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">{item.label}</span>
-                </div>
-              </Link>
-            );
-          })}
-          {/* Discover more button */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group"
-            data-testid="feature-discover-more"
-            onClick={openDiscover}
-          >
-            <div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
-              style={{ background: "linear-gradient(135deg, #6b7280cc, #6b7280)" }}
-            >
-              <Grid3X3 className="w-5 h-5 text-white" strokeWidth={1.8} />
+                )}
+              </div>
             </div>
-            <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">发现更多</span>
-          </div>
+          ))}
         </div>
 
         {/* ─── More Features Row ───────────────────── */}
