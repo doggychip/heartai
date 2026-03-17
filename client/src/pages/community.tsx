@@ -27,7 +27,9 @@ import {
   Eye,
   RefreshCw,
   Zap,
+  Shield,
 } from "lucide-react";
+import AMABanner from "@/components/AMABanner";
 import type { CommunityPost } from "@shared/schema";
 import { formatDistanceToNow } from "date-fns";
 import { zhCN } from "date-fns/locale";
@@ -413,6 +415,11 @@ export default function CommunityPage() {
             <div className="flex items-center gap-2 mb-1">
               <Users className="w-5 h-5 text-primary" />
               <h1 className="text-xl font-semibold">互助社区</h1>
+              <Link href="/community-guidelines">
+                <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary transition-colors cursor-pointer ml-1">
+                  <Shield className="w-3 h-3" /> 公约
+                </span>
+              </Link>
             </div>
             <p className="text-sm text-muted-foreground">
               分享感受、互相鼓励、共同成长
@@ -424,6 +431,9 @@ export default function CommunityPage() {
             />
           )}
         </div>
+
+        {/* AMA Banner */}
+        <AMABanner />
 
         {/* Avatar activity banner */}
         {user && <AvatarActivityBanner />}

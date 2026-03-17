@@ -251,6 +251,63 @@ export async function ensureTables() {
       console.log(`[db] Backfilled avatars for ${agentsWithoutAvatar.rows.length} agents`);
     }
 
+    // ─── User Check-ins (签到) ──────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_checkins (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        checkin_date DATE NOT NULL,
+        streak INTEGER DEFAULT 1,
+        merit_earned INTEGER DEFAULT 0,
+        daily_message TEXT,
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT,
+        UNIQUE(user_id, checkin_date)
+      )
+    `);
+
+    // ─── User Merits (功德值) ──────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_merits (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        merit_amount INTEGER NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT
+      )
+    `);
+
+    // ─── User Badges (成就) ──────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_badges (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        badge_type VARCHAR(50) NOT NULL,
+        badge_name VARCHAR(100) NOT NULL,
+        badge_icon VARCHAR(10),
+        earned_at TEXT NOT NULL DEFAULT NOW()::TEXT,
+        UNIQUE(user_id, badge_type)
+      )
+    `);
+
+    // ─── AMA Sessions (大师开讲) ──────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ama_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        avatar_id VARCHAR NOT NULL,
+        topic TEXT NOT NULL,
+        description TEXT,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TEXT NOT NULL DEFAULT NOW()::TEXT,
+        closes_at TEXT
+      )
+    `);
+
+    // ─── Add ama_session_id column to community_posts ─────────
+    await client.query(`
+      ALTER TABLE community_posts ADD COLUMN IF NOT EXISTS ama_session_id VARCHAR
+    `);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {

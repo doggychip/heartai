@@ -11,6 +11,7 @@ import { analyzeEmotion, toLegacyEmotion } from "./emotion";
 import { registerAvatarRoutes, generateAvatarTags } from "./avatar-routes";
 import { registerMetaphysicsRoutes } from "./metaphysics-routes";
 import { registerProactiveRoutes } from "./proactive-routes";
+import { registerPhase2Routes, awardMerit } from "./phase2-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
 import { scoreAssessment } from "./scoring";
@@ -3409,6 +3410,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         moderation: modResult && modResult.action !== "allow" ? { action: modResult.action, explanation: modResult.explanation } : undefined,
       });
 
+      // Award merit for creating a post (fire-and-forget)
+      awardMerit(userId, 'post', 5, '发布社区帖子').catch(() => {});
+
       // HeartAI Bot auto-replies to new posts
       scheduleBotReply(post.id, parsed.data.content);
 
@@ -3471,6 +3475,8 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       await storage.createPostLike(postId, userId);
       await storage.incrementPostLikeCount(postId, 1);
       res.json({ liked: true });
+      // Award merit for liking (fire-and-forget)
+      awardMerit(userId, 'like', 1, '点赞帖子').catch(() => {});
       // Emit notification to post author
       try {
         const post = await storage.getPost(postId);
@@ -3544,6 +3550,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         ...comment,
         authorNickname: comment.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
       });
+
+      // Award merit for commenting (fire-and-forget)
+      awardMerit(getUserId(req), 'comment', 2, '发表评论').catch(() => {});
 
       // Notify post author about new comment
       const targetPost = await storage.getPost(req.params.id);
@@ -5083,6 +5092,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   // ─── Proactive AI + Group Chat Routes ──────────────────────
   registerProactiveRoutes(app, requireAuth);
+
+  // ─── Phase 2: Gamification, Matching, Governance ────────────
+  registerPhase2Routes(app, requireAuth);
 
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.

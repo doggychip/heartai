@@ -58,6 +58,9 @@ import MayanPage from "@/pages/mayan";
 import HumanDesignPage from "@/pages/human-design";
 import ZhengyuPage from "@/pages/zhengyu";
 import GroupChatPage from "@/pages/group-chat";
+import LeaderboardPage from "@/pages/leaderboard";
+import MatchingPage from "@/pages/matching";
+import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedRoutes() {
@@ -119,6 +122,9 @@ function AuthenticatedRoutes() {
         <Route path="/discover/mayan" component={MayanPage} />
         <Route path="/discover/human-design" component={HumanDesignPage} />
         <Route path="/group-chat" component={GroupChatPage} />
+        <Route path="/leaderboard" component={LeaderboardPage} />
+        <Route path="/matching" component={MatchingPage} />
+        <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
         <Route component={NotFound} />
       </Switch>
@@ -134,7 +140,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/settings", "/notifications", "/profile", "/agent-team",
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
-  "/group-chat",
+  "/group-chat", "/leaderboard", "/matching",
 ];
 
 function GuestAuthModal() {
@@ -200,6 +206,7 @@ function GuestRoutes() {
         <Route path="/discover/mayan" component={MayanPage} />
         <Route path="/discover/human-design" component={HumanDesignPage} />
         <Route path="/discover/zhengyu" component={ZhengyuPage} />
+        <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
         {/* Protected routes show auth modal instead of silent redirect */}
         {GUEST_PROTECTED_ROUTES.map((path) => (
           <Route key={path} path={path} component={GuestProtectedRedirect} />

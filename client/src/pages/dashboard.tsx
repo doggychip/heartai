@@ -10,6 +10,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
 import { ShareFortuneButton } from "@/pages/share-card";
 import ProactiveMessageCard from "@/components/ProactiveMessageCard";
+import CheckinButton from "@/components/CheckinButton";
 import {
   Sparkles,
   Heart,
@@ -191,6 +192,7 @@ const FEATURE_GRID = [
   { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
   { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
   { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, color: "#d97706" },
+  { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
 ];
 
 // ─── Live clock hook (updates every minute) ─────────────────
@@ -359,6 +361,9 @@ export default function DashboardPage() {
 
         {/* ─── Proactive Message Card ──────────────── */}
         {!isGuest && <ProactiveMessageCard />}
+
+        {/* ─── Daily Check-in ─────────────────────── */}
+        {!isGuest && <CheckinButton />}
 
         {/* ─── AI Avatar Quick Card ──────────────── */}
         {dashboard?.avatar && (
