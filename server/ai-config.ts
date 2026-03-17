@@ -1,23 +1,20 @@
 /**
  * HeartAI Centralized AI Client Configuration
- * 
- * Routes all AI calls through Zeabur AI Hub (OpenAI-compatible gateway).
- * Default model: gemini-2.5-flash via Zeabur AI Hub
- * Fortune analysis: deepseek-chat via DeepSeek direct API (Chinese cultural content strength)
- * 
+ *
+ * All features use DeepSeek (deepseek-chat) via DeepSeek direct API.
+ * Two clients are kept so we can split models again later if needed.
+ *
  * Environment variables:
- *   ZEABUR_AI_KEY     — Zeabur AI Hub API key (for Gemini + all non-fortune features)
- *   DEEPSEEK_API_KEY  — DeepSeek direct API key (kept for fortune analysis only)
+ *   DEEPSEEK_API_KEY  — DeepSeek API key (used for all AI features)
  */
 
 import OpenAI from "openai";
 
 // ─── Configuration ───────────────────────────────────────────
 
-const ZEABUR_BASE_URL = "https://hnd1.aihub.zeabur.ai/v1";  // Tokyo endpoint (closest to HK)
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
-export const DEFAULT_MODEL = "gemini-2.5-flash";
+export const DEFAULT_MODEL = "deepseek-chat";
 export const FORTUNE_MODEL = "deepseek-chat";
 
 // ─── Cached Clients ─────────────────────────────────────────
@@ -26,14 +23,14 @@ let _defaultClient: OpenAI | null = null;
 let _fortuneClient: OpenAI | null = null;
 
 /**
- * Default AI client — Zeabur AI Hub (Gemini 2.5 Flash)
+ * Default AI client — DeepSeek (deepseek-chat)
  * Used for: chat, emotion, moderation, recommendations, memory, avatars, metaphysics, etc.
  */
 export function getAIClient(): OpenAI {
   if (!_defaultClient) {
     _defaultClient = new OpenAI({
-      baseURL: ZEABUR_BASE_URL,
-      apiKey: process.env.ZEABUR_AI_KEY || process.env.DEEPSEEK_API_KEY,
+      baseURL: DEEPSEEK_BASE_URL,
+      apiKey: process.env.DEEPSEEK_API_KEY,
     });
   }
   return _defaultClient;
