@@ -45,6 +45,16 @@ import {
   Network,
   Code,
   Package,
+  Hexagon,
+  CircleDot,
+  Hash,
+  TreePine,
+  Orbit,
+  Activity,
+  PenTool,
+  Shell,
+  Fingerprint,
+  Gem,
 } from "lucide-react";
 import { PerplexityAttribution } from "@/components/PerplexityAttribution";
 
@@ -96,6 +106,22 @@ const NAV_GROUPS: NavGroup[] = [
       { path: "/fengshui", label: "风水评估", icon: HomeIcon, guestVisible: false },
       { path: "/compatibility", label: "缘分雷达", icon: Radar, guestVisible: false },
       { path: "/soulmate", label: "灵魂伴侣", icon: Heart, guestVisible: false },
+    ],
+  },
+  {
+    label: "玄学测试",
+    defaultOpen: false,
+    items: [
+      { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, guestVisible: true },
+      { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, guestVisible: true },
+      { path: "/discover/zodiac", label: "生肖详解", icon: Shell, guestVisible: true },
+      { path: "/discover/numerology", label: "灵数分析", icon: Hash, guestVisible: true },
+      { path: "/discover/ziwei", label: "紫微斗数", icon: Gem, guestVisible: true },
+      { path: "/discover/chakra", label: "脉轮测试", icon: Activity, guestVisible: true },
+      { path: "/discover/htp", label: "房树人", icon: TreePine, guestVisible: true },
+      { path: "/discover/mayan", label: "玛雅历", icon: Orbit, guestVisible: true },
+      { path: "/discover/human-design", label: "人类图", icon: Fingerprint, guestVisible: true },
+      { path: "/discover/zhengyu", label: "政余", icon: PenTool, guestVisible: true },
     ],
   },
   {

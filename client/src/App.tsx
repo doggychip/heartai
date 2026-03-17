@@ -189,6 +189,17 @@ function GuestRoutes() {
         <Route path="/zeji" component={ZejiPage} />
         <Route path="/dream" component={DreamPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
+        <Route path="/discover" component={DiscoverPage} />
+        <Route path="/discover/enneagram" component={EnneagramPage} />
+        <Route path="/discover/star-mansion" component={StarMansionPage} />
+        <Route path="/discover/zodiac" component={ZodiacDetailPage} />
+        <Route path="/discover/numerology" component={NumerologyPage} />
+        <Route path="/discover/ziwei" component={ZiweiPage} />
+        <Route path="/discover/chakra" component={ChakraPage} />
+        <Route path="/discover/htp" component={HtpPage} />
+        <Route path="/discover/mayan" component={MayanPage} />
+        <Route path="/discover/human-design" component={HumanDesignPage} />
+        <Route path="/discover/zhengyu" component={ZhengyuPage} />
         {/* Protected routes show auth modal instead of silent redirect */}
         {GUEST_PROTECTED_ROUTES.map((path) => (
           <Route key={path} path={path} component={GuestProtectedRedirect} />
