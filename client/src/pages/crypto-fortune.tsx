@@ -41,7 +41,7 @@ const TOKENS = [
   { symbol: "ETH", name: "Ethereum", element: "水", emoji: "Ξ", color: "#627eea" },
   { symbol: "SOL", name: "Solana", element: "火", emoji: "◎", color: "#9945ff" },
   { symbol: "BNB", name: "BNB", element: "土", emoji: "◆", color: "#f3ba2f" },
-  { symbol: "AVAX", name: "Avalanche", element: "木", emoji: "▲", color: "#e84142" },
+  { symbol: "TON", name: "Toncoin", element: "木", emoji: "◇", color: "#0098ea" },
   { symbol: "DOGE", name: "Dogecoin", element: "火", emoji: "Ð", color: "#c3a634" },
 ];
 

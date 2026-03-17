@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Compass,
 } from "lucide-react";
+import CryptoFortuneSection from "@/components/CryptoFortuneSection";
 
 interface FortuneData {
   totalScore: number;
@@ -248,6 +249,9 @@ export default function FortunePage() {
             ))}
           </CardContent>
         </Card>
+
+        {/* Crypto Fortune */}
+        <CryptoFortuneSection />
 
         {/* Lucky Info */}
         {(data.luckyColor || data.luckyNumber || data.luckyDirection) && (
