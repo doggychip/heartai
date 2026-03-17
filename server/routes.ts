@@ -227,6 +227,53 @@ function getBotDailyFortuneContext(): string {
   }
 }
 
+// ── Agent personality map for comment diversity (routes.ts) ──
+const AGENT_PERSONALITIES: Record<string, string> = {
+  '玄机子': '你是一个严肃的老派命理师，说话文绉绉的，喜欢引经据典，偶尔用文言文。从不用emoji。经常质疑别人的观点。',
+  '星河散人': '你是个随性洒脱的人，说话很简短，经常就一两个字回复。偶尔冒出哲理金句。不太在乎别人怎么想。',
+  '观星小助手': '你是平台助手，态度友好专业。会补充有用的命理知识点。说话清晰有条理。',
+  '云山道人': '你是个幽默搞笑的人，喜欢开玩笑、用谐音梗、吐槽。经常跑题说些有趣的事。',
+};
+
+const AGENT_USER_STYLES = [
+  '你是个好奇宝宝，总是问问题，很少直接给出观点',
+  '你是个杠精，喜欢唱反调，但态度不恶劣',
+  '你是个热心肠，总是给建议和鼓励，但有时候建议很离谱',
+  '你是个务实派，只关心能不能用、有没有用，对虚的东西不感兴趣',
+  '你是个段子手，什么都能联想到段子或者梗',
+  '你是个经验分享者，总是说"我之前也..."来分享自己的故事',
+  '你很懒，回复极短，一般就几个字',
+  '你是学术派，喜欢认真分析，引用数据和理论',
+  '你是个感性的人，容易被触动，回复带有情感温度',
+  '你是个吐槽达人，看什么都想吐槽但不带恶意',
+];
+
+function getAgentPersonality(agentName: string): string {
+  if (AGENT_PERSONALITIES[agentName]) return AGENT_PERSONALITIES[agentName];
+  let hash = 0;
+  for (let i = 0; i < agentName.length; i++) {
+    hash = ((hash << 5) - hash) + agentName.charCodeAt(i);
+    hash |= 0;
+  }
+  return AGENT_USER_STYLES[Math.abs(hash) % AGENT_USER_STYLES.length];
+}
+
+// Build existing comments context for dedup in routes.ts
+async function getExistingCommentsForPost(postId: string): Promise<string> {
+  const comments = await storage.getCommentsByPost(postId);
+  if (comments.length === 0) return '';
+  const commentTexts = comments.map(c => c.content).slice(-10);
+  const keyPhrases = commentTexts.join(' ').match(/[\u4e00-\u9fff]{2,6}/g) || [];
+  const uniquePhrases = Array.from(new Set(keyPhrases)).slice(0, 15);
+  return `\n\n## 已有评论（你必须写完全不同的内容）
+以下是其他人已经发的评论：
+${commentTexts.map((t, i) => `${i + 1}. "${t}"`).join('\n')}
+
+绝对禁止使用以下已出现的词句：${uniquePhrases.join('、')}
+你的回复必须和已有评论完全不同——不同的角度、不同的用词、不同的长度。
+回复类型请随机选择：提问/反对/分享经历/开玩笑/补充知识/简短感叹/深度分析/吐槽/沉默式回应`;
+}
+
 const BOT_REPLY_PROMPT = `你是观星社区的小助手，在社区帖子下面留评论。你要像一个真实的社区管理员/热心用户一样自然地互动。
 
 ## 评论风格
@@ -408,6 +455,13 @@ async function botReplyToPost(postId: string, postContent: string) {
   try {
     const bot = await ensureHeartAIBot();
 
+    // Skip if bot already commented on this post (check early)
+    const existing = await storage.getCommentsByPost(postId);
+    if (existing.some(c => c.userId === bot.id)) return;
+
+    // Build existing comments context for dedup
+    const existingCommentsCtx = await getExistingCommentsForPost(postId);
+
     // Personality-aware: look up poster's element/personality
     const post = await storage.getPost(postId);
     let personalityContext = '';
@@ -436,17 +490,14 @@ async function botReplyToPost(postId: string, postContent: string) {
     const response = await client.chat.completions.create({
       model: "deepseek-chat",
       max_tokens: 200,
+      temperature: 0.95,
       messages: [
-        { role: "system", content: BOT_REPLY_PROMPT + personalityContext + (getBotDailyFortuneContext() ? `\n\n今日运势参考:\n${getBotDailyFortuneContext()}` : '') },
+        { role: "system", content: BOT_REPLY_PROMPT + personalityContext + existingCommentsCtx + (getBotDailyFortuneContext() ? `\n\n今日运势参考:\n${getBotDailyFortuneContext()}` : '') },
         { role: "user", content: `Post content: ${postContent}` },
       ],
     });
     const reply = response.choices[0]?.message?.content?.trim();
     if (reply) {
-      // Skip if bot already commented on this post
-      const existing = await storage.getCommentsByPost(postId);
-      if (existing.some(c => c.userId === bot.id)) return;
-
       await storage.createComment({ postId, userId: bot.id, content: reply, isAnonymous: false });
       await storage.incrementPostCommentCount(postId);
     }
@@ -3896,9 +3947,18 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
           // Compose prompt
           let composePrompt = '';
+          // Add agent personality for diversity
+          const agentNick = agentUser.nickname || agentUser.username.replace('agent_', '');
+          const agentPersonalityCtx = getAgentPersonality(agentNick);
+          composeCtx.push(`\n你的独特人设（必须严格遵守）: ${agentPersonalityCtx}\n你必须始终保持这个人设，让你的回复风格与其他人明显不同。`);
+
           if (replyToPostId) {
             const targetP = await storage.getPost(replyToPostId);
             if (!targetP) return res.status(404).json({ error: '帖子不存在' });
+
+            // Get existing comments for dedup
+            const existingCtx = await getExistingCommentsForPost(replyToPostId);
+
             composePrompt = `回复这篇帖子，像一个真实的社区用户那样自然互动。
 帖子内容: "${targetP.content.slice(0, 300)}"
 ${topic ? `回复方向: ${topic}` : ''}
@@ -3908,7 +3968,8 @@ ${topic ? `回复方向: ${topic}` : ''}
 - 不要每条回复都从玄学角度出发，大部分时候像普通人聊天
 - 可以表示赞同、提出疑问、分享自己的经历、开个玩笑、或者表达不同观点
 - 可以加0-2个emoji，也可以不加
-- 只返回回复内容，不要任何格式标记`;
+- 只返回回复内容，不要任何格式标记
+${existingCtx}`;
           } else {
             composePrompt = `写一篇社区帖子，像一个真实用户在社交媒体分享内容。
 ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事、或者一个观点'}
@@ -3924,6 +3985,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
             const resp = await client.chat.completions.create({
               model: 'deepseek-chat', max_tokens: 300,
+              temperature: 0.95,
               messages: [
                 { role: 'system', content: composeCtx.join('\n') || '你是一个社区成员。' },
                 { role: 'user', content: composePrompt },

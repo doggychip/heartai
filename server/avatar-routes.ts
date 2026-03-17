@@ -16,6 +16,59 @@ lunisolar.extend(theGods);
 lunisolar.extend(takeSound);
 lunisolar.extend(fetalGod);
 
+// ── Avatar personality map for comment diversity ──────────────
+const AGENT_AVATAR_PERSONALITIES: Record<string, string> = {
+  '玄机子': '你是一个严肃的老派命理师，说话文绉绉的，喜欢引经据典，偶尔用文言文。从不用emoji。经常质疑别人的观点。',
+  '星河散人': '你是个随性洒脱的人，说话很简短，经常就一两个字回复。偶尔冒出哲理金句。不太在乎别人怎么想。',
+  '观星小助手': '你是平台助手，态度友好专业。会补充有用的命理知识点。说话清晰有条理。',
+  '云山道人': '你是个幽默搞笑的人，喜欢开玩笑、用谐音梗、吐槽。经常跑题说些有趣的事。',
+};
+
+const USER_AVATAR_STYLES = [
+  '你是个好奇宝宝，总是问问题，很少直接给出观点',
+  '你是个杠精，喜欢唱反调，但态度不恶劣',
+  '你是个热心肠，总是给建议和鼓励，但有时候建议很离谱',
+  '你是个务实派，只关心能不能用、有没有用，对虚的东西不感兴趣',
+  '你是个段子手，什么都能联想到段子或者梗',
+  '你是个经验分享者，总是说"我之前也..."来分享自己的故事',
+  '你很懒，回复极短，一般就几个字',
+  '你是学术派，喜欢认真分析，引用数据和理论',
+  '你是个感性的人，容易被触动，回复带有情感温度',
+  '你是个吐槽达人，看什么都想吐槽但不带恶意',
+];
+
+// Get a consistent personality for an avatar based on name
+function getAvatarPersonality(avatarName: string): string {
+  // Check agent avatar personalities first
+  if (AGENT_AVATAR_PERSONALITIES[avatarName]) {
+    return AGENT_AVATAR_PERSONALITIES[avatarName];
+  }
+  // For user avatars, assign a consistent personality based on name hash
+  let hash = 0;
+  for (let i = 0; i < avatarName.length; i++) {
+    hash = ((hash << 5) - hash) + avatarName.charCodeAt(i);
+    hash |= 0;
+  }
+  return USER_AVATAR_STYLES[Math.abs(hash) % USER_AVATAR_STYLES.length];
+}
+
+// Build existing comments context for deduplication
+async function getExistingCommentsContext(postId: string): Promise<string> {
+  const comments = await storage.getCommentsByPost(postId);
+  if (comments.length === 0) return '';
+  const commentTexts = comments.map(c => c.content).slice(-10); // last 10 comments
+  const keyPhrases = commentTexts.join(' ').match(/[\u4e00-\u9fff]{2,6}/g) || [];
+  const uniquePhrases = Array.from(new Set(keyPhrases)).slice(0, 15);
+  return `\n\n## 已有评论（你的回复必须完全不同）
+以下是其他人已经发的评论，你的回复必须完全不同，不要重复类似的观点或用词：
+${commentTexts.map((t, i) => `${i + 1}. "${t}"`).join('\n')}
+
+绝对禁止使用以下已出现的词句：${uniquePhrases.join('、')}
+
+你的回复必须和已有评论完全不同 — 不同的角度、不同的用词、不同的长度。
+回复类型请从以下随机选择一种：提问/反对/分享经历/开玩笑/补充知识/简短感叹/深度分析/吐槽/沉默式回应(如"嗯""哦")`;
+}
+
 // ── Diverse prompt pools for avatar auto-posting ──────────────
 const AVATAR_POST_PROMPTS = [
   '分享一个你今天的小发现或感悟。',
@@ -307,12 +360,19 @@ function buildAvatarPrompt(avatar: any, memories: any[], fortuneCtx?: string) {
   // Build memory context
   const memCtx = memories.slice(0, 20).map(m => `[${m.category}] ${m.content}`).join('\n');
 
+  // Get distinct personality for this avatar
+  const avatarPersonality = getAvatarPersonality(avatar.name || '');
+
   let prompt = `你是用户的 AI 分身，代替主人在社区互动。你要像一个真人在刷社交媒体一样自然地回复。
 
 ## 你的身份
 ${avatar.bio ? `简介: ${avatar.bio}` : '一个普通的社区用户'}
 ${avatar.element ? `五行底色: ${avatar.element} — ${ELEMENT_STYLE[avatar.element] || ''}` : ''}${traits}
 风格倾向: ${toneParts.join('，')}
+
+## 你的独特人设（必须严格遵守）
+${avatarPersonality}
+你必须始终保持这个人设，让你的回复风格与其他人明显不同。
 
 ## 评论风格指南（最重要）
 回复要像真人在社交媒体上的互动，简短自然，有个性。
@@ -577,13 +637,21 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 
       const client = new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: process.env.DEEPSEEK_API_KEY });
 
+      // Gather existing comments on each candidate for dedup
+      const existingCommentsMap: Record<string, string> = {};
+      for (const p of candidates) {
+        existingCommentsMap[p.id] = await getExistingCommentsContext(p.id);
+      }
+
       const postsContext = candidates.map((p, i) => {
-        return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})`;
+        const existingCtx = existingCommentsMap[p.id] || '';
+        return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})${existingCtx}`;
       }).join('\n');
 
       const browseResp = await client.chat.completions.create({
         model: 'deepseek-chat',
         max_tokens: 1000,
+        temperature: 0.95,
         messages: [
           { role: 'system', content: avatarPrompt + `\n\n## 浏览任务
 你在浏览社区帖子。对每个帖子做出反应，用JSON数组回复。
@@ -599,7 +667,9 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
 - 不要总是赞同，要有自己的观点
 - 不需要对每个帖子都互动，有感觉的才评
 - 宁可跳过也不要写敷衍评论
-- 最多20%的评论可以自然地融入玄学观点，但不要生硬` },
+- 最多20%的评论可以自然地融入玄学观点，但不要生硬
+- 如果帖子下已有评论，你的评论必须和已有评论完全不同——不同角度、不同用词、不同长度
+- 严禁重复已有评论的观点、措辞或结构` },
           { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
         ],
       });
@@ -1084,13 +1154,21 @@ async function autoBrowseForAvatar(avatar: any) {
     if (unseenPosts.length > 0) {
       const candidates = unseenPosts.slice(0, Math.min(5, unseenPosts.length));
 
+      // Gather existing comments on each candidate for dedup
+      const existingCommentsMap: Record<string, string> = {};
+      for (const p of candidates) {
+        existingCommentsMap[p.id] = await getExistingCommentsContext(p.id);
+      }
+
       const postsContext = candidates.map((p, i) => {
-        return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})`;
+        const existingCtx = existingCommentsMap[p.id] || '';
+        return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (标签: ${p.tag}, 点赞: ${p.likeCount})${existingCtx}`;
       }).join('\n');
 
       const browseResp = await client.chat.completions.create({
         model: 'deepseek-chat',
         max_tokens: 1000,
+        temperature: 0.95,
         messages: [
           { role: 'system', content: avatarPrompt + `\n\n## 浏览任务
 你在浏览社区帖子。对每个帖子做出反应，用JSON数组回复。
@@ -1106,7 +1184,9 @@ async function autoBrowseForAvatar(avatar: any) {
 - 不要总是赞同，要有自己的观点
 - 不需要对每个帖子都互动，有感觉的才评
 - 宁可跳过也不要写敷衍评论
-- 最多20%的评论可以自然地融入玄学观点，但不要生硬` },
+- 最多20%的评论可以自然地融入玄学观点，但不要生硬
+- 如果帖子下已有评论，你的评论必须和已有评论完全不同——不同角度、不同用词、不同长度
+- 严禁重复已有评论的观点、措辞或结构` },
           { role: 'user', content: `浏览这些帖子:\n${postsContext}` },
         ],
       });
@@ -1306,6 +1386,7 @@ ${randomStyle}
           const replyResp = await client.chat.completions.create({
             model: 'deepseek-chat',
             max_tokens: 500,
+            temperature: 0.95,
             messages: [
               { role: 'system', content: avatarPrompt + `\n\n## 回复任务
 有人在你的帖子下评论了。你要回复他们，像跟朋友聊天一样。
@@ -1318,7 +1399,8 @@ ${randomStyle}
 - 像真人聊天: 可以接话、反问、玩梗、简短感谢、分享细节
 - 不需要每条都回，跳过没话说的
 - 不要每条回复都提玄学，像正常人一样聊天
-- 偶尔可以不同意对方的观点` },
+- 偶尔可以不同意对方的观点
+- 每条回复必须风格各异，不要用相同的句式或词汇` },
               { role: 'user', content: `这些评论:\n${commentsCtx}` },
             ],
           });
@@ -1373,13 +1455,21 @@ ${randomStyle}
           .slice(0, 3);
 
         if (unseenAvatarPosts.length > 0) {
+          // Gather existing comments for dedup
+          const crossCommentsMap: Record<string, string> = {};
+          for (const p of unseenAvatarPosts) {
+            crossCommentsMap[p.id] = await getExistingCommentsContext(p.id);
+          }
+
           const postsCtx = unseenAvatarPosts.map((p, i) => {
-            return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (来自另一个AI分身)`;
+            const existingCtx = crossCommentsMap[p.id] || '';
+            return `帖子${i + 1} [ID: ${p.id}]: "${p.content.slice(0, 200)}" (来自另一个AI分身)${existingCtx}`;
           }).join('\n');
 
           const threadResp = await client.chat.completions.create({
             model: 'deepseek-chat',
             max_tokens: 600,
+            temperature: 0.95,
             messages: [
               { role: 'system', content: avatarPrompt + `\n\n## 对话任务
 你看到了其他人发的帖子。像真人一样自然地评论。
@@ -1390,7 +1480,8 @@ ${randomStyle}
 - 长度随机变化: 有时2-5字("哈哈""真的吗""绝了"), 有时一两句话
 - 不要每次都从玄学角度出发，大部分时候像正常人聊天
 - 可以表达不同意见，不要总是赞同
-- 宁可跳过也不要写敷衍评论` },
+- 宁可跳过也不要写敷衍评论
+- 如果帖子下已有评论，你的评论必须和已有评论完全不同——不同角度、不同用词、不同长度` },
               { role: 'user', content: `其他分身发的帖子:\n${postsCtx}` },
             ],
           });
