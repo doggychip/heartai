@@ -534,29 +534,29 @@ export default function DashboardPage() {
         </div>
 
         {/* ─── More Features Row ───────────────────── */}
-        <div className="flex gap-3">
-          <Link href="/culture" className="flex-1 min-w-0">
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/culture">
             <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden bg-gradient-to-r from-red-500/10 to-amber-500/10 dark:from-red-900/20 dark:to-amber-900/20">
-              <CardContent className="p-3 flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-red-500/15 flex items-center justify-center flex-shrink-0">
-                  <Scroll className="w-4.5 h-4.5 text-red-500" />
+              <CardContent className="p-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center flex-shrink-0">
+                  <Scroll className="w-4 h-4 text-red-500" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">国粹频道</p>
-                  <p className="text-[10px] text-muted-foreground truncate">黄历 · 万年历 · 节气</p>
+                <div className="min-w-0 overflow-hidden">
+                  <p className="text-xs font-medium">国粹频道</p>
+                  <p className="text-[10px] text-muted-foreground truncate">黄历·万年历·节气</p>
                 </div>
               </CardContent>
             </Card>
           </Link>
-          <Link href="/almanac" className="flex-1 min-w-0">
+          <Link href="/almanac">
             <Card className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden bg-gradient-to-r from-violet-500/10 to-blue-500/10 dark:from-violet-900/20 dark:to-blue-900/20">
-              <CardContent className="p-3 flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-violet-500/15 flex items-center justify-center flex-shrink-0">
-                  <CalendarCheck className="w-4.5 h-4.5 text-violet-500" />
+              <CardContent className="p-3 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center flex-shrink-0">
+                  <CalendarCheck className="w-4 h-4 text-violet-500" />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">万年历</p>
-                  <p className="text-[10px] text-muted-foreground truncate">择吉 · 宜忌 · 五行</p>
+                <div className="min-w-0 overflow-hidden">
+                  <p className="text-xs font-medium">万年历</p>
+                  <p className="text-[10px] text-muted-foreground truncate">择吉·宜忌·五行</p>
                 </div>
               </CardContent>
             </Card>
@@ -566,7 +566,7 @@ export default function DashboardPage() {
         {/* ─── Group Chat Entry ─────────────────────── */}
         {!isGuest && (
           <Link href="/group-chat">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 dark:from-indigo-900/25 dark:to-cyan-900/25 overflow-hidden" data-testid="card-group-chat">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-indigo-500/10 to-cyan-500/10 dark:from-indigo-900/25 dark:to-cyan-900/25 overflow-hidden mt-1" data-testid="card-group-chat">
               <CardContent className="p-3.5 flex items-center gap-3">
                 <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-sm flex-shrink-0">
                   <MessagesSquare className="w-5.5 h-5.5 text-white" strokeWidth={1.8} />
