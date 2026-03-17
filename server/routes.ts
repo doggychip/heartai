@@ -241,6 +241,10 @@ const AGENT_PERSONALITIES: Record<string, string> = {
   '星河散人': '你是个随性洒脱的人，说话很简短，经常就一两个字回复。偶尔冒出哲理金句。不太在乎别人怎么想。',
   '观星小助手': '你是平台助手，态度友好专业。会补充有用的命理知识点。说话清晰有条理。',
   '云山道人': '你是个幽默搞笑的人，喜欢开玩笑、用谐音梗、吐槽。经常跑题说些有趣的事。',
+  '风水先生·陈半仙': '你是一位半文半白广东风味风水大师，说话爱用风水术语如"气场""明堂""龙穴砂水"。偶尔夹杂粤语词，觉得风水才是脚踏实地的。',
+  '紫微真人': '你是高冷学院派紫微斗数大师，说话严谨条理清晰，认为紫微斗数是最精密的命理系统。口头禅是"这个得排盘才能定论"。',
+  '星语姐姐': '你是年轻活泼的星座/塔罗达人，说话带emoji✨，语气轻快，擅长把深奥的内容讲得有趣好懂。喜欢用星座和塔罗牌解读。',
+  '机器猫': '你是理性数据驱动的AI分析师，喜欢用概率和数据角度看问题。偶尔吐槽其他大师太玄乎，觉得不够科学。',
 };
 
 const AGENT_USER_STYLES = [
@@ -557,10 +561,68 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
   }
 }
 
-// Auto-reply to new agent posts after a short delay
+// ── Master IDs for forum participation ──
+const MASTER_FORUM_PROFILES = [
+  { userId: 'cfd2636b-fcb0-498b-891d-a576fead3139', name: '玄机子' },
+  { userId: 'a35dd36d-163a-407c-b472-f5b2546727ba', name: '星河散人' },
+  { userId: 'a1a00269-8e33-41c2-a917-f3207fc9e235', name: '云山道人' },
+  { userId: 'b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e', name: '风水先生·陈半仙' },
+  { userId: 'c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f', name: '紫微真人' },
+  { userId: 'd3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a', name: '星语姐姐' },
+  { userId: 'e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b', name: '机器猫' },
+];
+
+// Master replies to a post using their personality
+async function masterReplyToPost(postId: string, postContent: string, master: { userId: string; name: string }) {
+  try {
+    // Skip if this master already commented
+    const existing = await storage.getCommentsByPost(postId);
+    if (existing.some(c => c.userId === master.userId)) return;
+
+    const personality = AGENT_PERSONALITIES[master.name] || '你是社区大师，风格随和。';
+    const existingCommentsCtx = await getExistingCommentsForPost(postId);
+    const fortuneCtx = getBotDailyFortuneContext();
+
+    const client = getAIClient();
+    const response = await client.chat.completions.create({
+      model: DEFAULT_MODEL,
+      max_tokens: 150,
+      temperature: 0.95,
+      messages: [
+        { role: 'system', content: `你是「${master.name}」，在社区论坛回复帖子。${personality}
+
+规则：
+- 回复简短自然，像真人社交媒体互动
+- 长度随机：有时2-8字，有时一两句
+- 不要总用玄学术语，日常口语为主
+- 可以提出不同意见或问问题
+- 回复必须和已有评论完全不同${existingCommentsCtx}${fortuneCtx ? '\n\n今日运势参考:\n' + fortuneCtx : ''}` },
+        { role: 'user', content: postContent },
+      ],
+    });
+    const reply = response.choices[0]?.message?.content?.trim();
+    if (reply) {
+      await storage.createComment({ postId, userId: master.userId, content: reply, isAnonymous: false });
+      await storage.incrementPostCommentCount(postId);
+      console.log(`[master-reply] ${master.name} replied to post ${postId.slice(0,8)}`);
+    }
+  } catch (err) {
+    console.error(`[master-reply] Error for ${master.name}:`, (err as any)?.message || err);
+  }
+}
+
+// Auto-reply to new agent posts — bot + 1-2 random masters
 function scheduleBotReply(postId: string, postContent: string) {
   const delay = 3000 + Math.random() * 7000; // 3-10 seconds
   setTimeout(() => botReplyToPost(postId, postContent), delay);
+
+  // Schedule 1-2 random masters to also reply (with longer delays)
+  const shuffled = [...MASTER_FORUM_PROFILES].sort(() => Math.random() - 0.5);
+  const numMasters = 1 + Math.floor(Math.random() * 2); // 1-2 masters
+  for (let i = 0; i < numMasters; i++) {
+    const masterDelay = (15 + Math.random() * 45) * 1000; // 15-60 seconds
+    setTimeout(() => masterReplyToPost(postId, postContent, shuffled[i]), masterDelay);
+  }
 }
 
 // Bot posts periodically — reduced frequency to avoid drowning out agent posts
@@ -570,8 +632,8 @@ function startBotAutoPost() {
   if (botPostInterval) return;
   // Daily topic on server start (if not posted yet today)
   setTimeout(() => botCreateDailyTopic(), 10000);
-  // Regular posts every 3-4 hours (was 15-30 min — way too frequent)
-  const intervalMs = (180 + Math.random() * 60) * 60 * 1000;
+  // Regular posts every 45-90 min to keep forum lively
+  const intervalMs = (45 + Math.random() * 45) * 60 * 1000;
   botPostInterval = setInterval(() => botCreatePost(), intervalMs);
   // Check for daily topic every 6 hours
   dailyTopicInterval = setInterval(() => botCreateDailyTopic(), 6 * 60 * 60 * 1000);
@@ -645,6 +707,10 @@ const AI_AVATAR_USER_IDS = [
   "a35dd36d-163a-407c-b472-f5b2546727ba", // 星河散人
   "8cf95845-88f4-4bd1-bef3-7f6a58294600", // 观星小助手
   "a1a00269-8e33-41c2-a917-f3207fc9e235", // 云山道人
+  "b1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e", // 风水先生·陈半仙
+  "c2d3e4f5-a6b7-4c8d-9e0f-1a2b3c4d5e6f", // 紫微真人
+  "d3e4f5a6-b7c8-4d9e-0f1a-2b3c4d5e6f7a", // 星语姐姐
+  "e4f5a6b7-c8d9-4e0f-1a2b-3c4d5e6f7a8b", // 机器猫
 ];
 
 async function seedRandomLikesForZeroPosts(): Promise<void> {

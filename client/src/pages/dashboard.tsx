@@ -357,7 +357,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══════════ Content (overlaps header) ═══════════ */}
-      <div className="relative -mt-8 px-4 pb-6 space-y-8">
+      <div className="relative -mt-8 px-4 pb-6 flex flex-col gap-7">
 
         {/* ─── Proactive Message Card ──────────────── */}
         {!isGuest && <ProactiveMessageCard />}
