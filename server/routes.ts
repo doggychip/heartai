@@ -9214,8 +9214,15 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}${birthHour !== undefined ? ` �
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const todayStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
 
+      // Force regenerate if ?force=true
+      const forceRegen = req.query.force === 'true';
+      if (forceRegen) {
+        await db.delete(dailyLetters)
+          .where(and(eq(dailyLetters.userId, userId), eq(dailyLetters.letterDate, todayStr)));
+      }
+
       // Check if letter already exists for today
-      const existing = await db.select().from(dailyLetters)
+      const existing = forceRegen ? [] : await db.select().from(dailyLetters)
         .where(and(eq(dailyLetters.userId, userId), eq(dailyLetters.letterDate, todayStr)))
         .limit(1);
 

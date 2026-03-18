@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import { clientAvatarSvg } from "@/lib/avatar";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Settings, MessageCircle } from "lucide-react";
+import { ArrowLeft, Settings, MessageCircle, RefreshCw } from "lucide-react";
 
 interface LetterSection {
   icon: string;
@@ -63,10 +63,17 @@ export default function DailyLetterPage() {
   const [followUpReply, setFollowUpReply] = useState("");
   const [followUpSent, setFollowUpSent] = useState(false);
 
-  const { data: letter, isLoading, error } = useQuery<DailyLetterData>({
-    queryKey: ["/api/daily-letter"],
+  const [forceRegen, setForceRegen] = useState(false);
+
+  const { data: letter, isLoading, error, refetch } = useQuery<DailyLetterData>({
+    queryKey: ["/api/daily-letter", forceRegen],
+    queryFn: async () => {
+      const url = forceRegen ? "/api/daily-letter?force=true" : "/api/daily-letter";
+      const res = await apiRequest("GET", url);
+      return res.json();
+    },
     enabled: !!user,
-    staleTime: 10 * 60 * 1000, // 10 min
+    staleTime: forceRegen ? 0 : 10 * 60 * 1000,
     retry: 1,
   });
 
@@ -131,7 +138,13 @@ export default function DailyLetterPage() {
             <ArrowLeft className="w-5 h-5 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
           </Link>
           <h1 className="text-lg font-semibold">观星日报</h1>
-          <span className="text-xs text-muted-foreground ml-auto">{letter.date}</span>
+          <span className="text-xs text-muted-foreground ml-auto flex items-center gap-2">
+            {letter.date}
+            <RefreshCw
+              className="w-3.5 h-3.5 cursor-pointer hover:text-foreground transition-colors"
+              onClick={() => { setForceRegen(true); setTimeout(() => refetch(), 100); }}
+            />
+          </span>
         </div>
 
         {/* Whisper card (心语) — highlighted at top */}
