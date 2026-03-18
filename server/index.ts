@@ -8,6 +8,8 @@ import { backfillAvatarTags } from "./avatar-routes";
 import { ensureAgentMemoryTable } from "./agent-memory";
 import { initializeDefaultSubscriptions } from "./event-bus";
 import { pruneExpiredMemories } from "./agent-memory";
+import { startTelegramBot } from "./telegram-bot";
+import { startDiscordBot } from "./discord-bot";
 
 const app = express();
 const httpServer = createServer(app);
@@ -117,6 +119,10 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+
+      // Start chat bots after server is listening (fire-and-forget)
+      startTelegramBot().catch(err => log(`Telegram bot failed to start: ${err.message}`, "telegram"));
+      startDiscordBot().catch(err => log(`Discord bot failed to start: ${err.message}`, "discord"));
     },
   );
 })();
