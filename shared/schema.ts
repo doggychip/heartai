@@ -154,6 +154,10 @@ export const moodEntries = pgTable("mood_entries", {
   moodScore: integer("mood_score").notNull(),
   emotionTags: text("emotion_tags").notNull(),
   note: text("note"),
+  aiResponse: text("ai_response"),
+  context: text("context"),          // "morning" | "evening"
+  wuxingInsight: text("wuxing_insight"),
+  ritual: text("ritual"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -166,6 +170,22 @@ export const insertMoodEntrySchema = createInsertSchema(moodEntries).pick({
 
 export type InsertMoodEntry = z.infer<typeof insertMoodEntrySchema>;
 export type MoodEntry = typeof moodEntries.$inferSelect;
+
+// ─── Avatar Whispers (分身私语) ──────────────────────────────
+export const avatarWhispers = pgTable("avatar_whispers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  avatarId: varchar("avatar_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  whisperType: text("whisper_type").notNull(), // observation, reflection, encouragement, memory, insight
+  content: text("content").notNull(),
+  aiContext: text("ai_context"),
+  isRead: boolean("is_read").notNull().default(false),
+  userReply: text("user_reply"),
+  avatarReply: text("avatar_reply"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type AvatarWhisper = typeof avatarWhispers.$inferSelect;
 
 // ─── Assessments (test definitions) ─────────────────────────
 export const assessments = pgTable("assessments", {
@@ -710,6 +730,8 @@ export const dailyLetters = pgTable("daily_letters", {
   greeting: text("greeting").notNull(),
   sections: jsonb("sections").notNull(), // Array of { icon, title, content }
   signoff: text("signoff").notNull(),
+  whisper: text("whisper"),             // 心语: intimate one-liner
+  followUp: text("follow_up"),         // follow-up question based on mood context
   generatedAt: text("generated_at").notNull(),
 });
 

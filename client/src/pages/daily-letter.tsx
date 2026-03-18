@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
 import { clientAvatarSvg } from "@/lib/avatar";
-import { ArrowLeft, Settings } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { ArrowLeft, Settings, MessageCircle } from "lucide-react";
 
 interface LetterSection {
   icon: string;
@@ -19,6 +22,8 @@ interface DailyLetterData {
   greeting: string;
   sections: LetterSection[];
   signoff: string;
+  whisper: string | null;
+  followUp: string | null;
   generatedAt: string;
 }
 
@@ -54,12 +59,31 @@ function LetterSkeleton() {
 
 export default function DailyLetterPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [followUpReply, setFollowUpReply] = useState("");
+  const [followUpSent, setFollowUpSent] = useState(false);
 
   const { data: letter, isLoading, error } = useQuery<DailyLetterData>({
     queryKey: ["/api/daily-letter"],
     enabled: !!user,
     staleTime: 10 * 60 * 1000, // 10 min
     retry: 1,
+  });
+
+  // Reply to follow-up feeds into whisper system
+  const replyMutation = useMutation({
+    mutationFn: async (message: string) => {
+      // Create a whisper reply via the mood checkin note
+      const res = await apiRequest("POST", "/api/mood/checkin", {
+        mood: "😶",
+        note: message,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      setFollowUpSent(true);
+      setFollowUpReply("");
+    },
   });
 
   const userName = user?.nickname || user?.username || "用户";
@@ -109,6 +133,21 @@ export default function DailyLetterPage() {
           <h1 className="text-lg font-semibold">观星日报</h1>
           <span className="text-xs text-muted-foreground ml-auto">{letter.date}</span>
         </div>
+
+        {/* Whisper card (心语) — highlighted at top */}
+        {letter.whisper && (
+          <Card
+            className="border-0 shadow-md rounded-2xl overflow-hidden mb-4 bg-gradient-to-r from-amber-100/80 to-orange-100/60 dark:from-amber-900/30 dark:to-orange-900/20 animate-in fade-in duration-500"
+          >
+            <CardContent className="p-4 flex items-start gap-3">
+              <span className="text-lg flex-shrink-0">💌</span>
+              <div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium mb-1">今日心语</p>
+                <p className="text-sm text-foreground/80 italic leading-relaxed">{letter.whisper}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Letter card */}
         <Card className="border-0 shadow-lg rounded-2xl overflow-hidden bg-white/80 dark:bg-card/90 backdrop-blur-sm">
@@ -166,6 +205,43 @@ export default function DailyLetterPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Follow-up question */}
+        {letter.followUp && !followUpSent && (
+          <Card
+            className="mt-4 border-0 shadow-sm rounded-xl bg-violet-50/60 dark:bg-violet-950/20 animate-in fade-in duration-500"
+            style={{ animationDelay: '900ms', animationFillMode: 'both' }}
+          >
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <MessageCircle className="w-4 h-4 text-violet-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-foreground/70">{letter.followUp}</p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="回复分身..."
+                  value={followUpReply}
+                  onChange={(e) => setFollowUpReply(e.target.value)}
+                  className="text-sm h-9"
+                  maxLength={200}
+                />
+                <Button
+                  size="sm"
+                  className="h-9 px-3 bg-violet-500 hover:bg-violet-600 text-white"
+                  disabled={!followUpReply.trim() || replyMutation.isPending}
+                  onClick={() => replyMutation.mutate(followUpReply.trim())}
+                >
+                  {replyMutation.isPending ? "..." : "回复"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        {followUpSent && (
+          <div className="mt-4 text-center text-sm text-muted-foreground animate-in fade-in duration-300">
+            已收到你的回复，分身会记住的 💜
+          </div>
+        )}
 
         {/* No birth data prompt */}
         {noBirthData && (

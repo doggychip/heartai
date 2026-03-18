@@ -397,6 +397,32 @@ export async function ensureTables() {
       )
     `);
 
+    // ─── Avatar Whispers (分身私语) ──────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS avatar_whispers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        avatar_id VARCHAR NOT NULL,
+        user_id VARCHAR NOT NULL,
+        whisper_type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        ai_context TEXT,
+        is_read BOOLEAN NOT NULL DEFAULT false,
+        user_reply TEXT,
+        avatar_reply TEXT,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    // ─── Mood Entries: add emotional companion columns ──────────
+    await client.query(`ALTER TABLE mood_entries ADD COLUMN IF NOT EXISTS ai_response TEXT`);
+    await client.query(`ALTER TABLE mood_entries ADD COLUMN IF NOT EXISTS context TEXT`);
+    await client.query(`ALTER TABLE mood_entries ADD COLUMN IF NOT EXISTS wuxing_insight TEXT`);
+    await client.query(`ALTER TABLE mood_entries ADD COLUMN IF NOT EXISTS ritual TEXT`);
+
+    // ─── Daily Letters: add whisper + followUp columns ──────────
+    await client.query(`ALTER TABLE daily_letters ADD COLUMN IF NOT EXISTS whisper TEXT`);
+    await client.query(`ALTER TABLE daily_letters ADD COLUMN IF NOT EXISTS follow_up TEXT`);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {

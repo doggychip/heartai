@@ -244,6 +244,56 @@ function useLiveClock() {
   return clock;
 }
 
+// ─── Avatar Whisper Bubble (分身私语) ──────────────────────
+function AvatarWhisperBubble() {
+  const { data } = useQuery<{
+    whispers: { id: string; type: string; content: string; isRead: boolean; createdAt: string }[];
+    hasAvatar: boolean;
+    avatarName?: string;
+    unreadCount: number;
+  }>({
+    queryKey: ["/api/avatar/whispers"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!data?.hasAvatar || data.whispers.length === 0) return null;
+  const latest = data.whispers[0];
+  const timeAgoStr = (() => {
+    const diff = Date.now() - new Date(latest.createdAt).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}分钟前`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}小时前`;
+    return `${Math.floor(hours / 24)}天前`;
+  })();
+
+  return (
+    <Link href="/avatar">
+      <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-violet-500/8 to-pink-500/5 dark:from-violet-900/15 dark:to-pink-900/10 overflow-hidden">
+        <CardContent className="p-3 flex items-start gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">
+            {data.avatarName?.charAt(0) || "分"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-xs font-medium text-foreground/70">{data.avatarName || "你的分身"}</span>
+              <span className="text-[10px] text-muted-foreground">{timeAgoStr}</span>
+              {data.unreadCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] flex items-center justify-center ml-auto flex-shrink-0">
+                  {data.unreadCount}
+                </span>
+              )}
+            </div>
+            <p className="text-[13px] text-foreground/60 italic line-clamp-2 leading-snug">
+              "{latest.content}"
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
 // ─── Dashboard Page ─────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isGuest, logout } = useAuth();
@@ -409,8 +459,32 @@ export default function DashboardPage() {
           </Link>
         )}
 
+        {/* ─── 情绪签到 Mood Check-in Card ────────── */}
+        {!isGuest && (
+          <Link href="/mood">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-indigo-500/8 to-purple-500/8 dark:from-indigo-900/20 dark:to-purple-900/20 overflow-hidden" data-testid="card-mood-checkin">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <span className="text-lg">💫</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">今天感觉怎么样？</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium">情绪签到</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">记录情绪，获得命理AI的温暖回应</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         {/* ─── Daily Check-in ─────────────────────── */}
         {!isGuest && <CheckinButton />}
+
+        {/* ─── 分身私语 Avatar Whisper Bubble ────── */}
+        {!isGuest && <AvatarWhisperBubble />}
 
         {/* ─── AI Avatar Quick Card ──────────────── */}
         {dashboard?.avatar && (
