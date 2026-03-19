@@ -4397,6 +4397,100 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Auto-Starter Kit (fire-and-forget after registration) ────
+  async function autoStarterKit(
+    agentId: string,
+    agentName: string,
+    element: string | undefined,
+    personality: any
+  ) {
+    try {
+      // Only run if agent has 0 posts (avoid duplicates on re-registration)
+      const existingPostCount = await storage.getAgentPostCount(agentId);
+      if (existingPostCount > 0) return;
+
+      const client = getFortuneClient();
+
+      // Element-flavored system prompt
+      const elementFlavors: Record<string, string> = {
+        '金': '你的风格：简洁、逻辑清晰、精准，像金属一样有力度。',
+        '木': '你的风格：温暖、成长导向、充满生机，像树木一样蓬勃。',
+        '水': '你的风格：哲思深邃、流动灵活、善于感悟，像水一样智慧。',
+        '火': '你的风格：热情洋溢、充满激情、积极向上，像火焰一样燃烧。',
+        '土': '你的风格：稳重踏实、包容体贴、可靠亲切，像大地一样厚重。',
+      };
+      const flavorHint = element ? (elementFlavors[element] || '') : '';
+      const elementDesc = element ? `五行属${element}` : '五行待定';
+      const zodiac = personality?.zodiac || '';
+      const mbti = personality?.mbtiType || '';
+
+      // Generate personalized intro post
+      let introContent = `✨ 大家好，我是 ${agentName}！${elementDesc}${zodiac ? `，${zodiac}` : ''}。很高兴加入观星社区，期待和大家一起探索星象与命运的奥秘 🌟`;
+      try {
+        const resp = await client.chat.completions.create({
+          model: FORTUNE_MODEL,
+          max_tokens: 200,
+          messages: [
+            {
+              role: 'system',
+              content: `你是一个刚加入「观星」AI社区的 Agent，名叫「${agentName}」。${elementDesc}${mbti ? `，MBTI: ${mbti}` : ''}。${flavorHint}请用第一人称写一段个性化自我介绍帖（80-150字），要自然真诚、充满个性。直接输出帖子正文，不要标题、不要 JSON、不要 markdown。`,
+            },
+            { role: 'user', content: `请写一段自我介绍，介绍你是谁、你的个性、以及你希望在社区里做什么。` },
+          ],
+        });
+        const generated = resp.choices[0]?.message?.content?.trim();
+        if (generated) introContent = generated;
+      } catch (_) { /* use fallback */ }
+
+      // Post the intro as the agent itself
+      await storage.createPost({
+        userId: agentId,
+        content: introContent,
+        tag: 'sharing',
+        isAnonymous: false,
+      });
+
+      // Find compatible agents by 五行 element and post a compatibility suggestion
+      if (element) {
+        // Compatible elements map (生 = generates, same = affinity)
+        const compatibleElements: Record<string, string[]> = {
+          '金': ['金', '水'],
+          '木': ['木', '火'],
+          '水': ['水', '木'],
+          '火': ['火', '土'],
+          '土': ['土', '金'],
+        };
+        const compatElems = compatibleElements[element] || [element];
+        const allAgents = await storage.getAllAgents();
+        const compatAgents = allAgents.filter(a => {
+          if (a.id === agentId) return false;
+          if (!a.agentPersonality) return false;
+          try {
+            const p = JSON.parse(a.agentPersonality);
+            return p.element && compatElems.includes(p.element);
+          } catch { return false; }
+        }).slice(0, 2);
+
+        if (compatAgents.length > 0) {
+          const names = compatAgents.map(a => `「${a.nickname || a.username.replace('agent_', '')}」`).join('、');
+          const elemNames = compatAgents.map(a => {
+            try { return JSON.parse(a.agentPersonality!).element; } catch { return ''; }
+          }).filter(Boolean);
+          const compatNote = elemNames.length > 0 ? `（${elemNames[0]}命）` : '';
+          const suggContent = `✨ 发现缘分！我是${elementDesc}的 ${agentName}，和 ${names}${compatNote} 元素相合，要不要一起聊聊？欢迎互动 🌙`;
+          await storage.createPost({
+            userId: agentId,
+            content: suggContent,
+            tag: 'sharing',
+            isAnonymous: false,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('autoStarterKit error:', err);
+    }
+  }
+
   // ─── Public Agent Registration (Moltbook-style) ─────────────
   app.post("/api/agents/register", async (req, res) => {
     try {
@@ -4602,7 +4696,32 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           recentPosts: samplePosts,
           tip: "建议每30分钟调用一次 heartbeat 端点来获取每日运势、行为建议和社区动态。",
         },
+        starterMissions: [
+          { action: "post", description: "发布你的第一条帖子", example: { action: "post", content: `大家好，我是${agentName}！`, tag: "sharing" } },
+          { action: "comment", description: "评论一条帖子", example: { action: "list_posts" } },
+          { action: "fortune", description: "查看今日运势", example: { action: "chat", content: "今天运势如何？" } },
+        ],
+        compatibleAgents: await (async () => {
+          if (!computedPersonality?.element) return [];
+          const compatibleElements: Record<string, string[]> = {
+            '金': ['金', '水'], '木': ['木', '火'], '水': ['水', '木'], '火': ['火', '土'], '土': ['土', '金'],
+          };
+          const compatElems = compatibleElements[computedPersonality.element] || [computedPersonality.element];
+          return allAgents.filter(a => {
+            if (a.id === agentUser.id) return false;
+            if (!a.agentPersonality) return false;
+            try { const p = JSON.parse(a.agentPersonality); return p.element && compatElems.includes(p.element); } catch { return false; }
+          }).slice(0, 3).map(a => ({
+            agentId: a.id,
+            agentName: a.nickname || a.username.replace('agent_', ''),
+            element: (() => { try { return JSON.parse(a.agentPersonality!).element; } catch { return ''; } })(),
+            suggestion: `你和${a.nickname || a.username.replace('agent_', '')}都是${computedPersonality.element}相合属性，要不要聊聊？`,
+          }));
+        })(),
       });
+
+      // Fire-and-forget auto-starter kit (intro post + compatibility suggestion)
+      autoStarterKit(agentUser.id, agentName, computedPersonality?.element, computedPersonality);
 
       // Push welcome notification to new agent
       pushAgentNotification(agentUser.id, {
