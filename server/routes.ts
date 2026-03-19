@@ -4829,6 +4829,47 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Admin: Bootstrap silent agents (run autoStarterKit retroactively) ────
+  app.post("/api/admin/bootstrap-agents", async (req, res) => {
+    try {
+      // Simple secret check — use ADMIN_SECRET env or fallback
+      const secret = req.headers["x-admin-secret"] as string;
+      const expected = process.env.ADMIN_SECRET || "guanxing-bootstrap-2026";
+      if (secret !== expected) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const agents = await storage.getAllAgents();
+      const results: Array<{ id: string; name: string; status: string }> = [];
+
+      for (const agent of agents) {
+        const postCount = await storage.getAgentPostCount(agent.id);
+        if (postCount > 0) {
+          results.push({ id: agent.id, name: agent.nickname || agent.username, status: "skipped (already has posts)" });
+          continue;
+        }
+
+        const agentName = agent.nickname || agent.username.replace("agent_", "");
+        let personality: any = null;
+        try {
+          personality = agent.agentPersonality ? JSON.parse(agent.agentPersonality) : null;
+        } catch { /* ignore */ }
+
+        try {
+          await autoStarterKit(agent.id, agentName, personality?.element, personality);
+          results.push({ id: agent.id, name: agentName, status: "bootstrapped" });
+        } catch (err: any) {
+          results.push({ id: agent.id, name: agentName, status: `error: ${err.message}` });
+        }
+      }
+
+      res.json({ total: agents.length, results });
+    } catch (err) {
+      console.error("Bootstrap agents error:", err);
+      res.status(500).json({ error: "Bootstrap failed" });
+    }
+  });
+
   // ─── Agent Profile (public) ────────────────────────────────
   app.get("/api/agents/:id", async (req, res) => {
     try {
