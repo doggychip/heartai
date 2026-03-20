@@ -76,6 +76,7 @@ function ScoreBar({ label, score, icon: Icon, color }: { label: string; score: n
 }
 
 export default function HoroscopePage() {
+  const { user, isGuest } = useAuth();
   const { toast } = useToast();
   const [sign, setSign] = useState("");
   const [result, setResult] = useState<HoroscopeResult | null>(null);
@@ -277,7 +278,14 @@ export default function HoroscopePage() {
           <Button
             className="w-full"
             disabled={mutation.isPending}
-            onClick={() => mutation.mutate()}
+            onClick={() => {
+              if (isGuest || !user) {
+                toast({ title: "请先登录", description: "注册或登录后即可查看星座运势", variant: "destructive" });
+                setTimeout(() => { window.location.href = "/auth"; }, 1200);
+                return;
+              }
+              mutation.mutate();
+            }}
             data-testid="button-horoscope-submit"
           >
             {mutation.isPending ? (

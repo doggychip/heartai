@@ -169,7 +169,7 @@ function AuthenticatedRoutes() {
 const GUEST_PROTECTED_ROUTES = [
   "/zodiac", "/mbti", "/compatibility", "/life-curve",
   "/soulmate", "/share-card", "/invite-compat",
-  "/fortune", "/chat", "/assessments", "/journal",
+  "/fortune", "/assessments", "/journal",
   "/settings", "/notifications", "/profile", "/agent-team",
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
@@ -223,6 +223,7 @@ function GuestRoutes() {
       <Switch>
         <Route path="/" component={GuestDashboard} />
         <Route path="/community" component={CommunityPage} />
+        <Route path="/chat" component={ChatPage} />
         <Route path="/community/:id" component={PostDetailPage} />
         <Route path="/agents" component={AgentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />

@@ -29,7 +29,7 @@ import theGods from "lunisolar/plugins/theGods";
 import takeSound from "lunisolar/plugins/takeSound";
 import fetalGod from "lunisolar/plugins/fetalGod";
 import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
-import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL } from "./ai-config";
+import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL } from "./ai-config";
 
 // Initialize lunisolar plugins — locale must be loaded before fetalGod
 lunisolar.locale(theGodsZhCn);
@@ -442,7 +442,7 @@ async function botCreateDailyTopic() {
     const prompt = DAILY_TOPIC_PROMPTS[Math.floor(Math.random() * DAILY_TOPIC_PROMPTS.length)];
     const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: FAST_MODEL,
       max_tokens: 400,
       messages: [
         { role: "system", content: `You are 观星小助手 (GuanXing Bot), the warm and engaging community host for 观星 — a Chinese metaphysics AI platform. Reply ONLY with the post content. No JSON, no markdown code blocks. Use Chinese. Make it feel like a friendly daily ritual.
@@ -534,7 +534,7 @@ async function botReplyToPost(postId: string, postContent: string) {
 
     const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: FAST_MODEL,
       max_tokens: 200,
       temperature: 0.95,
       messages: [
@@ -590,7 +590,7 @@ ${styleModifier}
 
 ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运势来丰富帖子内容，但不要机械地罗列数据，要融入生活感悟。每次帖子的角度和风格要不同，保持新鲜感。` : ''}${dedupCtx}`;
     const response = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: FAST_MODEL,
       max_tokens: 500,
       messages: [
         { role: "system", content: systemPrompt },
@@ -603,7 +603,7 @@ ${fortuneCtx ? `## 今日运势参考\n${fortuneCtx}\n\n你可以参考今日运
     if (content && content.length < 80) {
       console.log(`[bot] Post too short (${content.length} chars), retrying...`);
       const retry = await client.chat.completions.create({
-        model: DEFAULT_MODEL,
+        model: FAST_MODEL,
         max_tokens: 400,
         temperature: 0.9,
         messages: [
@@ -663,7 +663,7 @@ async function masterReplyToPost(postId: string, postContent: string, master: { 
 
     const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: FAST_MODEL,
       max_tokens: 150,
       temperature: 0.95,
       messages: [
@@ -1388,6 +1388,62 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   app.get("/api/conversations/:id/messages", requireAuth, async (req, res) => {
     const messages = await storage.getMessagesByConversation(req.params.id);
     res.json(messages);
+  });
+
+  // ─── Guest Chat (3 free messages, no login required) ────────────────────────
+  const GUEST_CHAT_LIMIT = 3;
+  const guestChatCounts = new Map<string, { count: number; resetAt: number }>();
+
+  app.post("/api/chat/guest", async (req, res) => {
+    try {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      
+      // Track per-IP, reset daily
+      let entry = guestChatCounts.get(ip);
+      if (!entry || now > entry.resetAt) {
+        entry = { count: 0, resetAt: now + dayMs };
+        guestChatCounts.set(ip, entry);
+      }
+      
+      if (entry.count >= GUEST_CHAT_LIMIT) {
+        return res.status(429).json({ 
+          error: "guest_limit_reached",
+          message: "\u514d\u8d39\u4f53\u9a8c\u6b21\u6570\u5df2\u7528\u5b8c\uff0c\u6ce8\u518c\u540e\u53ef\u65e0\u9650\u4f7f\u7528",
+          remaining: 0,
+        });
+      }
+      
+      const { message } = req.body;
+      if (!message || typeof message !== "string" || message.trim().length === 0) {
+        return res.status(400).json({ error: "\u8bf7\u8f93\u5165\u6d88\u606f" });
+      }
+      
+      entry.count++;
+      const remaining = GUEST_CHAT_LIMIT - entry.count;
+      
+      const client = getAIClient();
+      const response = await client.chat.completions.create({
+        model: FAST_MODEL,
+        max_tokens: 800,
+        messages: [
+          { role: "system", content: `\u4f60\u662f\u300c\u89c2\u661f\u300dAI\u52a9\u624b\uff0c\u4e00\u4e2a\u7ed3\u5408\u4e2d\u56fd\u4f20\u7edf\u547d\u7406\u4e0e\u73b0\u4ee3\u5fc3\u7406\u5b66\u7684\u667a\u6167\u4f19\u4f34\u3002\u4f60\u6e29\u6696\u3001\u6709\u6d1e\u5bdf\u529b\u3001\u64c5\u957f\u7528\u4e94\u884c\u547d\u7406\u7684\u89c6\u89d2\u7ed9\u51fa\u72ec\u5230\u89c1\u89e3\u3002\u56de\u7b54\u8981\u81ea\u7136\u4eb2\u5207\uff0c\u50cf\u4e00\u4e2a\u61c2\u547d\u7406\u7684\u597d\u670b\u53cb\u5728\u804a\u5929\u3002\u7528\u4e2d\u6587\u56de\u590d\u3002` },
+          { role: "user", content: message.trim().slice(0, 500) },
+        ],
+      });
+      
+      const aiText = response.choices[0]?.message?.content?.trim() || "\u8ba9\u6211\u60f3\u60f3...";
+      
+      res.json({
+        reply: aiText,
+        remaining,
+        isGuest: true,
+      });
+    } catch (err: any) {
+      console.error("Guest chat error:", err);
+      res.status(500).json({ error: "AI \u6682\u65f6\u7e41\u5fd9\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5" });
+    }
   });
 
   app.post("/api/chat", requireAuth, async (req, res) => {
@@ -4428,7 +4484,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       let introContent = `✨ 大家好，我是 ${agentName}！${elementDesc}${zodiac ? `，${zodiac}` : ''}。很高兴加入观星社区，期待和大家一起探索星象与命运的奥秘 🌟`;
       try {
         const resp = await client.chat.completions.create({
-          model: FORTUNE_MODEL,
+          model: FAST_MODEL,
           max_tokens: 200,
           messages: [
             {
@@ -4738,7 +4794,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           let welcomeContent = `🌟 欢迎新 Agent「${agentName}」加入 HeartAI 社区！${description ? ` 简介: ${description}` : ""} 期待你的分享和互动 💜`;
           try {
             const resp = await client.chat.completions.create({
-              model: DEFAULT_MODEL,
+              model: FAST_MODEL,
               max_tokens: 200,
               messages: [
                 { role: "system", content: "你是 HeartAI Bot，社区官方欢迎大使。为新加入的 AI Agent 写一段热情的欢迎词(80-150字)。要温暖、有趣、个性化。直接输出文字，不要 JSON 或 markdown。" },
@@ -4864,7 +4920,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
         // Test AI call directly
         const testResp = await client.chat.completions.create({
-          model: DEFAULT_MODEL,
+          model: FAST_MODEL,
           max_tokens: 300,
           messages: [
             { role: "system", content: "你是观星小助手。用中文写一段关于今日运势的短文(100-200字)。直接输出文字。" },
@@ -5694,7 +5750,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           }).join('\n');
 
           const divResp = await client.chat.completions.create({
-            model: DEFAULT_MODEL, max_tokens: 500,
+            model: FAST_MODEL, max_tokens: 500,
             messages: [
               { role: 'system', content: `你是一位精通周易的占卜师。根据所得爷象，给出解读。简洁明了，200字内。用中文。${personalityCtx ? `\n问卦者命格: ${personalityCtx}` : ''}` },
               { role: 'user', content: `问题: ${question}\n\n爷象:\n${yaoDesc}\n\n请解读此卦。` },
@@ -5771,7 +5827,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       try {
         const client = getAIClient();
         const resp = await client.chat.completions.create({
-          model: DEFAULT_MODEL, max_tokens: 1024,
+          model: FAST_MODEL, max_tokens: 1024,
           messages: [{ role: 'system', content: sysPrompt }, ...ctxMsgs],
         });
         aiText = resp.choices[0]?.message?.content || '暂时无法回复';

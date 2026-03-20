@@ -1,16 +1,18 @@
 /**
  * HeartAI Centralized AI Client Configuration
  *
- * Uses DeepSeek Reasoner (deepseek-reasoner) for all AI features.
- * deepseek-reasoner produces Chain-of-Thought reasoning before answering,
- * improving quality for metaphysics, fortune, and emotional companion features.
+ * Dual-model strategy:
+ *   - FORTUNE_MODEL (deepseek-reasoner): Deep fortune/metaphysics analysis — bazi, tarot,
+ *     dream interpretation, horoscopes, compatibility, daily fortune, AI chat.
+ *     Produces Chain-of-Thought reasoning for higher quality answers.
+ *   - FAST_MODEL (deepseek-chat): Community posts, bot replies, master comments,
+ *     agent intro posts, IM chat — where speed matters more than depth.
+ *   - DEFAULT_MODEL: Alias for FORTUNE_MODEL (used by most features).
  *
  * Note: deepseek-reasoner does NOT support:
  *   - Function Calling (not used in our chat completions)
  *   - temperature, top_p, presence_penalty, frequency_penalty (ignored, no error)
  *   - logprobs, top_logprobs (will error — do not use)
- * The response includes reasoning_content (CoT) + content (final answer).
- * Our code reads .message.content which works correctly.
  *
  * Environment variables:
  *   DEEPSEEK_API_KEY  — DeepSeek API key (used for all AI features)
@@ -22,17 +24,22 @@ import OpenAI from "openai";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
-export const DEFAULT_MODEL = "deepseek-reasoner";
+/** Deep reasoning model — for fortune, metaphysics, emotional companion */
 export const FORTUNE_MODEL = "deepseek-reasoner";
+
+/** Fast model — for community posts, bot replies, short content generation */
+export const FAST_MODEL = "deepseek-chat";
+
+/** Default model — alias for FORTUNE_MODEL (deep reasoning) */
+export const DEFAULT_MODEL = "deepseek-reasoner";
 
 // ─── Cached Clients ─────────────────────────────────────────
 
 let _defaultClient: OpenAI | null = null;
-let _fortuneClient: OpenAI | null = null;
 
 /**
- * Default AI client — DeepSeek (deepseek-chat)
- * Used for: chat, emotion, moderation, recommendations, memory, avatars, metaphysics, etc.
+ * Shared AI client — same DeepSeek endpoint for both models.
+ * The model is specified per-request, not per-client.
  */
 export function getAIClient(): OpenAI {
   if (!_defaultClient) {
@@ -44,16 +51,7 @@ export function getAIClient(): OpenAI {
   return _defaultClient;
 }
 
-/**
- * Fortune-specific AI client — DeepSeek direct
- * Used for: bazi analysis, daily fortune, qiuqian, almanac (Chinese cultural content)
- */
+/** @deprecated Use getAIClient() — kept for backwards compatibility */
 export function getFortuneClient(): OpenAI {
-  if (!_fortuneClient) {
-    _fortuneClient = new OpenAI({
-      baseURL: DEEPSEEK_BASE_URL,
-      apiKey: process.env.DEEPSEEK_API_KEY,
-    });
-  }
-  return _fortuneClient;
+  return getAIClient();
 }
