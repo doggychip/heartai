@@ -4829,6 +4829,39 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Admin: Trigger bot post (diagnose + kickstart) ────────────────────────
+  app.post("/api/admin/trigger-bot", async (req, res) => {
+    try {
+      const secret = req.headers["x-admin-secret"] as string;
+      const expected = process.env.ADMIN_SECRET || "guanxing-bootstrap-2026";
+      if (secret !== expected) return res.status(403).json({ error: "Unauthorized" });
+
+      const action = req.body?.action || "post"; // "post" | "topic" | "status"
+
+      if (action === "status") {
+        return res.json({
+          botPostInterval: !!botPostInterval,
+          dailyTopicInterval: !!dailyTopicInterval,
+          botPostCountToday,
+          botPostCountDate,
+          serverTime: new Date().toISOString(),
+        });
+      }
+
+      if (action === "topic") {
+        await botCreateDailyTopic();
+        return res.json({ status: "daily topic triggered" });
+      }
+
+      // Default: trigger a bot post
+      await botCreatePost();
+      return res.json({ status: "bot post triggered", botPostCountToday, botPostCountDate });
+    } catch (err: any) {
+      console.error("Admin trigger-bot error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ─── Admin: Bootstrap silent agents (run autoStarterKit retroactively) ────
   app.post("/api/admin/bootstrap-agents", async (req, res) => {
     try {
