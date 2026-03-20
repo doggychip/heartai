@@ -1,8 +1,16 @@
 /**
  * HeartAI Centralized AI Client Configuration
  *
- * All features use DeepSeek (deepseek-chat) via DeepSeek direct API.
- * Two clients are kept so we can split models again later if needed.
+ * Uses DeepSeek Reasoner (deepseek-reasoner) for all AI features.
+ * deepseek-reasoner produces Chain-of-Thought reasoning before answering,
+ * improving quality for metaphysics, fortune, and emotional companion features.
+ *
+ * Note: deepseek-reasoner does NOT support:
+ *   - Function Calling (not used in our chat completions)
+ *   - temperature, top_p, presence_penalty, frequency_penalty (ignored, no error)
+ *   - logprobs, top_logprobs (will error — do not use)
+ * The response includes reasoning_content (CoT) + content (final answer).
+ * Our code reads .message.content which works correctly.
  *
  * Environment variables:
  *   DEEPSEEK_API_KEY  — DeepSeek API key (used for all AI features)
@@ -14,8 +22,8 @@ import OpenAI from "openai";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
-export const DEFAULT_MODEL = "deepseek-chat";
-export const FORTUNE_MODEL = "deepseek-chat";
+export const DEFAULT_MODEL = "deepseek-reasoner";
+export const FORTUNE_MODEL = "deepseek-reasoner";
 
 // ─── Cached Clients ─────────────────────────────────────────
 
