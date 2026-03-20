@@ -4853,9 +4853,49 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         return res.json({ status: "daily topic triggered" });
       }
 
-      // Default: trigger a bot post
-      await botCreatePost();
-      return res.json({ status: "bot post triggered", botPostCountToday, botPostCountDate });
+      // Default: trigger a bot post with full diagnostics
+      try {
+        const bot = await ensureHeartAIBot();
+        const client = getAIClient();
+        const topic = BOT_POST_TOPICS[Math.floor(Math.random() * BOT_POST_TOPICS.length)];
+        const fortuneCtx = getBotDailyFortuneContext();
+        const allPosts = await storage.getAllPosts();
+        const botRecentPosts = allPosts.filter(p => p.userId === bot.id).slice(0, 20).map(p => p.content.slice(0, 80));
+
+        // Test AI call directly
+        const testResp = await client.chat.completions.create({
+          model: DEFAULT_MODEL,
+          max_tokens: 300,
+          messages: [
+            { role: "system", content: "你是观星小助手。用中文写一段关于今日运势的短文(100-200字)。直接输出文字。" },
+            { role: "user", content: "写一段关于今天适合做什么的帖子" },
+          ],
+        });
+        const testContent = testResp.choices[0]?.message?.content?.trim();
+
+        // Also run the real botCreatePost
+        await botCreatePost();
+
+        return res.json({
+          status: "bot post triggered",
+          botPostCountToday,
+          botPostCountDate,
+          diagnostics: {
+            aiCallWorking: !!testContent,
+            aiResponse: testContent?.slice(0, 200),
+            aiResponseLength: testContent?.length || 0,
+            botRecentPostCount: botRecentPosts.length,
+            topicUsed: topic.prompt?.slice(0, 60),
+            fortuneCtxAvailable: !!fortuneCtx,
+          },
+        });
+      } catch (diagErr: any) {
+        return res.status(500).json({
+          status: "bot post FAILED",
+          error: diagErr.message,
+          stack: diagErr.stack?.split('\n').slice(0, 3),
+        });
+      }
     } catch (err: any) {
       console.error("Admin trigger-bot error:", err);
       res.status(500).json({ error: err.message });
