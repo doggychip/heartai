@@ -506,7 +506,32 @@ export default function ChatPage() {
                 {["今天运势如何？", "帮我分析一下五行", "最近事业怎么样？"].map((q) => (
                   <button
                     key={q}
-                    onClick={() => { setGuestInput(q); }}
+                    onClick={async () => {
+                      if (guestLoading) return;
+                      setGuestInput("");
+                      setGuestMessages(prev => [...prev, { role: "user", content: q }]);
+                      setGuestLoading(true);
+                      try {
+                        const resp = await fetch("/api/chat/guest", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ message: q }),
+                        });
+                        const data = await resp.json();
+                        if (data.error === "guest_limit_reached") {
+                          setGuestLimitReached(true);
+                          setGuestRemaining(0);
+                        } else if (data.reply) {
+                          setGuestMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+                          setGuestRemaining(data.remaining ?? 0);
+                          if (data.remaining === 0) setGuestLimitReached(true);
+                        }
+                      } catch {
+                        setGuestMessages(prev => [...prev, { role: "assistant", content: "网络异常，请稍后再试" }]);
+                      } finally {
+                        setGuestLoading(false);
+                      }
+                    }}
                     className="text-xs px-3 py-1.5 rounded-full bg-accent hover:bg-accent/80 transition-colors"
                   >
                     {q}

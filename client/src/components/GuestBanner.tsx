@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { X, UserPlus, Sparkles } from "lucide-react";
 
@@ -12,6 +12,7 @@ const BANNER_DISMISSED_KEY = "gx_guest_banner_dismissed";
  */
 export default function GuestBanner() {
   const { user, isGuest, logout } = useAuth();
+  const [location] = useLocation();
   const [dismissed, setDismissed] = useState(true);
 
   useEffect(() => {
@@ -24,7 +25,8 @@ export default function GuestBanner() {
     setDismissed(stored === "1");
   }, [user, isGuest]);
 
-  if (dismissed) return null;
+  // Hide on chat page — it has its own registration CTA and the banner covers the input
+  if (dismissed || location === "/chat") return null;
 
   const handleDismiss = () => {
     sessionStorage.setItem(BANNER_DISMISSED_KEY, "1");
