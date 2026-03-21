@@ -79,6 +79,7 @@ interface BaziResult {
   kongWang: string;
   pillarKongWang: Record<string, boolean>;
   shenSha: Record<string, string[]>;
+  classicalQuote?: { text: string; source: string; note: string };
 }
 
 // ─── Constants ───────────────────────────────────────────────────────
@@ -604,6 +605,24 @@ export default function BaziPage() {
                 )}
             </TabsContent>
           </Tabs>
+
+          {/* Classical Quote */}
+          {result.classicalQuote && (
+            <Card className="border-0 bg-gradient-to-br from-amber-500/5 to-orange-500/5 dark:from-amber-900/15 dark:to-orange-900/10">
+              <CardContent className="py-5">
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium tracking-[2px] uppercase mb-3">命盘金句</p>
+                <blockquote className="relative pl-3 border-l-2 border-amber-400/60">
+                  <p className="text-sm font-medium leading-relaxed text-foreground/90 mb-1.5">
+                    {result.classicalQuote.text}
+                  </p>
+                  <footer className="text-[11px] text-muted-foreground">— {result.classicalQuote.source}</footer>
+                </blockquote>
+                <p className="text-xs text-foreground/55 mt-3 leading-relaxed italic">
+                  {result.classicalQuote.note}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <p className="text-[10px] text-center text-muted-foreground pb-4">
             * 以上内容基于中国传统命理学，仅供文化探索参考

@@ -56,7 +56,7 @@ export default function ProfilePage() {
     );
   }
 
-  const { user: profileUser, personality, avatar, stats, recentPosts } = data;
+  const { user: profileUser, personality, avatar, stats, recentPosts, soulArchetype } = data;
   const elCfg = personality?.element ? ELEMENT_CONFIG[personality.element] : null;
   const isOwnProfile = currentUser?.id === profileUser.id;
   const userName = profileUser.nickname || profileUser.username || 'user';
@@ -89,6 +89,11 @@ export default function ProfilePage() {
                   {personality.zodiacEmoji} {personality.zodiac}
                   {personality.mbtiType && ` · ${personality.mbtiType}`}
                 </p>
+              )}
+              {soulArchetype && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary/80 mt-1">
+                  {soulArchetype.emoji} {soulArchetype.name}
+                </span>
               )}
             </div>
           </div>

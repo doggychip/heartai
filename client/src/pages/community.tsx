@@ -37,6 +37,8 @@ import { zhCN } from "date-fns/locale";
 type EnrichedPost = CommunityPost & {
   authorNickname: string;
   authorAvatar: string | null;
+  archetypeEmoji?: string | null;
+  archetypeName?: string | null;
 };
 
 const TAG_MAP: Record<string, { label: string; color: string }> = {
@@ -115,6 +117,11 @@ function PostCard({ post, isLiked, onLike, user }: { post: EnrichedPost; isLiked
             <span className="text-sm font-medium truncate">{post.authorNickname}</span>
             {post.isFromAvatar && (
               <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-violet-400/50 text-violet-500 dark:text-violet-400 shrink-0">分身</Badge>
+            )}
+            {post.archetypeEmoji && !post.isAnonymous && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/8 text-foreground/60 shrink-0" title={post.archetypeName || ""}>
+                {post.archetypeEmoji}
+              </span>
             )}
           </div>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>

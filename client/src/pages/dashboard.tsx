@@ -295,6 +295,54 @@ function AvatarWhisperBubble() {
   );
 }
 
+// ─── Mood Sparkline ─────────────────────────────────────────
+function MoodSparkline({ trend }: { trend: { score: number; date: string }[] }) {
+  const W = 280, H = 56;
+  const PAD = 6;
+  const scores = trend.map(t => t.score);
+  const minS = Math.min(...scores);
+  const maxS = Math.max(...scores);
+  const range = maxS - minS || 1;
+  const n = scores.length;
+
+  const x = (i: number) => PAD + (i / (n - 1)) * (W - PAD * 2);
+  const y = (s: number) => H - PAD - ((s - minS) / range) * (H - PAD * 2);
+
+  const points = scores.map((s, i) => `${x(i).toFixed(1)},${y(s).toFixed(1)}`).join(" ");
+  const areaPath = `M${x(0).toFixed(1)},${H} ` +
+    scores.map((s, i) => `L${x(i).toFixed(1)},${y(s).toFixed(1)}`).join(" ") +
+    ` L${x(n - 1).toFixed(1)},${H} Z`;
+
+  const lastScore = scores[n - 1];
+  const prevScore = scores[n - 2];
+  const trending = lastScore > prevScore ? "↑" : lastScore < prevScore ? "↓" : "→";
+  const trendColor = lastScore > prevScore ? "text-emerald-500" : lastScore < prevScore ? "text-rose-500" : "text-muted-foreground";
+
+  return (
+    <div className="relative">
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ height: H }}>
+        <defs>
+          <linearGradient id="moodAreaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.03" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#moodAreaGrad)" />
+        <polyline points={points} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {scores.map((s, i) => (
+          <circle key={i} cx={x(i)} cy={y(s)} r={i === n - 1 ? 4 : 2.5}
+            fill={i === n - 1 ? "#6366f1" : "#fff"} stroke="#6366f1"
+            strokeWidth={i === n - 1 ? 0 : 1.5} />
+        ))}
+      </svg>
+      <div className="absolute top-1 right-0 flex items-center gap-1">
+        <span className={`text-sm font-bold ${trendColor}`}>{trending}</span>
+        <span className="text-[11px] font-semibold text-foreground/70">{lastScore}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Dashboard Page ─────────────────────────────────────────
 export default function DashboardPage() {
   const { user, isGuest, logout } = useAuth();
@@ -480,6 +528,75 @@ export default function DashboardPage() {
             </Card>
           </Link>
         )}
+
+        {/* ─── 情绪趋势 Mood Trend Sparkline ──────── */}
+        {!isGuest && dashboard?.moodTrend && dashboard.moodTrend.length >= 2 && (
+          <Link href="/mood">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer" data-testid="card-mood-trend">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-[11px] font-medium text-muted-foreground tracking-wide">近期情绪走势</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{dashboard.moodTrend.length}天记录</span>
+                </div>
+                <MoodSparkline trend={dashboard.moodTrend} />
+                <div className="flex justify-between mt-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    {dashboard.moodTrend[0]?.date?.slice(5)}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {dashboard.moodTrend[dashboard.moodTrend.length - 1]?.date?.slice(5)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
+        {/* ─── Weekly Mood Digest ──────────────────── */}
+        {!isGuest && dashboard?.moodTrend && dashboard.moodTrend.length >= 5 && (() => {
+          const trend = dashboard.moodTrend;
+          const avg = Math.round(trend.reduce((s, e) => s + e.score, 0) / trend.length * 10) / 10;
+          const half = Math.ceil(trend.length / 2);
+          const recentAvg = trend.slice(0, half).reduce((s, e) => s + e.score, 0) / half;
+          const olderAvg = trend.slice(half).reduce((s, e) => s + e.score, 0) / (trend.length - half);
+          const trendDir = recentAvg - olderAvg > 1 ? "↑" : olderAvg - recentAvg > 1 ? "↓" : "→";
+          const trendColor = trendDir === "↑" ? "text-emerald-500" : trendDir === "↓" ? "text-rose-400" : "text-muted-foreground";
+          const trendLabel = trendDir === "↑" ? "好转中" : trendDir === "↓" ? "需关注" : "平稳";
+          // Dominant mood: most frequent tag
+          const tagFreq: Record<string, number> = {};
+          for (const e of trend) tagFreq[e.tags] = (tagFreq[e.tags] || 0) + 1;
+          const dominant = Object.entries(tagFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || "😊";
+          const getLabel = (s: number) => s >= 8 ? "状态良好" : s >= 6 ? "情绪稳定" : s >= 4 ? "略有波动" : "需要关爱";
+
+          return (
+            <Link href="/mood">
+              <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-500/5 to-violet-500/5 dark:from-indigo-900/20 dark:to-violet-900/15 hover:shadow-md transition-all cursor-pointer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-1.5 mb-3">
+                    <CalendarCheck className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-[11px] font-medium text-muted-foreground tracking-wide">近期情绪小结</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{dominant}</span>
+                      <div>
+                        <p className="text-sm font-semibold">{getLabel(avg)}</p>
+                        <p className="text-xs text-muted-foreground">均分 {avg}/10 · {trend.length}条记录</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-2xl font-bold ${trendColor}`}>{trendDir}</p>
+                      <p className={`text-xs ${trendColor}`}>{trendLabel}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })()}
 
         {/* ─── Daily Check-in ─────────────────────── */}
         {!isGuest && <CheckinButton />}

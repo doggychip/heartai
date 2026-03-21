@@ -5,6 +5,7 @@ import { moodEntries, users, avatars } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { storage } from "./storage";
 import { getFortuneClient, FORTUNE_MODEL } from "./ai-config";
+import { writeMemory } from "./agent-memory";
 import lunisolar from "lunisolar";
 
 function getUserId(req: Request): string {
@@ -41,7 +42,8 @@ export function registerMoodCheckinRoutes(app: Express, requireAuth: (req: Reque
   app.post("/api/mood/checkin", requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = getUserId(req);
-      const { mood, note, context: userContext } = req.body;
+      const { mood, note, context: userContext, triggers } = req.body;
+      const triggerList: string[] = Array.isArray(triggers) ? triggers : [];
 
       if (!mood || !MOOD_SCORES[mood]) {
         return res.status(400).json({ error: "请选择有效的情绪" });
@@ -87,6 +89,7 @@ export function registerMoodCheckinRoutes(app: Express, requireAuth: (req: Reque
       const prompt = `用户刚刚做了情绪签到。
 
 情绪: ${mood} (${moodLabel})
+${triggerList.length > 0 ? `触发因素: ${triggerList.join("、")}` : ''}
 ${note ? `用户说: "${note}"` : '（用户没有留言）'}
 时间: ${timeContext === "evening" ? "晚间" : "白天"}
 最近7天情绪记录: ${recentMoodEmojis || "这是第一次签到"}
@@ -124,12 +127,15 @@ ${wuxingContext ? `命理数据:\n${wuxingContext}` : ''}
         console.error("[mood-checkin] AI error:", e);
       }
 
-      // Save mood entry
+      // Save mood entry (prepend triggers to note if present)
+      const savedNote = triggerList.length > 0
+        ? `[${triggerList.join(",")}]${note ? " " + note : ""}`
+        : note || null;
       const [saved] = await db.insert(moodEntries).values({
         userId,
         moodScore,
         emotionTags: mood,
-        note: note || null,
+        note: savedNote,
         aiResponse,
         context: timeContext,
         wuxingInsight,
@@ -143,6 +149,17 @@ ${wuxingContext ? `命理数据:\n${wuxingContext}` : ''}
         wuxingInsight,
         ritual,
       });
+
+      // Write to agent shared memory so all agents can reference this mood check-in
+      writeMemory({
+        agentKey: "mood",
+        userId,
+        category: "emotion_state",
+        summary: `情绪签到: ${moodLabel}(${mood}) 分数${moodScore}/10${triggerList.length > 0 ? ` 触发:${triggerList.join(",")}` : ""}${note ? ` — "${note.slice(0, 40)}"` : ""}。${wuxingInsight}`,
+        details: { moodScore, mood, moodLabel, triggers: triggerList, note, wuxingInsight, timeContext },
+        importance: moodScore <= 3 ? 8 : moodScore >= 8 ? 6 : 5,
+        ttlHours: 24 * 14,
+      }).catch(err => console.error("[mood-checkin] memory write error:", err));
     } catch (err) {
       console.error("[mood-checkin] Error:", err);
       res.status(500).json({ error: "签到失败，请稍后再试" });

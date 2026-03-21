@@ -736,3 +736,32 @@ export const dailyLetters = pgTable("daily_letters", {
 });
 
 export type DailyLetter = typeof dailyLetters.$inferSelect;
+
+// ─── Soul Match (灵魂匹配) ─────────────────────────────────
+export interface SoulProfile {
+  id: string;
+  userId: string;
+  scores: Record<string, number>;  // 9-dim: O, C, E, A, N, Ni, Se, Ti, Fi
+  archetype: string;               // e.g. "dreamer"
+  archetypeName: string;           // e.g. "梦想织造者"
+  archetypeEmoji: string;          // e.g. "🌙"
+  interests: string[];
+  displayName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SoulMatchResult {
+  userId: string;
+  nickname: string;
+  avatarUrl: string | null;
+  archetype: string;
+  archetypeName: string;
+  archetypeEmoji: string;
+  archetypeColor: string;
+  matchScore: number;              // 20-99
+  matchReasons: string[];          // e.g. ["理性与感性互补", "情感深度共鸣"]
+  interests: string[];
+  bio?: string;
+  isAi: boolean;
+}

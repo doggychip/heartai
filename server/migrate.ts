@@ -423,6 +423,32 @@ export async function ensureTables() {
     await client.query(`ALTER TABLE daily_letters ADD COLUMN IF NOT EXISTS whisper TEXT`);
     await client.query(`ALTER TABLE daily_letters ADD COLUMN IF NOT EXISTS follow_up TEXT`);
 
+    // ─── Soul Profiles (灵魂匹配) ──────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS soul_profiles (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL UNIQUE,
+        scores JSONB NOT NULL,
+        archetype TEXT NOT NULL,
+        archetype_name TEXT NOT NULL,
+        archetype_emoji TEXT,
+        interests TEXT[] DEFAULT '{}',
+        display_name TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    // ─── Fortune History (运势历史) ───────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fortune_history (
+        user_id VARCHAR NOT NULL,
+        date TEXT NOT NULL,
+        total_score INT NOT NULL,
+        PRIMARY KEY (user_id, date)
+      )
+    `);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {

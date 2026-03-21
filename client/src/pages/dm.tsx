@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
 import {
@@ -31,7 +31,9 @@ export default function DmPage() {
   const [, navigate] = useLocation();
   const params = useParams<{ friendId: string }>();
   const friendId = params.friendId;
-  const [message, setMessage] = useState("");
+  const search = useSearch();
+  const icebreaker = new URLSearchParams(search).get("ice");
+  const [message, setMessage] = useState(icebreaker ? `嗨～听说我们${icebreaker}，想聊聊吗？` : "");
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

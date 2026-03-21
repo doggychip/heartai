@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,19 @@ import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { ArrowLeft, Clock, TrendingUp, TrendingDown, Minus } from "lucide-react";
+
+const TRIGGERS = [
+  { label: "工作压力", emoji: "💼" },
+  { label: "感情", emoji: "💕" },
+  { label: "睡眠", emoji: "😴" },
+  { label: "家庭", emoji: "🏠" },
+  { label: "健康", emoji: "🌿" },
+  { label: "财务", emoji: "💰" },
+  { label: "学习", emoji: "📚" },
+  { label: "天气", emoji: "🌦" },
+  { label: "友情", emoji: "👥" },
+  { label: "独处", emoji: "🧘" },
+];
 
 const MOODS = [
   { emoji: "😊", label: "开心" },
@@ -50,6 +63,68 @@ interface MoodHistoryData {
   };
 }
 
+function MoodCalendar({ entries }: { entries: { moodScore: number; createdAt: string }[] }) {
+  const days = 35; // 5 rows × 7 cols
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Group scores by date
+  const byDate: Record<string, number[]> = {};
+  for (const e of entries) {
+    const d = e.createdAt.slice(0, 10);
+    (byDate[d] = byDate[d] || []).push(e.moodScore);
+  }
+
+  const cells = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (days - 1 - i));
+    const key = d.toISOString().slice(0, 10);
+    const scores = byDate[key];
+    const avg = scores ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+    const isToday = i === days - 1;
+    return { key, avg, isToday };
+  });
+
+  const getColor = (avg: number | null) => {
+    if (avg === null) return "bg-muted/40";
+    if (avg >= 8) return "bg-emerald-500/70";
+    if (avg >= 6) return "bg-green-400/60";
+    if (avg >= 4) return "bg-amber-400/60";
+    return "bg-rose-400/60";
+  };
+
+  return (
+    <Card className="border-0 shadow-sm rounded-xl mb-4">
+      <CardContent className="p-4">
+        <p className="text-xs font-medium text-muted-foreground mb-3">近35天情绪日历</p>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map(cell => (
+            <div
+              key={cell.key}
+              title={cell.avg !== null ? `${cell.key}: ${cell.avg.toFixed(1)}分` : cell.key}
+              className={`aspect-square rounded-sm ${getColor(cell.avg)} ${cell.isToday ? "ring-2 ring-indigo-400 ring-offset-1" : ""}`}
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mt-2 justify-end">
+          {[
+            { color: "bg-emerald-500/70", label: "8+" },
+            { color: "bg-green-400/60", label: "6-7" },
+            { color: "bg-amber-400/60", label: "4-5" },
+            { color: "bg-rose-400/60", label: "1-3" },
+            { color: "bg-muted/40", label: "无" },
+          ].map(l => (
+            <div key={l.label} className="flex items-center gap-1">
+              <div className={`w-2.5 h-2.5 rounded-sm ${l.color}`} />
+              <span className="text-[9px] text-muted-foreground">{l.label}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function getGreeting(): string {
   const h = new Date().getHours();
   if (h >= 20 || h < 5) return "晚安";
@@ -78,8 +153,15 @@ export default function MoodCheckinPage() {
   const queryClient = useQueryClient();
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [selectedTriggers, setSelectedTriggers] = useState<string[]>([]);
   const [result, setResult] = useState<CheckinResponse | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+
+  const toggleTrigger = useCallback((label: string) => {
+    setSelectedTriggers(prev =>
+      prev.includes(label) ? prev.filter(t => t !== label) : [...prev, label]
+    );
+  }, []);
 
   const userName = user?.nickname || user?.username || "用户";
   const evening = isEvening();
@@ -97,7 +179,7 @@ export default function MoodCheckinPage() {
   });
 
   const checkinMutation = useMutation({
-    mutationFn: async (data: { mood: string; note?: string }) => {
+    mutationFn: async (data: { mood: string; note?: string; triggers?: string[] }) => {
       const res = await apiRequest("POST", "/api/mood/checkin", data);
       return res.json() as Promise<CheckinResponse>;
     },
@@ -110,7 +192,11 @@ export default function MoodCheckinPage() {
 
   const handleCheckin = () => {
     if (!selectedMood) return;
-    checkinMutation.mutate({ mood: selectedMood, note: note.trim() || undefined });
+    checkinMutation.mutate({
+      mood: selectedMood,
+      note: note.trim() || undefined,
+      triggers: selectedTriggers.length > 0 ? selectedTriggers : undefined,
+    });
   };
 
   // Show result after check-in
@@ -164,7 +250,7 @@ export default function MoodCheckinPage() {
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => { setResult(null); setSelectedMood(null); setNote(""); }}
+              onClick={() => { setResult(null); setSelectedMood(null); setNote(""); setSelectedTriggers([]); }}
             >
               再签一次
             </Button>
@@ -199,6 +285,47 @@ export default function MoodCheckinPage() {
             </div>
           ) : history && history.entries.length > 0 ? (
             <>
+              {/* Mood calendar heatmap */}
+              <MoodCalendar entries={history.entries} />
+
+              {/* Trigger trend chart */}
+              {(() => {
+                const freq: Record<string, number> = {};
+                for (const entry of history.entries) {
+                  if (!entry.note) continue;
+                  const m = entry.note.match(/^\[([^\]]+)\]/);
+                  if (!m) continue;
+                  for (const t of m[1].split(",")) {
+                    const tag = t.trim();
+                    if (tag) freq[tag] = (freq[tag] || 0) + 1;
+                  }
+                }
+                const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                if (sorted.length === 0) return null;
+                const max = sorted[0][1];
+                const triggerMap = Object.fromEntries(TRIGGERS.map(t => [t.label, t.emoji]));
+                return (
+                  <Card className="border-0 shadow-sm rounded-xl mb-4">
+                    <CardContent className="p-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-3">常见触发因素</p>
+                      <div className="space-y-2">
+                        {sorted.map(([tag, cnt]) => (
+                          <div key={tag} className="flex items-center gap-2">
+                            <span className="text-base w-5 flex-shrink-0">{triggerMap[tag] || "•"}</span>
+                            <span className="text-xs w-14 flex-shrink-0 text-foreground/80">{tag}</span>
+                            <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-indigo-400/70 transition-all duration-700"
+                                style={{ width: `${(cnt / max) * 100}%` }} />
+                            </div>
+                            <span className="text-[10px] text-muted-foreground w-4 text-right">{cnt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
+
               {/* Pattern summary */}
               <Card className="border-0 shadow-sm rounded-xl mb-4 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-900/15 dark:to-orange-900/10">
                 <CardContent className="p-4">
@@ -235,7 +362,7 @@ export default function MoodCheckinPage() {
                         <span className="text-2xl flex-shrink-0">{entry.mood}</span>
                         <div className="flex-1 min-w-0">
                           {entry.note && (
-                            <p className="text-sm text-foreground/80 mb-1">{entry.note}</p>
+                            <p className="text-sm text-foreground/80 mb-1">{entry.note.replace(/^\[[^\]]*\]\s*/, "")}</p>
                           )}
                           {entry.aiResponse && (
                             <p className="text-xs text-foreground/50 line-clamp-2">{entry.aiResponse}</p>
@@ -316,6 +443,28 @@ export default function MoodCheckinPage() {
             </button>
           ))}
         </div>
+
+        {/* Trigger tags */}
+        {selectedMood && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 mb-4">
+            <p className="text-[11px] text-muted-foreground mb-2 tracking-wide">今天的情绪和什么有关？</p>
+            <div className="flex flex-wrap gap-2">
+              {TRIGGERS.map(({ label, emoji }) => (
+                <button
+                  key={label}
+                  onClick={() => toggleTrigger(label)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 ${
+                    selectedTriggers.includes(label)
+                      ? "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500/40 scale-105"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span>{emoji}</span>{label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Note input */}
         {selectedMood && (

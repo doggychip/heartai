@@ -57,6 +57,7 @@ import HtpPage from "@/pages/htp";
 import MayanPage from "@/pages/mayan";
 import HumanDesignPage from "@/pages/human-design";
 import ZhengyuPage from "@/pages/zhengyu";
+import SoulMatchPage from "@/pages/soul-match";
 import GroupChatPage from "@/pages/group-chat";
 import LeaderboardPage from "@/pages/leaderboard";
 import MatchingPage from "@/pages/matching";
@@ -89,6 +90,7 @@ const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
   "/settings": { name: "设置", desc: "管理你的账户和个性化设置。" },
   "/daily-letter": { name: "观星日报", desc: "AI分身每日为你生成个性化命理日报，星象解读与生活指引。" },
   "/mood": { name: "情绪签到", desc: "每日情绪签到，获得命理AI的温暖回应和五行洞察。" },
+  "/soul-match": { name: "灵魂匹配", desc: "25道深度人格问题，9维Big Five+Jungian分析，发现你的灵魂共振者。" },
 };
 
 function AuthenticatedRoutes() {
@@ -152,6 +154,7 @@ function AuthenticatedRoutes() {
         <Route path="/group-chat" component={GroupChatPage} />
         <Route path="/leaderboard" component={LeaderboardPage} />
         <Route path="/matching" component={MatchingPage} />
+        <Route path="/soul-match" component={SoulMatchPage} />
         <Route path="/friends" component={FriendsPage} />
         <Route path="/dm/:friendId" component={DmPage} />
         <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
@@ -174,7 +177,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/horoscope", "/emotion-insights", "/avatar", "/avatar-plaza",
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
   "/group-chat", "/leaderboard", "/matching", "/friends", "/dm",
-  "/daily-letter", "/mood",
+  "/daily-letter", "/mood", "/soul-match",
 ];
 
 function GuestAuthModal() {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ interface FortuneData {
   aiInsight: string;
   date: string;
   zodiac?: string;
+  classicalQuote?: { text: string; source: string; note: string };
 }
 
 const DIMENSION_CONFIG = [
@@ -121,6 +122,55 @@ function DimensionBar({ label, score, icon: Icon, color }: {
   );
 }
 
+function FortuneHistoryChart({ history }: { history: { date: string; score: number }[] }) {
+  if (history.length < 2) return null;
+  const W = 280, H = 64, PAD = 8;
+  const min = Math.min(...history.map(d => d.score));
+  const max = Math.max(...history.map(d => d.score));
+  const range = max - min || 1;
+  const pts = history.map((d, i) => {
+    const x = PAD + (i / (history.length - 1)) * (W - PAD * 2);
+    const y = H - PAD - ((d.score - min) / range) * (H - PAD * 2);
+    return { x, y, ...d };
+  });
+  const polyline = pts.map(p => `${p.x},${p.y}`).join(" ");
+  const area = `M${pts[0].x},${H - PAD} ` + pts.map(p => `L${p.x},${p.y}`).join(" ") + ` L${pts[pts.length - 1].x},${H - PAD} Z`;
+  const latest = pts[pts.length - 1];
+  const getColor = (s: number) => s >= 80 ? "#f59e0b" : s >= 60 ? "#6366f1" : "#f43f5e";
+  const color = getColor(latest.score);
+  const trend = latest.score - pts[0].score;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-muted-foreground">近{history.length}天运势走势</span>
+        <span className="text-xs font-medium" style={{ color }}>
+          {trend > 3 ? "↑ 上升中" : trend < -3 ? "↓ 下降中" : "→ 平稳"}
+        </span>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ height: H }}>
+        <defs>
+          <linearGradient id="fhg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#fhg)" />
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 4 : 2.5}
+            fill={i === pts.length - 1 ? color : "hsl(var(--background))"}
+            stroke={color} strokeWidth={i === pts.length - 1 ? 0 : 1.5} />
+        ))}
+      </svg>
+      <div className="flex justify-between mt-1">
+        <span className="text-[10px] text-muted-foreground">{history[0].date.slice(5)}</span>
+        <span className="text-[10px] text-muted-foreground">{history[history.length - 1].date.slice(5)}</span>
+      </div>
+    </div>
+  );
+}
+
 function useLiveDate() {
   const fmt = () => {
     const now = new Date();
@@ -148,7 +198,13 @@ export default function FortunePage() {
   const { data: fortune, isLoading, refetch, isFetching } = useQuery<FortuneData>({
     queryKey: ["/api/fortune/today"],
     enabled: !!user,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: historyData } = useQuery<{ history: { date: string; score: number }[] }>({
+    queryKey: ["/api/fortune/history"],
+    enabled: !!user,
+    staleTime: 10 * 60 * 1000,
   });
 
   // Auto-refresh fortune when date changes (midnight crossing)
@@ -239,6 +295,15 @@ export default function FortunePage() {
           </CardContent>
         </Card>
 
+        {/* Fortune History */}
+        {historyData && historyData.history.length >= 2 && (
+          <Card>
+            <CardContent className="py-4 px-4">
+              <FortuneHistoryChart history={historyData.history} />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Dimensions */}
         <Card data-testid="card-fortune-dimensions">
           <CardHeader className="pb-3">
@@ -301,6 +366,24 @@ export default function FortunePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Classical Quote */}
+        {data.classicalQuote && (
+          <Card className="border-0 bg-gradient-to-br from-amber-500/5 to-orange-500/5 dark:from-amber-900/15 dark:to-orange-900/10">
+            <CardContent className="py-5">
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium tracking-[2px] uppercase mb-3">今日古典金句</p>
+              <blockquote className="relative pl-3 border-l-2 border-amber-400/60">
+                <p className="text-sm font-medium leading-relaxed text-foreground/90 mb-1.5">
+                  {data.classicalQuote.text}
+                </p>
+                <footer className="text-[11px] text-muted-foreground">— {data.classicalQuote.source}</footer>
+              </blockquote>
+              <p className="text-xs text-foreground/55 mt-3 leading-relaxed italic">
+                {data.classicalQuote.note}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick Links */}
         <div className="grid grid-cols-2 gap-3">
