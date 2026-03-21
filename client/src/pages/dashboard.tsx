@@ -9,6 +9,7 @@ import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { clientAvatarSvg } from "@/lib/avatar";
 import { ShareFortuneButton } from "@/pages/share-card";
+import { FortuneShareButton } from "@/components/share-cards";
 import ProactiveMessageCard from "@/components/ProactiveMessageCard";
 import CheckinButton from "@/components/CheckinButton";
 import {
@@ -542,7 +543,13 @@ export default function DashboardPage() {
                 }}>{f.totalScore}<span className="text-sm font-normal text-muted-foreground ml-0.5">分</span></span>
               </div>
               <div className="flex items-center gap-3">
-                <ShareFortuneButton fortune={f} qian={dashboard?.dailyQian || null} nickname={user?.nickname || "观星用户"} />
+                <FortuneShareButton
+                  fortune={f}
+                  nickname={user?.nickname || "\u89c2\u661f\u7528\u6237"}
+                  zodiac={dashboard?.personality?.zodiacSign || undefined}
+                  element={dashboard?.personality?.element || undefined}
+                  lunarDate={dashboard?.lunar?.lunarDate || undefined}
+                />
                 <Link href="/fortune">
                   <span className="text-xs text-muted-foreground flex items-center gap-0.5 cursor-pointer hover:text-primary transition-colors">
                     更多 <ChevronRight className="w-3 h-3" />

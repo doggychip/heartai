@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Loader2, Save, Wifi, WifiOff, Eye, EyeOff, ArrowLeft, Key, Copy, RefreshCw, Trash2, Search, UserCircle, Bot, MessageCircle, Star, Calendar, Lock } from "lucide-react";
+import { ProfileShareButton } from "@/components/share-cards";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 
@@ -362,19 +363,30 @@ export default function SettingsPage() {
                 </Select>
               </div>
             </div>
-            <Button
-              size="sm"
-              onClick={saveProfile}
-              disabled={profileSaving}
-              data-testid="button-save-profile"
-            >
-              {profileSaving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
-              ) : (
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              保存
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                onClick={saveProfile}
+                disabled={profileSaving}
+                data-testid="button-save-profile"
+              >
+                {profileSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Save className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                保存
+              </Button>
+              <ProfileShareButton
+                nickname={user?.nickname || user?.username || "\u89c2\u661f\u7528\u6237"}
+                zodiac={profileZodiac || user?.zodiacSign || undefined}
+                mbtiType={profileMbti || user?.mbtiType || undefined}
+                element={(user as any)?.agentPersonality?.element || undefined}
+                dayMaster={(user as any)?.agentPersonality?.dayMaster || undefined}
+                traits={(user as any)?.agentPersonality?.traits || undefined}
+                elementCounts={(user as any)?.agentPersonality?.elementCounts || undefined}
+              />
+            </div>
           </CardContent>
         </Card>
 

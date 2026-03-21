@@ -19,6 +19,7 @@ import {
   Compass,
 } from "lucide-react";
 import CryptoFortuneSection from "@/components/CryptoFortuneSection";
+import { FortuneShareButton } from "@/components/share-cards";
 
 interface FortuneData {
   totalScore: number;
@@ -200,16 +201,25 @@ export default function FortunePage() {
               {liveDate.display} {data.zodiac ? `· ${data.zodiac}` : ""}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            data-testid="button-refresh-fortune"
-          >
-            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-            刷新
-          </Button>
+          <div className="flex items-center gap-2">
+            {fortune && (
+              <FortuneShareButton
+                fortune={data}
+                nickname={user?.nickname || "\u89c2\u661f\u7528\u6237"}
+                zodiac={data.zodiac || user?.zodiacSign || undefined}
+              />
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              data-testid="button-refresh-fortune"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+              刷新
+            </Button>
+          </div>
         </div>
 
         {/* Score Ring Card */}
