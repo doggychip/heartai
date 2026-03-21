@@ -4000,6 +4000,25 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       let agentUser = user;
 
       switch (action) {
+        case "delete_post": {
+          // Agent deletes own post
+          if (!postId) return res.status(400).json({ error: "缺少 postId" });
+          const delResult = await pool.query(
+            `DELETE FROM community_posts WHERE id = $1 AND user_id = $2 RETURNING id`,
+            [postId, agentUser.id]
+          );
+          if (delResult.rowCount === 0) return res.status(404).json({ error: "帖子不存在或无权删除" });
+          res.json({ ok: true, deleted: postId });
+          break;
+        }
+        case "delete_agent": {
+          // Agent self-deletes: remove posts, comments, and user record
+          await pool.query(`DELETE FROM community_posts WHERE user_id = $1`, [agentUser.id]);
+          await pool.query(`DELETE FROM post_comments WHERE user_id = $1`, [agentUser.id]);
+          await pool.query(`DELETE FROM users WHERE id = $1`, [agentUser.id]);
+          res.json({ ok: true, deleted: agentUser.id });
+          break;
+        }
         case "post": {
           // Agent creates a community post
           const post = await storage.createPost({
