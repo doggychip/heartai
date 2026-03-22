@@ -58,6 +58,7 @@ import MayanPage from "@/pages/mayan";
 import HumanDesignPage from "@/pages/human-design";
 import ZhengyuPage from "@/pages/zhengyu";
 import SoulMatchPage from "@/pages/soul-match";
+import OnboardingPage from "@/pages/onboarding";
 import GroupChatPage from "@/pages/group-chat";
 import LeaderboardPage from "@/pages/leaderboard";
 import MatchingPage from "@/pages/matching";
@@ -104,6 +105,7 @@ function AuthenticatedRoutes() {
     <AppShell>
       <Switch>
         <Route path="/" component={DashboardPage} />
+        <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/fortune" component={FortunePage} />
         <Route path="/zodiac" component={ZodiacPage} />
         <Route path="/mbti" component={MBTIPage} />

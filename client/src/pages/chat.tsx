@@ -778,10 +778,10 @@ export default function ChatPage() {
 
 function WelcomeScreen({ isMobile, onQuickAction }: { isMobile: boolean; onQuickAction: (msg: string) => void }) {
   const quickActions = [
-    { emoji: "😊", label: "分享开心的事", prompt: "今天有一件很开心的事情想和你分享" },
-    { emoji: "😔", label: "心情有些低落", prompt: "我最近心情不太好，想找人聊聊" },
-    { emoji: "😰", label: "感到焦虑不安", prompt: "我最近总是感到焦虑，不知道该怎么办" },
-    { emoji: "🤔", label: "需要一些建议", prompt: "我遇到了一些困惑，想听听你的建议" },
+    { emoji: "🔮", label: "分析我的命格", prompt: "帮我分析一下我的命格，有什么特点和优势？" },
+    { emoji: "✨", label: "今日运势", prompt: "今天的运势怎么样？适合做什么？" },
+    { emoji: "😔", label: "心情不太好", prompt: "我最近心情不太好，想找人聊聊" },
+    { emoji: "💡", label: "人生建议", prompt: "最近遇到一些困惑，想听听你的建议" },
   ];
 
   return (

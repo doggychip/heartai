@@ -1587,9 +1587,36 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const history = await storage.getMessagesByConversation(conversationId);
       const contextMessages = history.slice(-20).map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-      // Inject mood history so agent can reference user's emotional state
-      const moodCtx = await buildMoodContext(userId);
-      const chatSystemPrompt = SYSTEM_PROMPT + moodCtx;
+      // Inject unified user context (identity + mood + archetype + fortune)
+      const userCtx = await buildUserContext(userId);
+
+      // Route to specialist agent if the message matches a domain
+      const classification = await classifyIntent(message);
+      const intentToAgent: Record<string, string> = {
+        "命理": "stella",
+        "运势": "prediction",
+      };
+      const specialistKey = intentToAgent[classification.intent];
+      let chatSystemPrompt = SYSTEM_PROMPT;
+      let routedAgent = "main";
+
+      if (specialistKey) {
+        try {
+          const specialist = await storage.getAgentTeamMember(specialistKey);
+          if (specialist?.systemPrompt) {
+            // Use specialist prompt but keep the emotional companion wrapper
+            chatSystemPrompt = `${specialist.systemPrompt}\n\n同时，你也是用户的情感陪伴者。回答要专业但温暖，像一个懂命理的好朋友。回复控制在200字以内。使用简体中文。\n请在每次回复末尾，用JSON格式在 <!--EMOTION:{"emotion":"xxx","score":N}--> 标记中返回你对用户当前情绪的分析。emotion 可选值：joy, sadness, anger, fear, anxiety, surprise, calm, neutral。score 为 1-10。`;
+            routedAgent = specialistKey;
+          }
+        } catch { /* fallback to main */ }
+      }
+
+      chatSystemPrompt += userCtx;
+
+      // Log dispatch for agent team stats
+      if (routedAgent !== "main") {
+        storage.updateAgentTeamStats(routedAgent, 0, 0).catch(() => {});
+      }
 
       let aiText = "";
       try {
@@ -1603,6 +1630,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           ],
         });
         aiText = response.choices[0]?.message?.content || "";
+
+        // Update agent team stats with tokens
+        const tokens = response.usage?.total_tokens || 0;
+        if (routedAgent !== "main") {
+          storage.updateAgentTeamStats(routedAgent, tokens, Date.now() - Date.now()).catch(() => {});
+        }
       } catch (err) {
         console.error("LLM error:", err);
         aiText = `我听到你说的了。虽然我现在遇到了一些技术问题，但我还是很想听你继续分享。你可以告诉我更多吗？ 💙\n\n<!--EMOTION:{"emotion":"neutral","score":5}-->`;
@@ -8113,9 +8146,11 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       };
       const targetAgent = intentToAgent[classification.intent] || "main";
       const agentMember = await storage.getAgentTeamMember(targetAgent);
-      const agentPrompt = agentMember?.systemPrompt || SYSTEM_PROMPT;
+      // For "main" (对话), use the conversation SYSTEM_PROMPT, not the orchestrator's classifier prompt
+      const agentPrompt = targetAgent === "main" ? SYSTEM_PROMPT : (agentMember?.systemPrompt || SYSTEM_PROMPT);
 
-      // Step 3: Call DeepSeek with specialized prompt
+      // Step 3: Call DeepSeek with specialized prompt + user context
+      const orchUserCtx = await buildUserContext(userId);
       let aiText = "";
       let tokensUsed = 0;
       try {
@@ -8124,7 +8159,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           model: DEFAULT_MODEL,
           max_tokens: 1024,
           messages: [
-            { role: "system", content: `${agentPrompt}\n\n你是观星Agent Team中的「${agentMember?.name || '观星助手'}」。请以专业角度回答用户的问题。使用简体中文回答。` },
+            { role: "system", content: `${agentPrompt}\n\n你是观星Agent Team中的「${agentMember?.name || '观星助手'}」。请以专业且温暖的角度回答用户的问题。使用简体中文，200字以内。${orchUserCtx}` },
             { role: "user", content: message },
           ],
         });
