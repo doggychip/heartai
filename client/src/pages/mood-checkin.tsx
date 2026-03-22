@@ -245,8 +245,34 @@ export default function MoodCheckinPage() {
             </div>
           )}
 
+          {/* Bridge links */}
+          <div className="grid grid-cols-2 gap-2 mt-5">
+            <Link href="/fortune">
+              <Card className="border-0 shadow-sm cursor-pointer hover:bg-accent/30 transition-colors">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <span className="text-base">✨</span>
+                  <div>
+                    <p className="text-xs font-medium">看看今日运势</p>
+                    <p className="text-[10px] text-muted-foreground">情绪和运势有关联</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/chat">
+              <Card className="border-0 shadow-sm cursor-pointer hover:bg-accent/30 transition-colors">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <span className="text-base">💬</span>
+                  <div>
+                    <p className="text-xs font-medium">聊聊心情</p>
+                    <p className="text-[10px] text-muted-foreground">AI懂你的状态</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
           {/* Actions */}
-          <div className="flex gap-3 mt-6">
+          <div className="flex gap-3 mt-4">
             <Button
               variant="outline"
               className="flex-1"

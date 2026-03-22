@@ -178,60 +178,122 @@ function getEmotionSuggestion(emotion: string, _score: number): string {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-// ─── Mood Context Builder for Agent Prompts ──────────────────
+// ─── Unified User Context Builder ─────────────────────────────
+// Assembles everything we know about a user into a single context block
+// for injection into ALL AI interactions (chat, daily letter, mood, dream, etc.)
 const MOOD_EMOJI_LABELS: Record<string, string> = {
   "😊": "开心", "😌": "平静", "😔": "低落", "😤": "烦躁",
   "😰": "焦虑", "😴": "疲惫", "🥰": "幸福", "😶": "无感",
 };
 
-async function buildMoodContext(userId: string): Promise<string> {
+async function buildUserContext(userId: string): Promise<string> {
+  const parts: string[] = [];
+
   try {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const recent = await db.select({
-      moodScore: moodEntries.moodScore,
-      emotionTags: moodEntries.emotionTags,
-      note: moodEntries.note,
-      createdAt: moodEntries.createdAt,
-    }).from(moodEntries)
-      .where(and(eq(moodEntries.userId, userId), sql`${moodEntries.createdAt} > ${sevenDaysAgo}`))
-      .orderBy(desc(moodEntries.createdAt))
-      .limit(7);
+    const user = await storage.getUser(userId);
+    if (!user) return "";
 
-    if (recent.length === 0) return "";
-
-    const lines = recent.map(e => {
-      const daysAgo = Math.round((Date.now() - new Date(e.createdAt).getTime()) / 86400000);
-      const when = daysAgo === 0 ? "今天" : daysAgo === 1 ? "昨天" : `${daysAgo}天前`;
-      const label = MOOD_EMOJI_LABELS[e.emotionTags] || e.emotionTags;
-      const noteStr = e.note ? ` — "${e.note.slice(0, 40)}"` : "";
-      return `  - ${when}: ${label}(${e.emotionTags}) ${e.moodScore}/10${noteStr}`;
-    });
-
-    // Compute trend: compare first half vs second half scores
-    const scores = recent.map(e => e.moodScore);
-    const half = Math.floor(scores.length / 2);
-    let trend = "";
-    if (scores.length >= 2) {
-      const recentAvg = scores.slice(0, half || 1).reduce((a, b) => a + b, 0) / (half || 1);
-      const olderAvg = scores.slice(half || 1).reduce((a, b) => a + b, 0) / (scores.length - (half || 1));
-      if (recentAvg - olderAvg > 1.5) trend = "（近期情绪有所好转）";
-      else if (olderAvg - recentAvg > 1.5) trend = "（近期情绪有所下滑，请多关注）";
-    }
-
-    let moodPart = `\n\n## 用户近期情绪记录（来自签到）${trend}\n${lines.join("\n")}\n请自然地关注这些情绪变化，在对话中适当提及（无需每次都说，自然融入即可）。`;
-
-    // Append soul archetype if available
+    // ── 1. Identity: bazi, element, zodiac, MBTI ──
+    const identityLines: string[] = [];
     try {
-      const archetypeMemories = await queryMemories({ userId, category: "soul_archetype", limit: 1 });
-      if (archetypeMemories.length > 0) {
-        moodPart += `\n\n## 用户灵魂原型\n  - ${archetypeMemories[0].summary}\n如对话涉及性格、缘分或人际关系，可自然融入这一特质。`;
+      if (user.agentPersonality) {
+        const p = JSON.parse(user.agentPersonality);
+        if (p.element && p.dayMaster) identityLines.push(`五行: ${p.dayMaster}(${p.element}命)`);
+        else if (p.element) identityLines.push(`五行: ${p.element}`);
+        if (p.fullBazi) identityLines.push(`八字: ${p.fullBazi}`);
+        if (p.zodiac) identityLines.push(`星座: ${p.zodiacEmoji || ""} ${p.zodiac}`);
+        if (p.mbtiType) identityLines.push(`MBTI: ${p.mbtiType}`);
+        if (p.traits?.length) identityLines.push(`性格特质: ${p.traits.slice(0, 4).join("、")}`);
+      } else {
+        if (user.zodiacSign) identityLines.push(`星座: ${user.zodiacSign}`);
+        if (user.mbtiType) identityLines.push(`MBTI: ${user.mbtiType}`);
       }
     } catch { /* ignore */ }
 
-    return moodPart;
-  } catch {
-    return "";
-  }
+    // ── 2. Soul archetype ──
+    try {
+      const archetypeMemories = await queryMemories({ userId, category: "soul_archetype", limit: 1 });
+      if (archetypeMemories.length > 0) {
+        identityLines.push(archetypeMemories[0].summary);
+      }
+    } catch { /* ignore */ }
+
+    // ── 3. Today's fortune score (if available) ──
+    try {
+      const todayStr = new Date().toISOString().substring(0, 10);
+      const fortuneRow = await pool.query(
+        `SELECT total_score FROM fortune_history WHERE user_id = $1 AND date = $2`, [userId, todayStr]
+      );
+      if (fortuneRow.rows.length > 0) {
+        identityLines.push(`今日运势: ${fortuneRow.rows[0].total_score}/100`);
+      }
+    } catch { /* ignore */ }
+
+    if (identityLines.length > 0) {
+      parts.push(`## 用户画像\n${identityLines.map(l => `  - ${l}`).join("\n")}`);
+    }
+
+    // ── 4. Mood history (last 7 entries) ──
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const recent = await db.select({
+        moodScore: moodEntries.moodScore,
+        emotionTags: moodEntries.emotionTags,
+        note: moodEntries.note,
+        createdAt: moodEntries.createdAt,
+      }).from(moodEntries)
+        .where(and(eq(moodEntries.userId, userId), sql`${moodEntries.createdAt} > ${sevenDaysAgo}`))
+        .orderBy(desc(moodEntries.createdAt))
+        .limit(7);
+
+      if (recent.length > 0) {
+        const lines = recent.map(e => {
+          const daysAgo = Math.round((Date.now() - new Date(e.createdAt).getTime()) / 86400000);
+          const when = daysAgo === 0 ? "今天" : daysAgo === 1 ? "昨天" : `${daysAgo}天前`;
+          const label = MOOD_EMOJI_LABELS[e.emotionTags] || e.emotionTags;
+          const noteStr = e.note ? ` — "${e.note.replace(/^\[[^\]]*\]\s*/, "").slice(0, 30)}"` : "";
+          return `  - ${when}: ${label} ${e.moodScore}/10${noteStr}`;
+        });
+
+        // Trend
+        const scores = recent.map(e => e.moodScore);
+        const half = Math.floor(scores.length / 2);
+        let trend = "";
+        if (scores.length >= 2) {
+          const recentAvg = scores.slice(0, half || 1).reduce((a, b) => a + b, 0) / (half || 1);
+          const olderAvg = scores.slice(half || 1).reduce((a, b) => a + b, 0) / (scores.length - (half || 1));
+          if (recentAvg - olderAvg > 1.5) trend = " ↑ 情绪好转中";
+          else if (olderAvg - recentAvg > 1.5) trend = " ↓ 情绪下滑中";
+          else trend = " → 情绪平稳";
+        }
+
+        // Top triggers
+        const triggerFreq: Record<string, number> = {};
+        for (const e of recent) {
+          if (!e.note) continue;
+          const m = e.note.match(/^\[([^\]]+)\]/);
+          if (!m) continue;
+          for (const t of m[1].split(",")) {
+            const tag = t.trim();
+            if (tag) triggerFreq[tag] = (triggerFreq[tag] || 0) + 1;
+          }
+        }
+        const topTriggers = Object.entries(triggerFreq).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+
+        parts.push(`## 近期情绪${trend}\n${lines.join("\n")}${topTriggers.length > 0 ? `\n  常见触发: ${topTriggers.join("、")}` : ""}`);
+      }
+    } catch { /* ignore */ }
+
+  } catch { /* ignore */ }
+
+  if (parts.length === 0) return "";
+
+  return "\n\n" + parts.join("\n\n") + "\n\n请基于以上用户画像自然地个性化你的回应。不要逐条念出画像，而是让你的回答体现对这个人的了解（比如用他的五行特质来比喻、结合他的情绪状态调整语气、引用他的性格特点来给建议）。";
+}
+
+// Keep backward compat alias
+async function buildMoodContext(userId: string): Promise<string> {
+  return buildUserContext(userId);
 }
 
 // ─── HeartAI Bot (embedded community chatbot) ────────────────
@@ -7109,10 +7171,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         return res.status(400).json({ error: "请输入问题" });
       }
 
-      const contextParts: string[] = [];
-      if (zodiacSign) contextParts.push(`星座: ${zodiacSign}`);
-      if (mbtiType) contextParts.push(`MBTI: ${mbtiType}`);
-      const userContext = contextParts.length > 0 ? `\n用户信息: ${contextParts.join('，')}` : '';
+      const fullUserCtx = await buildUserContext(userId);
 
       const client = getAIClient();
       const response = await client.chat.completions.create({
@@ -7122,10 +7181,10 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           { role: "system", content: `你是观星(GuanXing)的智慧问答大师，融合星座学、MBTI心理学、中国传统命理（八字/风水/周易）给出个性化解答。
 你的风格：温暖而有洞见，像一位值得信赖的智者朋友。
 回答要求：
-1. 如果用户提供了星座/MBTI，要结合用户的星座或MBTI特质给出针对性建议
+1. 结合用户画像中的命格、性格、情绪状态给出针对性建议
 2. 融合东方智慧和现代心理学
 3. 给出可执行的具体建议
-4. 保持积极正向的基调
+4. 保持积极正向的基调${fullUserCtx}
 返回严格JSON（不要markdown代码块）:
 {
   "title": "8-12字的智慧卡标题",
@@ -7135,7 +7194,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   "luckyElement": { "color": "幸运色", "number": 7, "direction": "方位" },
   "relatedTopics": ["相关话题1", "相关话题2"]
 }` },
-          { role: "user", content: `问题: ${question}${userContext}` },
+          { role: "user", content: `问题: ${question}` },
         ],
       });
 
@@ -7712,17 +7771,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         return res.status(400).json({ error: "请描述你的梦境" });
       }
 
-      const user = await storage.getUser(userId);
-      let personalityCtx = "";
-      try {
-        if (user?.agentPersonality) {
-          const p = JSON.parse(user.agentPersonality);
-          if (p.element) personalityCtx += `\n命主五行: ${p.element}`;
-          if (p.zodiac) personalityCtx += `\n星座: ${p.zodiac}`;
-          if (p.mbtiType) personalityCtx += `\nMBTI: ${p.mbtiType}`;
-          if (p.dayMaster) personalityCtx += `\n日主: ${p.dayMaster}`;
-        }
-      } catch {}
+      const userCtx = await buildUserContext(userId);
 
       const openai = getAIClient();
 
@@ -7741,7 +7790,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 3. 「心理洞察」: 从现代心理学角度分析梦境反映的内心状态
 4. 「开运建议」: 基于梦境给出行动建议
 
-请用温暖且富有洞察力的语气回答，控制在500字内。${personalityCtx ? `\n用户命格信息:${personalityCtx}` : ""}`
+请用温暖且富有洞察力的语气回答，控制在500字内。${userCtx}`
             },
             { role: "user", content: `我梦见了: ${dream}` }
           ],

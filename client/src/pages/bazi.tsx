@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
+import { Link } from "wouter";
 import {
   Sparkles,
   RotateCcw,
@@ -623,6 +624,32 @@ export default function BaziPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Bridge links */}
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/soul-match">
+              <Card className="border-0 shadow-sm cursor-pointer hover:bg-accent/30 transition-colors">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <span className="text-base">🔗</span>
+                  <div>
+                    <p className="text-xs font-medium">灵魂匹配</p>
+                    <p className="text-[10px] text-muted-foreground">找五行相合的人</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/chat">
+              <Card className="border-0 shadow-sm cursor-pointer hover:bg-accent/30 transition-colors">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <span className="text-base">💬</span>
+                  <div>
+                    <p className="text-xs font-medium">解读命盘</p>
+                    <p className="text-[10px] text-muted-foreground">AI深度分析</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
 
           <p className="text-[10px] text-center text-muted-foreground pb-4">
             * 以上内容基于中国传统命理学，仅供文化探索参考

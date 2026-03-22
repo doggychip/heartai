@@ -410,6 +410,36 @@ export default function FortunePage() {
             </Card>
           </Link>
         </div>
+
+        {/* Chat bridge */}
+        <Link href="/chat">
+          <Card className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-r from-violet-500/8 to-pink-500/8 dark:from-violet-900/15 dark:to-pink-900/10 border-violet-500/10">
+            <CardContent className="py-3 flex items-center gap-3">
+              <span className="text-lg">💬</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium">聊聊今日运势</p>
+                <p className="text-xs text-muted-foreground">AI会结合你的命格和情绪状态来聊</p>
+              </div>
+              <span className="text-xs text-violet-600 dark:text-violet-400 font-medium flex-shrink-0">开聊 →</span>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Soul Match Teaser */}
+        <Link href="/soul-match">
+          <Card className="cursor-pointer hover:shadow-md transition-all bg-gradient-to-r from-emerald-500/8 to-teal-500/8 dark:from-emerald-900/15 dark:to-teal-900/10 border-emerald-500/10">
+            <CardContent className="py-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center flex-shrink-0">
+                <Heart className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">找到你的灵魂共振者</p>
+                <p className="text-xs text-muted-foreground">25道深度人格测试，匹配与你能量相合的人</p>
+              </div>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex-shrink-0">去测试 →</span>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );

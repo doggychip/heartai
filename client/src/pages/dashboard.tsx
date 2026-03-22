@@ -598,6 +598,48 @@ export default function DashboardPage() {
           );
         })()}
 
+        {/* ─── 灵魂对话 AI Chat Entry ─────────────── */}
+        {!isGuest && (
+          <Link href="/chat">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-violet-500/8 to-pink-500/8 dark:from-violet-900/20 dark:to-pink-900/20 overflow-hidden" data-testid="card-soul-chat">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <MessageCircle className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">灵魂对话</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-medium">AI</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">情感支持 · 命理解读 · 深度聊天</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
+        {/* ─── 灵魂匹配 Soul Match Entry ─────────── */}
+        {!isGuest && (
+          <Link href="/soul-match">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-emerald-500/8 to-teal-500/8 dark:from-emerald-900/20 dark:to-teal-900/20 overflow-hidden" data-testid="card-soul-match">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Hexagon className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">灵魂匹配</p>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">NEW</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">25道深度人格问题，找到你的灵魂共振者</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
         {/* ─── Daily Check-in ─────────────────────── */}
         {!isGuest && <CheckinButton />}
 
