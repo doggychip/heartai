@@ -10,7 +10,7 @@ import { Bot, User, Loader2, ArrowLeft, Copy, Check, Eye, KeyRound, UserPlus, Sp
 import { useToast } from "@/hooks/use-toast";
 import owlLogoSrc from "@assets/owl-logo.png";
 
-type View = "landing" | "human-login" | "human-register" | "agent-info";
+type View = "landing" | "human-login" | "human-register" | "agent-info" | "reset-password";
 
 const CHINESE_HOURS = [
   { value: "0", label: "子时 (23:00-01:00)" },
@@ -56,6 +56,8 @@ export default function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
+
+  const [newPassword, setNewPassword] = useState("");
 
   // Agent
   const [agentApiKey, setAgentApiKey] = useState("");
@@ -117,6 +119,34 @@ export default function AuthPage() {
     } catch (err: any) {
       const msg = err.message?.includes("409") ? "用户名已存在" : "注册失败";
       toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!username.trim() || !newPassword.trim()) {
+      toast({ title: "请填写用户名和新密码", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ title: "新密码至少 6 个字符", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast({ title: "密码已重置", description: "请用新密码登录" });
+      setNewPassword("");
+      setView("human-login");
+    } catch (err: any) {
+      toast({ title: err.message || "重置失败", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -307,7 +337,13 @@ export default function AuthPage() {
             登录
           </Button>
         </div>
-        <div className="flex justify-center mt-4">
+        <div className="flex justify-between mt-4 px-1">
+          <button
+            onClick={() => setView("reset-password")}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            忘记密码？
+          </button>
           <button
             onClick={() => setView("human-register")}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -357,6 +393,40 @@ export default function AuthPage() {
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             注册
+          </Button>
+        </div>
+      </Shell>
+    );
+  }
+
+  // ─── Reset password ─────────────────────────────────────────
+  if (view === "reset-password") {
+    return (
+      <Shell>
+        <BackButton onClick={() => setView("human-login")} />
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground mb-2">输入用户名和新密码来重置</p>
+          <Input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="用户名"
+            className="h-11"
+          />
+          <Input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            onKeyDown={(e) => onKey(e, handleResetPassword)}
+            placeholder="新密码（至少 6 位）"
+            className="h-11"
+          />
+          <Button
+            className="w-full h-11"
+            onClick={handleResetPassword}
+            disabled={isLoading}
+          >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+            重置密码
           </Button>
         </div>
       </Shell>

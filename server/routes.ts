@@ -1397,6 +1397,28 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     }
   });
 
+  // Reset password (no auth required — plaintext passwords, no email)
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { username, newPassword } = req.body;
+      if (!username || !newPassword) {
+        return res.status(400).json({ error: "请填写用户名和新密码" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ error: "新密码至少6位" });
+      }
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(404).json({ error: "用户名不存在" });
+      }
+      await storage.updateUserPassword(user.id, newPassword);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("Reset password error:", err);
+      res.status(500).json({ error: "重置密码失败" });
+    }
+  });
+
   app.post("/api/auth/logout", (_req, res) => {
     // JWT is stateless — client clears localStorage; nothing to do server-side
     res.json({ ok: true });
