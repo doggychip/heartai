@@ -3255,7 +3255,7 @@ ${najiaDesc}
             if ((user as any).zodiacSign) parts.push(`星座：${(user as any).zodiacSign}`);
             if (parts.length > 0) userProfile = parts.join('，');
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to decode JWT or fetch user profile for chat:", err); }
       }
 
       // 获取当前时辰信息
@@ -3617,14 +3617,14 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             const lunar = d.lunar;
             lunarDate = `${lunar.getMonthName()}${lunar.getDayName()}`;
             zodiac = d.char8?.year?.branch?.toString() || '';
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get lunar date info for date picker:", err); }
 
           try {
             const rawActs = d.theGods.getActs();
             goodActs = (rawActs.good || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
             badActs = (rawActs.bad || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
             duty12 = d.theGods.getDuty12God()?.toString() || '';
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get good/bad acts for date picker:", err); }
 
           try {
             const dayBranch = d.char8?.day?.branch;
@@ -3634,7 +3634,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             if (dayChongIdx >= 0) {
               chong = `冲${ANIMALS[dayChongIdx]}(${BRANCHES[dayChongIdx]})`;
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to calculate 冲 (chong) for date picker:", err); }
 
           try {
             const shaMap: Record<number, string> = { 0: '北', 3: '东', 6: '南', 9: '西' };
@@ -3642,7 +3642,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             if (dayBranchVal !== undefined) {
               sha = '煞' + (shaMap[(dayBranchVal + 6) % 12 % 4 * 3] || '');
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to calculate 煞 (sha) for date picker:", err); }
 
           try {
             const gods = ['喜神', '财神', '福神'];
@@ -3939,7 +3939,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             fromUserId: userId,
           }).catch(() => {});
         }
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to send like notification:", err); }
     }
   });
 
@@ -5713,8 +5713,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             const acts = theGods.getActs();
             lunarInfo.yi = (acts?.good || []).slice(0, 6).join('、') || '';
           }
-        } catch {}
-      } catch {}
+        } catch (err) { console.error("[routes] Failed to get daily good acts from theGods:", err); }
+      } catch (err) { console.error("[routes] Failed to get lunar info for daily summary:", err); }
 
       // User personality summary
       const personality = user ? {
@@ -5763,7 +5763,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           poem: q.poem,
           rank: q.rank,
         };
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to compute daily qian (签):", err); }
 
       res.json({
         date: dateStr,
@@ -6272,7 +6272,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData = { description: "", careerAdvice: "", relationshipAdvice: "", socialAdvice: "" };
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         type,
@@ -6613,7 +6613,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           const yearStem = yearLs.char8?.year?.stem?.toString() || '';
           yearElement = STEM_ELEMENT[yearStem] || '木';
           dayPillar = yearLs.char8?.day?.toString() || '';
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get year stem/branch element from lunisolar:", err); }
 
         // Base score with age curve (natural life curve)
         const ageCurve = -0.015 * (age - 38) * (age - 38) + 70; // Parabola peaking ~38
@@ -6885,8 +6885,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             yi = (acts?.good || []).slice(0, 6).join('、') || '';
             ji = (acts?.bad || []).slice(0, 6).join('、') || '';
           }
-        } catch {}
-      } catch {}
+        } catch (err) { console.error("[routes] Failed to get fortune good/bad acts from theGods:", err); }
+      } catch (err) { console.error("[routes] Failed to get fortune lunar/calendar data:", err); }
 
       // Optional personalization via query params
       const birthDate = req.query.birthDate as string | undefined;
@@ -6899,7 +6899,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         try {
           calculated = calculatePersonalizedFortune(birthDate, birthHour, today);
           isPersonalized = true;
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate personalized fortune:", err); }
       }
 
       // Deterministic daily fortune for guests (no user id — use date only)
@@ -6943,7 +6943,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         });
         const txt = resp.choices[0]?.message?.content?.trim();
         if (txt) aiInsight = txt;
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to generate AI fortune insight:", err); }
 
       res.json({
         date: dateStr,
@@ -6994,7 +6994,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         fourPillars: { year: yearPillar, month: monthPillar, day: dayPillar, hour: hourPillar },
@@ -7074,7 +7074,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = { cards: [], overall: "", advice: "" };
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         question: question || "今日运势如何？",
@@ -7117,7 +7117,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         spaceType,
@@ -7163,7 +7163,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         sign,
@@ -7249,7 +7249,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         question,
@@ -7300,7 +7300,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       const defaultRadar = {
         bond: { score: 78, label: "羁绊", desc: "两人命中有一定联结" },
@@ -7346,7 +7346,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             };
             element = stemElement[dayMaster.toString()] || "";
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate user day master element from birth date:", err); }
       }
       res.json({ nickname: u.nickname || u.username, element });
     } catch (e: any) {
@@ -7390,7 +7390,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         userInfo: { birthDate, element: elem, zodiacSign, mbtiType, gender },
@@ -7459,7 +7459,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
                 isAgent: sender.isAgent ?? false,
               };
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to fetch notification sender info:", err); }
         }
 
         // Extract post preview from linkTo (e.g. "/community/postId")
@@ -7471,7 +7471,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
               if (post) {
                 postPreview = post.content.slice(0, 80);
               }
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to fetch post preview for notification:", err); }
           }
         }
 
@@ -7781,7 +7781,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       let personality = null;
       try {
         if (user.agentPersonality) personality = JSON.parse(user.agentPersonality);
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to parse agent personality JSON:", err); }
 
       const soulProfile = (soulRow as any).rows?.[0] || null;
       res.json({
@@ -9519,7 +9519,7 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}${birthHour !== undefined ? ` �
             const bLsr = lunisolar(bDate);
             userDayMaster = bLsr.char8.day.stem.e5?.toString() || null;
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate user day master from birth date:", err); }
       }
 
       const tokens = CRYPTO_FORTUNE_TOKENS.map((t) => {
