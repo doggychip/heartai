@@ -123,7 +123,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
           userContext = `用户日主: ${dayStem}${dayBranch}`;
           if (user.zodiacSign) userContext += `，星座: ${user.zodiacSign}`;
           if (user.mbtiType) userContext += `，MBTI: ${user.mbtiType}`;
-        } catch {}
+        } catch (err) { console.error("[proactive] Failed to parse user birth date for bazi context:", err); }
       }
 
       if (jieqiName) {
@@ -202,7 +202,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
           body: message.substring(0, 80),
           linkTo: '/',
         });
-      } catch {}
+      } catch (err) { console.error("[proactive] Failed to create daily greeting notification:", err); }
 
       return res.json({
         type: msgType,
@@ -320,7 +320,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
           if (ctx.birthDate) conversationHistory += `提问者生日: ${ctx.birthDate}\n`;
           if (ctx.zodiac) conversationHistory += `提问者星座: ${ctx.zodiac}\n`;
           if (ctx.mbti) conversationHistory += `提问者MBTI: ${ctx.mbti}\n`;
-        } catch {}
+        } catch (err) { console.error("[proactive] Failed to parse session userContext JSON:", err); }
       }
       conversationHistory += '\n--- 对话记录 ---\n';
       const allAvatarsList = Object.values(AVATARS);
@@ -340,7 +340,7 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         todayContext = `\n今日: ${lsr.char8.day.stem}${lsr.char8.day.branch}日`;
         const term = lsr.solarTerm;
         if (term) todayContext += ` 节气:${term}`;
-      } catch {}
+      } catch (err) { console.error("[proactive] Failed to compute today's calendar context:", err); }
 
       const client = getAIClient();
       const generatedMessages: any[] = [];

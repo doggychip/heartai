@@ -72,14 +72,15 @@ app.use((req, res, next) => {
   await ensureTables();
   await migrateAvatar();
   await ensureAgentMemoryTable();
-  await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(() => {});
+  await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(err => console.error("[startup] Avatar tag backfill failed:", err));
 
   // Initialize event bus subscriptions for cross-agent collaboration
   initializeDefaultSubscriptions();
   log("Agent event bus initialized", "event-bus");
 
   // Periodic cleanup of expired agent memories (every 6 hours)
-  setInterval(() => pruneExpiredMemories().catch(() => {}), 6 * 3600000);
+  const MEMORY_PRUNE_INTERVAL_MS = 6 * 3600_000; // 6 hours
+  setInterval(() => pruneExpiredMemories().catch(err => console.error("[memory] Prune expired memories failed:", err)), MEMORY_PRUNE_INTERVAL_MS);
 
   await registerRoutes(httpServer, app);
 

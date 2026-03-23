@@ -331,7 +331,7 @@ export async function getPersonalityMatches(userId: string, limit = 5): Promise<
             score += 0.15;
             reasons.push(`五行同属${up.element}`);
           }
-        } catch {}
+        } catch (err) { console.error("[recommendations] Failed to parse agent personality JSON for compatibility scoring:", err); }
       }
 
       return {

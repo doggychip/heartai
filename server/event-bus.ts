@@ -115,7 +115,7 @@ export async function publish(payload: AgentEventPayload): Promise<string> {
         setTimeout(async () => {
           try {
             await storage.updateEventStatus(event.id, "completed", `Delivered to: ${subscriberAgents.join(", ")}`);
-          } catch {}
+          } catch (err) { console.error("[event-bus] Failed to update event status to completed:", err); }
         }, 5000);
       } catch (err) {
         console.error(`[event-bus] Emit error for ${payload.eventType}:`, err);
