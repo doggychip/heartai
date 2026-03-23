@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -257,7 +258,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="settings-page">
-      <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
           <Link href="/">
@@ -727,7 +728,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </PageContainer>
     </div>
   );
 }

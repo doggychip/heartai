@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,7 +159,7 @@ export default function NameScorePage() {
 
     return (
       <div className="flex-1 overflow-y-auto" data-testid="name-score-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold flex items-center gap-2">
@@ -320,7 +321,7 @@ export default function NameScorePage() {
           <p className="text-xs text-center text-muted-foreground pb-4">
             * 以上内容基于传统五格剖象法，仅供娱乐和文化探索参考
           </p>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -328,7 +329,7 @@ export default function NameScorePage() {
   // ─── Input Form ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="name-score-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
@@ -387,7 +388,7 @@ export default function NameScorePage() {
         <p className="text-xs text-center text-muted-foreground">
           * 基于传统五格剖象法与康熙字典笔画，仅供娱乐参考
         </p>
-      </div>
+      </PageContainer>
     </div>
   );
 }

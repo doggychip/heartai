@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -215,12 +216,12 @@ export default function FortunePage() {
 
   if (isLoading) {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto">
+        <PageContainer className="space-y-6">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-64 w-full rounded-xl" />
           <Skeleton className="h-48 w-full rounded-xl" />
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -245,7 +246,7 @@ export default function FortunePage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="fortune-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -440,7 +441,7 @@ export default function FortunePage() {
             </CardContent>
           </Card>
         </Link>
-      </div>
+      </PageContainer>
     </div>
   );
 }

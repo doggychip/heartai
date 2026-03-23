@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -360,7 +361,7 @@ export default function JournalPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="journal-page">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
         <div className="flex items-center justify-between mb-6 gap-3">
           <div className="min-w-0">
@@ -483,7 +484,7 @@ export default function JournalPage() {
             </TabsContent>
           </Tabs>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

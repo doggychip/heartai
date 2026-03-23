@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -102,7 +103,7 @@ export default function HoroscopePage() {
   if (result) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="horoscope-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">星座运势</h1>
             <Button variant="outline" size="sm" onClick={restart} data-testid="button-horoscope-restart">
@@ -236,7 +237,7 @@ export default function HoroscopePage() {
           <p className="text-xs text-center text-muted-foreground pb-4">
             * 星座运势仅供娱乐参考，不构成任何建议
           </p>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -244,7 +245,7 @@ export default function HoroscopePage() {
   // ─── Sign Selection ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="horoscope-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Star className="w-5 h-5 text-violet-500" />
@@ -303,7 +304,7 @@ export default function HoroscopePage() {
         <p className="text-xs text-center text-muted-foreground">
           * AI 星座运势解读，每周更新，仅供娱乐参考
         </p>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,7 +205,7 @@ export default function SoulmatePage() {
   if (result) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="soulmate-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-5">
+        <PageContainer className="space-y-5">
           {/* Header */}
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">正缘画像</h1>
@@ -401,7 +402,7 @@ export default function SoulmatePage() {
               ⚠️ 免责声明：正缘画像融合八字命理、星座学与心理学，仅供娱乐和自我探索参考，不构成任何现实建议。
             </p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -409,7 +410,7 @@ export default function SoulmatePage() {
   // ─── Input Form ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="soulmate-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Heart className="w-5 h-5 text-pink-500" />
@@ -507,7 +508,7 @@ export default function SoulmatePage() {
             ⚠️ 免责声明：融合八字命理、星座学与心理学，仅供娱乐和自我探索参考。
           </p>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -53,7 +54,7 @@ export default function DeveloperPage() {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto space-y-6 w-full">
+    <PageContainer width="wide" className="flex-1 space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -162,7 +163,7 @@ export default function DeveloperPage() {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -199,7 +200,7 @@ function CreateApp({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto space-y-6 w-full">
+    <PageContainer className="flex-1 space-y-6">
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
           <ArrowLeft className="w-4 h-4" />
@@ -266,7 +267,7 @@ function CreateApp({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -324,12 +325,12 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
 
   if (isLoading || !app) {
     return (
-      <div className="flex-1 p-6 max-w-4xl mx-auto">
+      <PageContainer width="wide" className="flex-1">
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-muted rounded w-1/3" />
           <div className="h-32 bg-muted rounded" />
         </div>
-      </div>
+      </PageContainer>
     );
   }
 
@@ -338,7 +339,7 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
   const maskedKey = showKey ? app.apiKey : app.apiKey.slice(0, 10) + "••••••••••••••••••••••";
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto space-y-5 w-full">
+    <PageContainer width="wide" className="flex-1 space-y-5">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
@@ -441,6 +442,6 @@ function AppDetail({ appId, onBack }: { appId: string; onBack: () => void }) {
           <p className="text-xs text-muted-foreground text-center py-4">暂无调用记录</p>
         )}
       </Card>
-    </div>
+    </PageContainer>
   );
 }

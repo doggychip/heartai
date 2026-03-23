@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -155,7 +156,7 @@ export default function TarotPage() {
     const allFlipped = flipped.size >= result.cards.length;
     return (
       <div className="flex-1 overflow-y-auto" data-testid="tarot-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-500" />
@@ -273,7 +274,7 @@ export default function TarotPage() {
               ⚠️ 免责声明：塔罗占卜仅供娱乐和自我探索参考，不构成任何决策建议。请理性看待占卜结果。
             </p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -281,7 +282,7 @@ export default function TarotPage() {
   // ─── Input Form ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="tarot-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-purple-500" />
@@ -362,7 +363,7 @@ export default function TarotPage() {
             ⚠️ 免责声明：基于22张大阿卡那牌，AI智能解读，仅供娱乐和自我探索参考，不构成任何决策建议。
           </p>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,7 +114,7 @@ export default function ZodiacPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="zodiac-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
@@ -297,7 +298,7 @@ export default function ZodiacPage() {
             </Card>
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

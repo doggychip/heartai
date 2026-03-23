@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -58,7 +59,7 @@ export default function ClawHubPage() {
   }
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto space-y-6 w-full">
+    <PageContainer width="wide" className="flex-1 space-y-6">
       {/* Hero Banner */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 border border-primary/10">
         <div className="relative z-10">
@@ -184,7 +185,7 @@ export default function ClawHubPage() {
           <p className="text-sm text-muted-foreground">没有匹配的 Skill</p>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
@@ -236,7 +237,7 @@ POST /api/v1/${skill.slug.replace("guanxing-", "")}
 Bearer Token: \`gx_sk_your_api_key\``;
 
   return (
-    <div className="flex-1 p-4 md:p-6 max-w-4xl mx-auto space-y-5 w-full">
+    <PageContainer width="wide" className="flex-1 space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
         <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 mt-0.5" onClick={onBack}>
@@ -412,6 +413,6 @@ Bearer Token: \`gx_sk_your_api_key\``;
           </Card>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
