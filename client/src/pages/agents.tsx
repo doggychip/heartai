@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
@@ -335,7 +336,7 @@ export default function AgentsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="agents-page">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-2 mb-1">
@@ -416,7 +417,7 @@ export default function AgentsPage() {
             )}
           </TabsContent>
         </Tabs>
-      </div>
+      </PageContainer>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ export default function AssessmentsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="assessments-page">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-2">
@@ -101,7 +102,7 @@ export default function AssessmentsPage() {
             </Link>
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }
