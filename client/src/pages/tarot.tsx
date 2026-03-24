@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { TarotShareButton } from "@/components/share-cards";
 import {
   Sparkles,
   RotateCcw,
@@ -259,6 +260,11 @@ export default function TarotPage() {
                   <p className="text-sm leading-relaxed text-foreground/80">{result.advice}</p>
                 </CardContent>
               </Card>
+
+              {/* Share */}
+              <div className="flex justify-center mt-4">
+                <TarotShareButton data={result} />
+              </div>
             </div>
           )}
 

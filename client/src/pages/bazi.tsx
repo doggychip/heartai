@@ -24,6 +24,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { Link } from "wouter";
+import { BaziShareButton } from "@/components/share-cards";
 import {
   Sparkles,
   RotateCcw,
@@ -209,15 +210,39 @@ export default function BaziPage() {
                 {result.fullBazi}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setResult(null)}
-              data-testid="button-bazi-restart"
-            >
-              <RotateCcw className="w-3.5 h-3.5 mr-1" />
-              重新排盘
-            </Button>
+            <div className="flex items-center gap-2">
+              <BaziShareButton
+                data={{
+                  fullBazi: result.fullBazi,
+                  dayMaster: result.dayMaster,
+                  dayMasterElement: result.dayMasterElement,
+                  zodiac: result.zodiac,
+                  constellation: result.constellation,
+                  pillars: result.pillars.map((p) => ({
+                    name: p.name,
+                    stem: p.stem,
+                    branch: p.branch,
+                    stemElement: p.stemElement,
+                    branchElement: p.branchElement,
+                    nayin: p.nayin,
+                    shiShen: p.shiShen,
+                  })),
+                  elementCount: result.elementCount,
+                  classicalQuote: result.classicalQuote
+                    ? { text: result.classicalQuote.text, source: result.classicalQuote.source }
+                    : undefined,
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setResult(null)}
+                data-testid="button-bazi-restart"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                重新排盘
+              </Button>
+            </div>
           </div>
 
           {/* Basic Info Card */}

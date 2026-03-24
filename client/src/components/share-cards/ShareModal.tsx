@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Share2, X, Loader2 } from "lucide-react";
+import { Download, Share2, Link2, X, Loader2, Check } from "lucide-react";
 import { captureCard, captureCardBlob, downloadImage } from "./share-utils";
 
 interface ShareModalProps {
@@ -9,13 +9,27 @@ interface ShareModalProps {
   onClose: () => void;
   filename: string;
   shareText?: string;
+  /** When provided, shows a "Copy Link" button that calls this function */
+  onCopyLink?: () => Promise<unknown> | void;
   children: ReactNode;
 }
 
-export function ShareModal({ isOpen, onClose, filename, shareText, children }: ShareModalProps) {
+export function ShareModal({ isOpen, onClose, filename, shareText, onCopyLink, children }: ShareModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyLink = useCallback(async () => {
+    if (!onCopyLink) return;
+    try {
+      await onCopyLink();
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Toast already handled by hook
+    }
+  }, [onCopyLink]);
 
   const handleSave = useCallback(async () => {
     if (!cardRef.current || saving) return;
@@ -107,6 +121,21 @@ export function ShareModal({ isOpen, onClose, filename, shareText, children }: S
             {"\u5206\u4eab"}
           </Button>
         </div>
+        {onCopyLink && (
+          <Button
+            variant="outline"
+            className="w-full mt-2 bg-white/5 border-white/15 text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={handleCopyLink}
+            disabled={saving}
+          >
+            {linkCopied ? (
+              <Check className="w-4 h-4 mr-1.5 text-green-400" />
+            ) : (
+              <Link2 className="w-4 h-4 mr-1.5" />
+            )}
+            {linkCopied ? "\u5df2\u590d\u5236" : "\u590d\u5236\u5206\u4eab\u94fe\u63a5"}
+          </Button>
+        )}
       </div>
     </div>
   );

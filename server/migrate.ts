@@ -449,6 +449,18 @@ export async function ensureTables() {
       )
     `);
 
+    // ─── Shared Results (公开分享链接) ──────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS shared_results (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id VARCHAR NOT NULL,
+        result_type TEXT NOT NULL,
+        result_data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        view_count INT NOT NULL DEFAULT 0
+      )
+    `);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {

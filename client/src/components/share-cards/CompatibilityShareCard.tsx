@@ -2,6 +2,7 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Share2 } from "lucide-react";
 import { ShareModal } from "./ShareModal";
+import { useShareResult } from "@/hooks/use-share-result";
 
 interface RadarDim {
   score: number;
@@ -323,6 +324,7 @@ function CompatCardContent({ result }: CompatShareCardProps) {
 /** Share button + modal for compatibility results */
 export function CompatShareButton({ result }: CompatShareCardProps) {
   const [open, setOpen] = useState(false);
+  const { createShareLink } = useShareResult();
 
   return (
     <>
@@ -340,6 +342,7 @@ export function CompatShareButton({ result }: CompatShareCardProps) {
         onClose={() => setOpen(false)}
         filename={`\u89c2\u661f\u7f18\u5206-${result.person1.name}-${result.person2.name}`}
         shareText={`${result.person1.name}\u548c${result.person2.name}\u7684\u7f18\u5206\u6307\u6570 ${result.totalScore} \u5206\uff01\u6765\u6d4b\u6d4b\u4f60\u4eec\u7684\u7f18\u5206`}
+        onCopyLink={() => createShareLink("compatibility", result)}
       >
         <CompatCardContent result={result} />
       </ShareModal>

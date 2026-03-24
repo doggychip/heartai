@@ -765,3 +765,15 @@ export interface SoulMatchResult {
   bio?: string;
   isAi: boolean;
 }
+
+// ─── Shared Results (公开分享链接) ────────────────────────────
+export const sharedResults = pgTable("shared_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  resultType: text("result_type").notNull(), // 'fortune' | 'tarot' | 'bazi' | 'compatibility'
+  resultData: text("result_data").notNull(), // JSON string of the result
+  createdAt: text("created_at").notNull(),
+  viewCount: integer("view_count").notNull().default(0),
+});
+
+export type SharedResult = typeof sharedResults.$inferSelect;

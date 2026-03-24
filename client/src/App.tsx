@@ -68,6 +68,7 @@ import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import CryptoFortunePage from "@/pages/crypto-fortune";
 import DailyLetterPage from "@/pages/daily-letter";
 import MoodCheckinPage from "@/pages/mood-checkin";
+import SharedResultPage from "@/pages/shared-result";
 import GuestDashboard from "@/pages/guest-dashboard";
 import FeatureGate from "@/components/FeatureGate";
 import GuestBanner from "@/components/GuestBanner";
@@ -143,6 +144,7 @@ function AuthenticatedRoutes() {
         <Route path="/clawhub" component={ClawHubPage} />
         <Route path="/life-curve" component={LifeCurvePage} />
         <Route path="/activity" component={ActivitySummaryPage} />
+        <Route path="/share/:id" component={SharedResultPage} />
         <Route path="/invite/compat/:userId" component={InviteCompatPage} />
         <Route path="/discover/enneagram" component={EnneagramPage} />
         <Route path="/discover/star-mansion" component={StarMansionPage} />

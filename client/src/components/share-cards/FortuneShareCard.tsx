@@ -2,6 +2,7 @@ import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Share2 } from "lucide-react";
 import { ShareModal } from "./ShareModal";
+import { useShareResult } from "@/hooks/use-share-result";
 import { getScoreLabel } from "./share-utils";
 
 interface FortuneData {
@@ -319,6 +320,7 @@ export function FortuneShareButton({
   lunarDate,
 }: FortuneShareCardProps) {
   const [open, setOpen] = useState(false);
+  const { createShareLink } = useShareResult();
 
   return (
     <>
@@ -336,6 +338,7 @@ export function FortuneShareButton({
         onClose={() => setOpen(false)}
         filename={`\u89c2\u661f\u8fd0\u52bf-${fortune.date || "today"}`}
         shareText={`\u6211\u5728\u89c2\u661f\u7684\u4eca\u65e5\u8fd0\u52bf ${fortune.totalScore} \u5206\uff01\u5feb\u6765\u770b\u770b\u4f60\u7684`}
+        onCopyLink={() => createShareLink("fortune", { fortune, nickname, zodiac, element, lunarDate })}
       >
         <FortuneCardContent
           fortune={fortune}

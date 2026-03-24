@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { pool, db } from "./db";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers, sharedResults } from "@shared/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
@@ -10037,6 +10037,67 @@ ${userTopics ? `近期话题: ${userTopics}` : ''}
     } catch (err) {
       console.error("[daily-letter] Error:", err);
       res.status(500).json({ error: "生成日报失败，请稍后再试" });
+    }
+  });
+
+  // ─── Shared Results (公开分享链接) ─────────────────────────
+  // Create a shareable link for a result
+  app.post("/api/share", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { resultType, resultData } = req.body;
+      if (!resultType || !resultData) {
+        return res.status(400).json({ error: "Missing resultType or resultData" });
+      }
+      const allowed = ["fortune", "tarot", "bazi", "compatibility"];
+      if (!allowed.includes(resultType)) {
+        return res.status(400).json({ error: "Invalid resultType" });
+      }
+      const [shared] = await db
+        .insert(sharedResults)
+        .values({
+          userId,
+          resultType,
+          resultData: typeof resultData === "string" ? resultData : JSON.stringify(resultData),
+          createdAt: new Date().toISOString(),
+        })
+        .returning();
+      res.json({ id: shared.id, url: `/share/${shared.id}` });
+    } catch (err) {
+      console.error("[share] Error:", err);
+      res.status(500).json({ error: "创建分享链接失败" });
+    }
+  });
+
+  // Get a shared result (PUBLIC - no auth required)
+  app.get("/api/share/:id", async (req: Request, res: Response) => {
+    try {
+      const [result] = await db
+        .select()
+        .from(sharedResults)
+        .where(eq(sharedResults.id, req.params.id))
+        .limit(1);
+      if (!result) {
+        return res.status(404).json({ error: "分享内容不存在或已过期" });
+      }
+      // Increment view count
+      await db
+        .update(sharedResults)
+        .set({ viewCount: sql`${sharedResults.viewCount} + 1` })
+        .where(eq(sharedResults.id, req.params.id));
+      // Get sharer nickname
+      const user = await storage.getUser(result.userId);
+      res.json({
+        id: result.id,
+        resultType: result.resultType,
+        resultData: JSON.parse(result.resultData),
+        nickname: user?.nickname || "观星用户",
+        createdAt: result.createdAt,
+        viewCount: result.viewCount + 1,
+      });
+    } catch (err) {
+      console.error("[share] Error:", err);
+      res.status(500).json({ error: "获取分享内容失败" });
     }
   });
 
