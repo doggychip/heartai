@@ -6,10 +6,13 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import {
-  ArrowLeft, Plus, Baby, Target, Calendar, Trophy,
-  ChevronRight, Pencil, Trash2, X
+  ArrowLeft, Plus, Baby, Target, Calendar, Trophy, Clock,
+  ChevronRight, Pencil, Trash2, X, BookOpen, Palette,
+  Users, Dumbbell, Lightbulb, Star, Moon, TrendingUp,
+  CheckCircle2, Activity, Sparkles
 } from "lucide-react";
 
+// ─── Types ────────────────────────────────────────────────────
 interface Child {
   id: string;
   name: string;
@@ -19,19 +22,84 @@ interface Child {
   createdAt: string;
 }
 
-interface ChildGoal {
+interface Goal {
   id: string;
   childId: string;
   category: string;
   title: string;
+  description: string | null;
   status: string;
   progress: number;
 }
 
+interface ScheduleEntry {
+  id: string;
+  childId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  activity: string;
+  category: string | null;
+  color: string | null;
+}
+
+interface Milestone {
+  id: string;
+  childId: string;
+  title: string;
+  category: string | null;
+  achievedDate: string | null;
+}
+
+interface DailyLog {
+  id: string;
+  childId: string;
+  date: string;
+  mood: string | null;
+  sleepHours: number | null;
+  notes: string | null;
+  highlights: string[] | null;
+}
+
+interface ChildStat {
+  child: Child;
+  activeGoals: number;
+  completedGoals: number;
+  avgProgress: number;
+  todaySchedule: ScheduleEntry[];
+  recentMilestones: Milestone[];
+  recentLogs: DailyLog[];
+  goalsByCategory: Record<string, { active: number; completed: number }>;
+  goals: Goal[];
+}
+
+interface DashboardData {
+  children: Child[];
+  totalActiveGoals: number;
+  totalCompletedGoals: number;
+  totalTodayActivities: number;
+  totalMilestones: number;
+  childStats: ChildStat[];
+}
+
+// ─── Constants ────────────────────────────────────────────────
 const AVATAR_COLORS = [
   "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6",
   "#ef4444", "#06b6d4", "#f97316",
 ];
+
+const GOAL_CATEGORIES: Record<string, { label: string; icon: any; color: string }> = {
+  academic: { label: "Academic", icon: BookOpen, color: "#3b82f6" },
+  social: { label: "Social", icon: Users, color: "#ec4899" },
+  physical: { label: "Physical", icon: Dumbbell, color: "#10b981" },
+  creative: { label: "Creative", icon: Palette, color: "#f59e0b" },
+  "life-skills": { label: "Life Skills", icon: Lightbulb, color: "#8b5cf6" },
+};
+
+const SCHEDULE_COLORS: Record<string, string> = {
+  school: "#3b82f6", extracurricular: "#8b5cf6", play: "#10b981",
+  rest: "#64748b", meals: "#f59e0b", chores: "#ef4444",
+};
 
 function getAge(birthDate: string | null): string {
   if (!birthDate) return "";
@@ -39,17 +107,25 @@ function getAge(birthDate: string | null): string {
   const now = new Date();
   const years = now.getFullYear() - birth.getFullYear();
   const months = now.getMonth() - birth.getMonth();
-  const adjustedMonths = months < 0 ? months + 12 : months;
-  const adjustedYears = months < 0 ? years - 1 : years;
-  if (adjustedYears === 0) return `${adjustedMonths}mo`;
-  if (adjustedMonths === 0) return `${adjustedYears}y`;
-  return `${adjustedYears}y ${adjustedMonths}mo`;
+  const am = months < 0 ? months + 12 : months;
+  const ay = months < 0 ? years - 1 : years;
+  if (ay === 0) return `${am} months`;
+  if (am === 0) return `${ay} years`;
+  return `${ay}y ${am}m`;
 }
 
 function getInitials(name: string): string {
   return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
+function formatTime(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────
 export default function ChildTrackerPage() {
   const queryClient = useQueryClient();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -59,44 +135,30 @@ export default function ChildTrackerPage() {
   const [formColor, setFormColor] = useState(AVATAR_COLORS[0]);
   const [formNotes, setFormNotes] = useState("");
 
-  const { data: children = [], isLoading } = useQuery<Child[]>({
-    queryKey: ["/api/children"],
-  });
-
-  // Fetch goals for all children to show summary counts
-  const { data: allGoals = {} } = useQuery<Record<string, ChildGoal[]>>({
-    queryKey: ["/api/children/all-goals-summary"],
-    queryFn: async () => {
-      const goalMap: Record<string, ChildGoal[]> = {};
-      for (const child of children) {
-        try {
-          const res = await apiRequest("GET", `/api/children/${child.id}/goals`);
-          goalMap[child.id] = await res.json();
-        } catch { goalMap[child.id] = []; }
-      }
-      return goalMap;
-    },
-    enabled: children.length > 0,
+  const { data: dashboard, isLoading } = useQuery<DashboardData>({
+    queryKey: ["/api/children/dashboard/stats"],
   });
 
   const addChildMutation = useMutation({
-    mutationFn: async (data: { name: string; birthDate: string; avatarColor: string; notes: string }) => {
+    mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/children", data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/children"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/children/dashboard/stats"] });
       resetForm();
     },
   });
 
   const updateChildMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name: string; birthDate: string; avatarColor: string; notes: string }) => {
+    mutationFn: async ({ id, ...data }: any) => {
       const res = await apiRequest("PATCH", `/api/children/${id}`, data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/children"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/children/dashboard/stats"] });
       resetForm();
     },
   });
@@ -107,6 +169,7 @@ export default function ChildTrackerPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/children"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/children/dashboard/stats"] });
     },
   });
 
@@ -139,69 +202,87 @@ export default function ChildTrackerPage() {
     }
   }
 
-  const charlotte = children.find(c => c.name.toLowerCase().includes("charlotte"));
-  const annabelle = children.find(c => c.name.toLowerCase().includes("annabelle"));
+  const children = dashboard?.children || [];
+  const childStats = dashboard?.childStats || [];
+  const today = new Date();
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <button className="p-2 rounded-xl hover:bg-accent transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            </Link>
-            <div>
-              <h1 className="text-lg font-bold">Child Development</h1>
-              <p className="text-xs text-muted-foreground">Track growth, goals & schedules</p>
+      {/* ─── Hero Header ─────────────────────────────────────── */}
+      <div className="bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 text-white">
+        <div className="max-w-2xl mx-auto px-4 pt-4 pb-8">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <Link href="/">
+                <button className="p-2 rounded-xl hover:bg-white/10 transition-colors">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+              </Link>
+              <div>
+                <h1 className="text-xl font-bold">Development Tracker</h1>
+                <p className="text-violet-200 text-xs">
+                  {dayNames[today.getDay()]}, {today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              </div>
             </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => { resetForm(); setShowAddForm(true); }}
+              className="rounded-xl gap-1 bg-white/15 hover:bg-white/25 text-white border-0"
+            >
+              <Plus className="w-4 h-4" /> Add Child
+            </Button>
           </div>
-          <Button
-            size="sm"
-            onClick={() => { resetForm(); setShowAddForm(true); }}
-            className="rounded-xl gap-1"
-          >
-            <Plus className="w-4 h-4" />
-            Add Child
-          </Button>
+
+          {/* ─── Quick Stats ────────────────────────────────── */}
+          {dashboard && children.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center">
+                <Target className="w-5 h-5 mx-auto mb-1 text-violet-200" />
+                <p className="text-xl font-bold">{dashboard.totalActiveGoals}</p>
+                <p className="text-[10px] text-violet-200">Active Goals</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center">
+                <CheckCircle2 className="w-5 h-5 mx-auto mb-1 text-green-300" />
+                <p className="text-xl font-bold">{dashboard.totalCompletedGoals}</p>
+                <p className="text-[10px] text-violet-200">Completed</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center">
+                <Calendar className="w-5 h-5 mx-auto mb-1 text-blue-300" />
+                <p className="text-xl font-bold">{dashboard.totalTodayActivities}</p>
+                <p className="text-[10px] text-violet-200">Today's Tasks</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center">
+                <Trophy className="w-5 h-5 mx-auto mb-1 text-amber-300" />
+                <p className="text-xl font-bold">{dashboard.totalMilestones}</p>
+                <p className="text-[10px] text-violet-200">Milestones</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-4 space-y-4">
-        {/* Add/Edit Form */}
+      <div className="max-w-2xl mx-auto px-4 -mt-3 space-y-4">
+        {/* ─── Add/Edit Form ────────────────────────────────── */}
         {showAddForm && (
-          <Card className="border-primary/20 bg-primary/5">
+          <Card className="border-violet-200 bg-violet-50/50 dark:bg-violet-950/20 shadow-lg">
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm">
                   {editingChild ? `Edit ${editingChild.name}` : "Add a Child"}
                 </h3>
-                <button onClick={resetForm} className="p-1 rounded hover:bg-accent">
-                  <X className="w-4 h-4" />
-                </button>
+                <button onClick={resetForm} className="p-1 rounded hover:bg-accent"><X className="w-4 h-4" /></button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-3">
-                <Input
-                  placeholder="Child's name"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  required
-                />
-                <Input
-                  type="date"
-                  placeholder="Birth date"
-                  value={formBirthDate}
-                  onChange={(e) => setFormBirthDate(e.target.value)}
-                />
+                <Input placeholder="Child's name" value={formName} onChange={(e) => setFormName(e.target.value)} required />
+                <Input type="date" value={formBirthDate} onChange={(e) => setFormBirthDate(e.target.value)} />
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Theme Color</p>
                   <div className="flex gap-2">
                     {AVATAR_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
+                      <button key={color} type="button"
                         className={`w-7 h-7 rounded-full transition-all ${formColor === color ? "ring-2 ring-offset-2 ring-offset-background ring-primary scale-110" : "hover:scale-105"}`}
                         style={{ backgroundColor: color }}
                         onClick={() => setFormColor(color)}
@@ -209,16 +290,9 @@ export default function ChildTrackerPage() {
                     ))}
                   </div>
                 </div>
-                <Input
-                  placeholder="Notes (optional)"
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                />
-                <Button
-                  type="submit"
-                  className="w-full rounded-xl"
-                  disabled={addChildMutation.isPending || updateChildMutation.isPending}
-                >
+                <Input placeholder="Notes (optional)" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} />
+                <Button type="submit" className="w-full rounded-xl"
+                  disabled={addChildMutation.isPending || updateChildMutation.isPending}>
                   {editingChild ? "Save Changes" : "Add Child"}
                 </Button>
               </form>
@@ -226,133 +300,293 @@ export default function ChildTrackerPage() {
           </Card>
         )}
 
-        {/* Loading */}
+        {/* ─── Loading ──────────────────────────────────────── */}
         {isLoading && (
-          <div className="space-y-3">
-            {[1, 2].map(i => (
-              <Card key={i}><CardContent className="p-4 h-24 animate-pulse bg-muted/30" /></Card>
+          <div className="space-y-3 pt-2">
+            {[1, 2, 3].map(i => (
+              <Card key={i}><CardContent className="p-4 h-32 animate-pulse bg-muted/30" /></Card>
             ))}
           </div>
         )}
 
-        {/* Empty State */}
+        {/* ─── Empty State ──────────────────────────────────── */}
         {!isLoading && children.length === 0 && !showAddForm && (
           <div className="text-center py-16 space-y-4">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-              <Baby className="w-10 h-10 text-primary" />
+            <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto shadow-sm">
+              <Baby className="w-12 h-12 text-violet-500" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Start Tracking Development</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Add Charlotte and Annabelle to begin tracking their learning, goals, and daily schedules.
+              <h2 className="text-xl font-bold">Welcome to the Dashboard</h2>
+              <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
+                Add Charlotte and Annabelle to start tracking their learning development, goals, and daily schedules.
               </p>
             </div>
-            <Button onClick={() => setShowAddForm(true)} className="rounded-xl gap-2">
-              <Plus className="w-4 h-4" />
-              Add Your First Child
+            <Button onClick={() => setShowAddForm(true)} className="rounded-xl gap-2" size="lg">
+              <Plus className="w-5 h-5" /> Add Your First Child
             </Button>
           </div>
         )}
 
-        {/* Children List */}
-        {children.map((child) => {
-          const goals = allGoals[child.id] || [];
-          const activeGoals = goals.filter(g => g.status === "active");
-          const completedGoals = goals.filter(g => g.status === "completed");
-          const avgProgress = activeGoals.length > 0
-            ? Math.round(activeGoals.reduce((sum, g) => sum + (g.progress || 0), 0) / activeGoals.length)
-            : 0;
+        {/* ─── Today's Schedule (Combined) ──────────────────── */}
+        {childStats.length > 0 && childStats.some(cs => cs.todaySchedule.length > 0) && (
+          <Card className="shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                  <Clock className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm">Today's Schedule</h3>
+                  <p className="text-[10px] text-muted-foreground">{dayNames[today.getDay()]}</p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {childStats.flatMap(cs =>
+                  cs.todaySchedule.map(entry => ({
+                    ...entry,
+                    childName: cs.child.name,
+                    childColor: cs.child.avatarColor || "#8b5cf6",
+                  }))
+                )
+                .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                .map((entry) => {
+                  const color = entry.color || SCHEDULE_COLORS[entry.category || ""] || "#64748b";
+                  return (
+                    <div key={entry.id} className="flex items-center gap-3 py-1.5">
+                      <div className="w-1 h-8 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{entry.activity}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatTime(entry.startTime)} - {formatTime(entry.endTime)}
+                        </p>
+                      </div>
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full text-white shrink-0"
+                        style={{ backgroundColor: entry.childColor }}
+                      >
+                        {entry.childName.split(" ")[0]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ─── Per-Child Sections ──────────────────────────── */}
+        {childStats.map((cs) => {
+          const { child } = cs;
+          const themeColor = child.avatarColor || "#8b5cf6";
 
           return (
-            <Link key={child.id} href={`/child/${child.id}`}>
-              <Card className="hover:border-primary/30 transition-all cursor-pointer group">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    {/* Avatar */}
-                    <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0"
-                      style={{ backgroundColor: child.avatarColor || "#8b5cf6" }}
-                    >
-                      {getInitials(child.name)}
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-base">{child.name}</h3>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+            <div key={child.id} className="space-y-3">
+              {/* Child Header Card */}
+              <Link href={`/child/${child.id}`}>
+                <Card className="overflow-hidden cursor-pointer group hover:shadow-md transition-all">
+                  <div className="h-1.5" style={{ backgroundColor: themeColor }} />
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm"
+                        style={{ backgroundColor: themeColor }}
+                      >
+                        {getInitials(child.name)}
                       </div>
-                      {child.birthDate && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Age: {getAge(child.birthDate)}
-                        </p>
-                      )}
-
-                      {/* Stats Row */}
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Target className="w-3.5 h-3.5 text-blue-500" />
-                          <span>{activeGoals.length} active goals</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-bold text-lg">{child.name}</h3>
+                          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{completedGoals.length} completed</span>
+                        {child.birthDate && (
+                          <p className="text-sm text-muted-foreground">Age: {getAge(child.birthDate)}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: `${themeColor}15`, color: themeColor }}>
+                            {cs.activeGoals} goals
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-medium">
+                            {cs.recentMilestones.length} milestones
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">
+                            {cs.completedGoals} done
+                          </span>
                         </div>
                       </div>
-
-                      {/* Progress Bar */}
-                      {activeGoals.length > 0 && (
-                        <div className="mt-2">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Avg Progress</span>
-                            <span className="font-medium">{avgProgress}%</span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${avgProgress}%`,
-                                backgroundColor: child.avatarColor || "#8b5cf6",
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  </div>
 
-                  {/* Quick Actions */}
-                  <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
-                    <button
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditForm(child); }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-accent"
-                    >
-                      <Pencil className="w-3 h-3" /> Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (confirm(`Remove ${child.name}? This will delete all their data.`)) {
-                          deleteChildMutation.mutate(child.id);
-                        }
-                      }}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20"
-                    >
-                      <Trash2 className="w-3 h-3" /> Remove
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
+                    {/* Quick Actions */}
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); openEditForm(child); }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors px-2 py-1 rounded-lg hover:bg-accent"
+                      >
+                        <Pencil className="w-3 h-3" /> Edit
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          if (confirm(`Remove ${child.name}? This will delete all their data.`)) {
+                            deleteChildMutation.mutate(child.id);
+                          }
+                        }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-500 transition-colors px-2 py-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20"
+                      >
+                        <Trash2 className="w-3 h-3" /> Remove
+                      </button>
+                      <Link href={`/child/${child.id}`}>
+                        <span
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1 text-xs hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-accent ml-auto font-medium"
+                          style={{ color: themeColor }}
+                        >
+                          View Details <ChevronRight className="w-3 h-3" />
+                        </span>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Goal Progress Overview */}
+              {cs.activeGoals > 0 && (
+                <Card className="shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Target className="w-4 h-4" style={{ color: themeColor }} />
+                      <h4 className="font-semibold text-sm">Goal Progress</h4>
+                      <span className="text-xs text-muted-foreground ml-auto">{cs.avgProgress}% avg</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {cs.goals.slice(0, 4).map(goal => {
+                        const cat = GOAL_CATEGORIES[goal.category];
+                        const CatIcon = cat?.icon || Target;
+                        return (
+                          <div key={goal.id} className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CatIcon className="w-3.5 h-3.5" style={{ color: cat?.color || themeColor }} />
+                                <span className="text-xs font-medium truncate max-w-[180px]">{goal.title}</span>
+                              </div>
+                              <span className="text-xs font-semibold" style={{ color: cat?.color || themeColor }}>
+                                {goal.progress}%
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${goal.progress}%`,
+                                  backgroundColor: cat?.color || themeColor,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Category Breakdown */}
+                    {Object.keys(cs.goalsByCategory).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border/50">
+                        {Object.entries(cs.goalsByCategory).map(([cat, counts]) => {
+                          const catInfo = GOAL_CATEGORIES[cat];
+                          if (!catInfo) return null;
+                          const CatIcon = catInfo.icon;
+                          return (
+                            <div key={cat} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full"
+                              style={{ backgroundColor: `${catInfo.color}10`, color: catInfo.color }}>
+                              <CatIcon className="w-3 h-3" />
+                              <span className="font-medium">{catInfo.label}</span>
+                              <span className="opacity-70">{counts.active}a / {counts.completed}c</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recent Mood & Log */}
+              {cs.recentLogs.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Activity className="w-4 h-4 text-pink-500" />
+                      <h4 className="font-semibold text-sm">Recent Days</h4>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {cs.recentLogs.slice(0, 7).map(log => {
+                        const d = new Date(log.date + "T00:00:00");
+                        const isToday = log.date === today.toISOString().split("T")[0];
+                        return (
+                          <div
+                            key={log.id}
+                            className={`flex flex-col items-center gap-1 p-2 rounded-xl min-w-[60px] ${
+                              isToday ? "bg-primary/5 ring-1 ring-primary/20" : "bg-muted/30"
+                            }`}
+                          >
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {d.toLocaleDateString("en-US", { weekday: "short" })}
+                            </span>
+                            <span className="text-xl">{log.mood || "---"}</span>
+                            {log.sleepHours && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
+                                <Moon className="w-2.5 h-2.5" />{log.sleepHours}h
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {cs.recentLogs[0]?.highlights && Array.isArray(cs.recentLogs[0].highlights) && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(cs.recentLogs[0].highlights as string[]).slice(0, 3).map((h, i) => (
+                          <span key={i} className="text-[10px] bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full">{h}</span>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recent Milestones */}
+              {cs.recentMilestones.length > 0 && (
+                <Card className="shadow-sm">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Trophy className="w-4 h-4 text-amber-500" />
+                      <h4 className="font-semibold text-sm">Recent Milestones</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {cs.recentMilestones.slice(0, 3).map(m => {
+                        const cat = GOAL_CATEGORIES[m.category || ""];
+                        return (
+                          <div key={m.id} className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat?.color || themeColor }} />
+                            <span className="text-xs font-medium flex-1 truncate">{m.title}</span>
+                            {m.achievedDate && (
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {new Date(m.achievedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           );
         })}
 
-        {/* Quick Start Hint */}
+        {/* Add another child hint */}
         {!isLoading && children.length > 0 && children.length < 2 && !showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="w-full border-2 border-dashed border-muted-foreground/20 rounded-2xl p-6 text-center hover:border-primary/30 hover:bg-primary/5 transition-all"
+            className="w-full border-2 border-dashed border-muted-foreground/20 rounded-2xl p-6 text-center hover:border-violet-300 hover:bg-violet-50/30 dark:hover:bg-violet-950/10 transition-all"
           >
             <Plus className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">Add another child</p>

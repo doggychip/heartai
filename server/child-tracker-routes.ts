@@ -2,7 +2,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
 import { children, childGoals, childSchedule, childMilestones, childDailyLog } from "@shared/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
+import { eq, and, desc, asc, sql } from "drizzle-orm";
 
 function getUserId(req: Request): string {
   return (req as any).userId;
@@ -85,6 +85,77 @@ export function registerChildTrackerRoutes(
         .returning();
       if (!deleted) return res.status(404).json({ error: "Child not found" });
       res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ─── Dashboard Stats (must be before :childId routes) ──────
+
+  app.get("/api/children/dashboard/stats", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+
+      const allChildren = await db.select().from(children)
+        .where(eq(children.userId, userId))
+        .orderBy(asc(children.name));
+
+      const allGoals = await db.select().from(childGoals)
+        .where(eq(childGoals.userId, userId));
+
+      const todayDow = new Date().getDay();
+      const todaySchedule = await db.select().from(childSchedule)
+        .where(and(eq(childSchedule.userId, userId), eq(childSchedule.dayOfWeek, todayDow)))
+        .orderBy(asc(childSchedule.startTime));
+
+      const allMilestones = await db.select().from(childMilestones)
+        .where(eq(childMilestones.userId, userId))
+        .orderBy(desc(childMilestones.achievedDate));
+
+      const recentLogs = await db.select().from(childDailyLog)
+        .where(eq(childDailyLog.userId, userId))
+        .orderBy(desc(childDailyLog.date))
+        .limit(30);
+
+      const childStats = allChildren.map(child => {
+        const goals = allGoals.filter(g => g.childId === child.id);
+        const activeGoals = goals.filter(g => g.status === "active");
+        const completedGoals = goals.filter(g => g.status === "completed");
+        const schedule = todaySchedule.filter(s => s.childId === child.id);
+        const milestones = allMilestones.filter(m => m.childId === child.id);
+        const logs = recentLogs.filter(l => l.childId === child.id);
+        const avgProgress = activeGoals.length > 0
+          ? Math.round(activeGoals.reduce((sum, g) => sum + (g.progress || 0), 0) / activeGoals.length)
+          : 0;
+
+        const goalsByCategory: Record<string, { active: number; completed: number }> = {};
+        goals.forEach(g => {
+          if (!goalsByCategory[g.category]) goalsByCategory[g.category] = { active: 0, completed: 0 };
+          if (g.status === "active") goalsByCategory[g.category].active++;
+          if (g.status === "completed") goalsByCategory[g.category].completed++;
+        });
+
+        return {
+          child,
+          activeGoals: activeGoals.length,
+          completedGoals: completedGoals.length,
+          avgProgress,
+          todaySchedule: schedule,
+          recentMilestones: milestones.slice(0, 5),
+          recentLogs: logs.slice(0, 7),
+          goalsByCategory,
+          goals: activeGoals,
+        };
+      });
+
+      res.json({
+        children: allChildren,
+        totalActiveGoals: allGoals.filter(g => g.status === "active").length,
+        totalCompletedGoals: allGoals.filter(g => g.status === "completed").length,
+        totalTodayActivities: todaySchedule.length,
+        totalMilestones: allMilestones.length,
+        childStats,
+      });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -355,4 +426,5 @@ export function registerChildTrackerRoutes(
       res.status(500).json({ error: err.message });
     }
   });
+
 }
