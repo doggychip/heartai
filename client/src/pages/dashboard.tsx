@@ -177,49 +177,31 @@ function HotPostsTicker({ posts }: { posts: { id: string; content: string; tag: 
   );
 }
 
-// Feature grid icons — grouped by category
-const FEATURE_GROUPS = [
-  {
-    title: '命理探索',
-    items: [
-      { path: "/bazi", label: "八字命理", icon: Calendar, color: "#b8863e" },
-      { path: "/fortune", label: "今日运势", icon: Gauge, color: "#e8922e" },
-      { path: "/zodiac", label: "星座解读", icon: Star, color: "#d4467a" },
-      { path: "/discover/star-mansion", label: "二十八星宿", icon: CircleDot, color: "#d97706" },
-    ],
-  },
-  {
-    title: '加密玄学',
-    items: [
-      { path: "/crypto", label: "加密运势", icon: Coins, color: "#f59e0b" },
-    ],
-  },
-  {
-    title: '玄学测试',
-    items: [
-      { path: "/mbti", label: "MBTI", icon: Compass, color: "#2eaa7a" },
-      { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
-      { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
-      { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
-      { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
-    ],
-  },
-  {
-    title: '缘分互动',
-    items: [
-      { path: "/compatibility", label: "缘分雷达", icon: Radar, color: "#ec4899" },
-      { path: "/soulmate", label: "正缘画像", icon: Heart, color: "#f43f5e" },
-      { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
-      { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
-    ],
-  },
-  {
-    title: '社区生活',
-    items: [
-      { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
-      { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
-    ],
-  },
+// Quick action cards for 2x2 grid
+const QUICK_ACTIONS = [
+  { path: "/daily-letter", label: "观星日报", emoji: "🌌", badge: "每日更新", badgeColor: "amber", desc: "分身的星象观测" },
+  { path: "/mood", label: "情绪签到", emoji: "💫", badge: "签到", badgeColor: "indigo", desc: "记录今天的感觉" },
+  { path: "/chat", label: "灵魂对话", emoji: "💬", badge: "AI", badgeColor: "violet", desc: "命理解读·深度聊天" },
+  { path: "/soul-match", label: "灵魂匹配", emoji: "🔮", badge: "NEW", badgeColor: "emerald", desc: "找到灵魂共振者" },
+];
+
+// Feature grid icons — single flat grid (4 columns)
+const FEATURE_ITEMS = [
+  { path: "/bazi", label: "八字命理", icon: Calendar, color: "#b8863e" },
+  { path: "/tarot", label: "塔罗占卜", icon: Layers, color: "#9b59b6" },
+  { path: "/zodiac", label: "星座解读", icon: Star, color: "#d4467a" },
+  { path: "/compatibility", label: "缘分雷达", icon: Radar, color: "#ec4899" },
+  { path: "/soulmate", label: "正缘画像", icon: Heart, color: "#f43f5e" },
+  { path: "/life-curve", label: "人生曲线", icon: TrendingUp, color: "#10b981" },
+  { path: "/qiuqian", label: "求签解签", icon: Flame, color: "#f97316" },
+  { path: "/crypto", label: "加密运势", icon: Coins, color: "#f59e0b" },
+  { path: "/mbti", label: "MBTI", icon: Compass, color: "#2eaa7a" },
+  { path: "/discover/enneagram", label: "九型人格", icon: Hexagon, color: "#7c3aed" },
+  { path: "/discover/star-mansion", label: "星宿", icon: CircleDot, color: "#d97706" },
+  { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
+  { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
+  { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
+  { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
 ];
 
 // ─── Live clock hook (updates every minute) ─────────────────
@@ -482,198 +464,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══════════ Content (overlaps header) ═══════════ */}
-      <div className="relative -mt-8 px-4 pb-6 flex flex-col gap-7">
+      <div className="relative -mt-8 px-4 pb-6 flex flex-col gap-5">
 
-        {/* ─── Proactive Message Card ──────────────── */}
-        {!isGuest && <ProactiveMessageCard />}
-
-        {/* ─── 观星日报 Daily Letter Entry ────────── */}
-        {!isGuest && (
-          <Link href="/daily-letter">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-amber-500/8 to-orange-500/8 dark:from-amber-900/20 dark:to-orange-900/20 overflow-hidden" data-testid="card-daily-letter">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm flex-shrink-0">
-                  <span className="text-lg">🌌</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">观星日报</p>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-medium">每日更新</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">你的分身今晨观测了星象，写了一封信给你</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── 情绪签到 Mood Check-in Card ────────── */}
-        {!isGuest && (
-          <Link href="/mood">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-indigo-500/8 to-purple-500/8 dark:from-indigo-900/20 dark:to-purple-900/20 overflow-hidden" data-testid="card-mood-checkin">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-sm flex-shrink-0">
-                  <span className="text-lg">💫</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">今天感觉怎么样？</p>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-medium">情绪签到</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">记录情绪，获得命理AI的温暖回应</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── 情绪趋势 Mood Trend Sparkline ──────── */}
-        {!isGuest && dashboard?.moodTrend && dashboard.moodTrend.length >= 2 && (
-          <Link href="/mood">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer" data-testid="card-mood-trend">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-indigo-500" />
-                    <span className="text-[11px] font-medium text-muted-foreground tracking-wide">近期情绪走势</span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{dashboard.moodTrend.length}天记录</span>
-                </div>
-                <MoodSparkline trend={dashboard.moodTrend} />
-                <div className="flex justify-between mt-2">
-                  <span className="text-[10px] text-muted-foreground">
-                    {dashboard.moodTrend[0]?.date?.slice(5)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {dashboard.moodTrend[dashboard.moodTrend.length - 1]?.date?.slice(5)}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── Weekly Mood Digest ──────────────────── */}
-        {!isGuest && dashboard?.moodTrend && dashboard.moodTrend.length >= 5 && (() => {
-          const trend = dashboard.moodTrend;
-          const avg = Math.round(trend.reduce((s, e) => s + e.score, 0) / trend.length * 10) / 10;
-          const half = Math.ceil(trend.length / 2);
-          const recentAvg = trend.slice(0, half).reduce((s, e) => s + e.score, 0) / half;
-          const olderAvg = trend.slice(half).reduce((s, e) => s + e.score, 0) / (trend.length - half);
-          const trendDir = recentAvg - olderAvg > 1 ? "↑" : olderAvg - recentAvg > 1 ? "↓" : "→";
-          const trendColor = trendDir === "↑" ? "text-emerald-500" : trendDir === "↓" ? "text-rose-400" : "text-muted-foreground";
-          const trendLabel = trendDir === "↑" ? "好转中" : trendDir === "↓" ? "需关注" : "平稳";
-          // Dominant mood: most frequent tag
-          const tagFreq: Record<string, number> = {};
-          for (const e of trend) tagFreq[e.tags] = (tagFreq[e.tags] || 0) + 1;
-          const dominant = Object.entries(tagFreq).sort((a, b) => b[1] - a[1])[0]?.[0] || "😊";
-          const getLabel = (s: number) => s >= 8 ? "状态良好" : s >= 6 ? "情绪稳定" : s >= 4 ? "略有波动" : "需要关爱";
-
-          return (
-            <Link href="/mood">
-              <Card className="border-0 shadow-sm bg-gradient-to-r from-indigo-500/5 to-violet-500/5 dark:from-indigo-900/20 dark:to-violet-900/15 hover:shadow-md transition-all cursor-pointer">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <CalendarCheck className="w-3.5 h-3.5 text-indigo-500" />
-                    <span className="text-[11px] font-medium text-muted-foreground tracking-wide">近期情绪小结</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl">{dominant}</span>
-                      <div>
-                        <p className="text-sm font-semibold">{getLabel(avg)}</p>
-                        <p className="text-xs text-muted-foreground">均分 {avg}/10 · {trend.length}条记录</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-2xl font-bold ${trendColor}`}>{trendDir}</p>
-                      <p className={`text-xs ${trendColor}`}>{trendLabel}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })()}
-
-        {/* ─── 灵魂对话 AI Chat Entry ─────────────── */}
-        {!isGuest && (
-          <Link href="/chat">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-violet-500/8 to-pink-500/8 dark:from-violet-900/20 dark:to-pink-900/20 overflow-hidden" data-testid="card-soul-chat">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-400 to-pink-500 flex items-center justify-center shadow-sm flex-shrink-0">
-                  <MessageCircle className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">灵魂对话</p>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-400 font-medium">AI</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">情感支持 · 命理解读 · 深度聊天</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── 灵魂匹配 Soul Match Entry ─────────── */}
-        {!isGuest && (
-          <Link href="/soul-match">
-            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer bg-gradient-to-r from-emerald-500/8 to-teal-500/8 dark:from-emerald-900/20 dark:to-teal-900/20 overflow-hidden" data-testid="card-soul-match">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-sm flex-shrink-0">
-                  <Hexagon className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">灵魂匹配</p>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-medium">NEW</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">25道深度人格问题，找到你的灵魂共振者</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── Daily Check-in ─────────────────────── */}
-        {!isGuest && <CheckinButton />}
-
-        {/* ─── 分身私语 Avatar Whisper Bubble ────── */}
-        {!isGuest && <AvatarWhisperBubble />}
-
-        {/* ─── AI Avatar Quick Card ──────────────── */}
-        {dashboard?.avatar && (
-          <Link href="/avatar">
-            <Card className="border-0 shadow-sm bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-900/20 dark:to-purple-900/20 hover:shadow-md transition-shadow cursor-pointer" data-testid="card-avatar-quick">
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                  {dashboard.avatar.name.charAt(0)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium">{dashboard.avatar.name}</p>
-                    <Badge variant={dashboard.avatar.isActive ? "default" : "secondary"} className="text-[9px] h-4">
-                      {dashboard.avatar.isActive ? "活跃中" : "已暂停"}
-                    </Badge>
-                  </div>
-                  {dashboard.avatar.recentActions.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      {dashboard.avatar.recentActions[0].innerThought || "正在社区浏览中..."}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              </CardContent>
-            </Card>
-          </Link>
-        )}
-
-        {/* ─── "自己" Fortune Card ─────────────────── */}
+        {/* ─── #1: Fortune Card (hero position) ──── */}
         {isGuest ? (
           <Card className="border-0 shadow-lg rounded-2xl overflow-hidden" data-testid="card-fortune">
             <CardContent className="p-4">
@@ -724,7 +517,7 @@ export default function DashboardPage() {
 
             {/* Dimension rings — circular progress with glow */}
             <div className="flex items-center justify-between">
-              {DIMENSION_CONFIG.map((dim, i) => {
+              {DIMENSION_CONFIG.map((dim) => {
                 const score = f.dimensions[dim.key];
                 const r = 24;
                 const circumference = 2 * Math.PI * r;
@@ -786,51 +579,116 @@ export default function DashboardPage() {
         </Card>
         )}
 
-        {/* ─── Feature Icon Grid (grouped by category) ── */}
-        <div className="space-y-4" data-testid="feature-grid">
-          {FEATURE_GROUPS.map((group) => (
-            <div key={group.title} className="space-y-2">
-              <h3 className="text-[11px] font-medium text-muted-foreground/70 tracking-wider uppercase pl-1">
-                {group.title}
-              </h3>
-              <div className="grid grid-cols-5 gap-y-3" data-testid={`feature-group-${group.title}`}>
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.path} href={item.path}>
-                      <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
-                        <div
-                          className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
-                          style={{ background: `linear-gradient(135deg, ${item.color}cc, ${item.color})` }}
-                        >
-                          <Icon className="w-5 h-5 text-white" strokeWidth={1.8} />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
-                          {item.label}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-                {group.title === '社区生活' && (
-                  <div
-                    className="flex flex-col items-center gap-1.5 cursor-pointer group"
-                    onClick={openDiscover}
-                  >
+        {/* ─── Proactive Message Card ──────────────── */}
+        {!isGuest && <ProactiveMessageCard />}
+
+        {/* ─── Quick Actions 2x2 Grid ──────────────── */}
+        {!isGuest && (
+          <div className="grid grid-cols-2 gap-2.5" data-testid="quick-actions-grid">
+            {QUICK_ACTIONS.map((item) => (
+              <Link key={item.path} href={item.path}>
+                <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer h-full">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{item.emoji}</span>
+                      <span className="text-xs font-semibold">{item.label}</span>
+                      <span className={`text-[8px] px-1 py-0.5 rounded-full bg-${item.badgeColor}-500/15 text-${item.badgeColor}-600 dark:text-${item.badgeColor}-400 font-medium ml-auto`}>
+                        {item.badge}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-snug">{item.desc}</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* ─── Mood Sparkline (compact, only if data) ── */}
+        {!isGuest && dashboard?.moodTrend && dashboard.moodTrend.length >= 2 && (
+          <Link href="/mood">
+            <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer" data-testid="card-mood-trend">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-[11px] font-medium text-muted-foreground">近期情绪</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{dashboard.moodTrend.length}天</span>
+                </div>
+                <MoodSparkline trend={dashboard.moodTrend} />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
+        {/* ─── Daily Check-in ─────────────────────── */}
+        {!isGuest && <CheckinButton />}
+
+        {/* ─── Avatar Whisper + Avatar Card (side by side) ── */}
+        {!isGuest && <AvatarWhisperBubble />}
+        {dashboard?.avatar && (
+          <Link href="/avatar">
+            <Card className="border-0 shadow-sm bg-gradient-to-r from-violet-500/5 to-purple-500/5 dark:from-violet-900/20 dark:to-purple-900/20 hover:shadow-md transition-shadow cursor-pointer" data-testid="card-avatar-quick">
+              <CardContent className="p-3 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                  {dashboard.avatar.name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">{dashboard.avatar.name}</p>
+                    <Badge variant={dashboard.avatar.isActive ? "default" : "secondary"} className="text-[9px] h-4">
+                      {dashboard.avatar.isActive ? "活跃中" : "已暂停"}
+                    </Badge>
+                  </div>
+                  {dashboard.avatar.recentActions.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      {dashboard.avatar.recentActions[0].innerThought || "正在社区浏览中..."}
+                    </p>
+                  )}
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              </CardContent>
+            </Card>
+          </Link>
+        )}
+
+        {/* ─── Feature Icon Grid (flat, 4 columns) ──── */}
+        <div data-testid="feature-grid">
+          <div className="grid grid-cols-4 gap-y-4 gap-x-2">
+            {FEATURE_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.path} href={item.path}>
+                  <div className="flex flex-col items-center gap-1.5 cursor-pointer group">
                     <div
                       className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
-                      style={{ background: "linear-gradient(135deg, #6b7280cc, #6b7280)" }}
+                      style={{ background: `linear-gradient(135deg, ${item.color}cc, ${item.color})` }}
                     >
-                      <Grid3X3 className="w-5 h-5 text-white" strokeWidth={1.8} />
+                      <Icon className="w-5 h-5 text-white" strokeWidth={1.8} />
                     </div>
                     <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
-                      发现更多
+                      {item.label}
                     </span>
                   </div>
-                )}
+                </Link>
+              );
+            })}
+            <div
+              className="flex flex-col items-center gap-1.5 cursor-pointer group"
+              onClick={openDiscover}
+            >
+              <div
+                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+                style={{ background: "linear-gradient(135deg, #6b7280cc, #6b7280)" }}
+              >
+                <Grid3X3 className="w-5 h-5 text-white" strokeWidth={1.8} />
               </div>
+              <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors leading-tight text-center">
+                更多
+              </span>
             </div>
-          ))}
+          </div>
         </div>
 
         {/* ─── More Features Row ───────────────────── */}

@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { pool, db } from "./db";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers, sharedResults } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, dingdingSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers, sharedResults } from "@shared/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
@@ -5378,6 +5378,29 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── DingDing Settings Routes ─────────────────────────────
+  app.get("/api/settings/dingding", requireAuth, async (req, res) => {
+    const user = await storage.getUser(getUserId(req));
+    if (!user) return res.status(401).json({ error: "用户不存在" });
+    res.json({ dingdingWebhookUrl: user.dingdingWebhookUrl || "" });
+  });
+
+  app.put("/api/settings/dingding", requireAuth, async (req, res) => {
+    try {
+      const parsed = dingdingSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join("; ");
+        return res.status(400).json({ error: msg });
+      }
+      const user = await storage.updateUserDingDing(getUserId(req), parsed.data.dingdingWebhookUrl);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      res.json({ dingdingWebhookUrl: user.dingdingWebhookUrl || "" });
+    } catch (err) {
+      console.error("Update DingDing settings error:", err);
+      res.status(500).json({ error: "保存失败" });
+    }
+  });
+
   // ─── Agent Heartbeat (Moltbook-style) ────────────────────
   app.post("/api/agents/heartbeat", async (req, res) => {
     try {
@@ -6092,6 +6115,32 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       }
     } catch (err: any) {
       console.error("Feishu test error:", err);
+      res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
+    }
+  });
+
+  // Test DingDing webhook connection
+  app.post("/api/settings/dingding/test", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(getUserId(req));
+      if (!user) return res.status(401).json({ error: "用户不存在" });
+      const url = user.dingdingWebhookUrl;
+      if (!url) return res.status(400).json({ error: "请先配置钉钉 Webhook 地址" });
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          msgtype: "text",
+          text: { content: "🦉 观星 HeartAI 连接测试成功！你的运势推送将发送到此群。" },
+        }),
+      });
+      if (response.ok) {
+        res.json({ success: true, message: "钉钉连接成功" });
+      } else {
+        res.status(400).json({ error: `连接失败 (HTTP ${response.status})` });
+      }
+    } catch (err: any) {
+      console.error("DingDing test error:", err);
       res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
     }
   });

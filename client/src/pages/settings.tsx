@@ -18,6 +18,14 @@ interface OpenClawSettings {
   openclawWebhookToken: string;
 }
 
+interface FeishuSettings {
+  feishuWebhookUrl: string;
+}
+
+interface DingDingSettings {
+  dingdingWebhookUrl: string;
+}
+
 // User search result type
 interface SearchUser {
   id: string;
@@ -52,6 +60,12 @@ export default function SettingsPage() {
   const [url, setUrl] = useState("");
   const [token, setToken] = useState("");
   const [initialized, setInitialized] = useState(false);
+  // Feishu
+  const [feishuUrl, setFeishuUrl] = useState("");
+  const [feishuInit, setFeishuInit] = useState(false);
+  // DingDing
+  const [dingdingUrl, setDingdingUrl] = useState("");
+  const [dingdingInit, setDingdingInit] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -202,6 +216,56 @@ export default function SettingsPage() {
     onError: (err: any) => {
       toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" });
     },
+  });
+
+  // ─── Feishu ─────────────────────────────────────────────────
+  useQuery<FeishuSettings>({
+    queryKey: ["/api/settings/feishu"],
+    select: (data) => {
+      if (!feishuInit) {
+        setFeishuUrl(data.feishuWebhookUrl);
+        setFeishuInit(true);
+      }
+      return data;
+    },
+  });
+  const feishuSave = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PUT", "/api/settings/feishu", { feishuWebhookUrl: feishuUrl });
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/feishu"] }); toast({ title: "保存成功", description: "飞书配置已更新" }); },
+    onError: (err: any) => { toast({ title: "保存失败", description: err.message || "请检查输入", variant: "destructive" }); },
+  });
+  const feishuTest = useMutation({
+    mutationFn: async () => { const res = await apiRequest("POST", "/api/settings/feishu/test"); const d = await res.json(); if (!res.ok) throw new Error(d.error); return d; },
+    onSuccess: () => { toast({ title: "连接成功", description: "飞书推送测试成功" }); },
+    onError: (err: any) => { toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" }); },
+  });
+
+  // ─── DingDing ───────────────────────────────────────────────
+  useQuery<DingDingSettings>({
+    queryKey: ["/api/settings/dingding"],
+    select: (data) => {
+      if (!dingdingInit) {
+        setDingdingUrl(data.dingdingWebhookUrl);
+        setDingdingInit(true);
+      }
+      return data;
+    },
+  });
+  const dingdingSave = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("PUT", "/api/settings/dingding", { dingdingWebhookUrl: dingdingUrl });
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/settings/dingding"] }); toast({ title: "保存成功", description: "钉钉配置已更新" }); },
+    onError: (err: any) => { toast({ title: "保存失败", description: err.message || "请检查输入", variant: "destructive" }); },
+  });
+  const dingdingTest = useMutation({
+    mutationFn: async () => { const res = await apiRequest("POST", "/api/settings/dingding/test"); const d = await res.json(); if (!res.ok) throw new Error(d.error); return d; },
+    onSuccess: () => { toast({ title: "连接成功", description: "钉钉推送测试成功" }); },
+    onError: (err: any) => { toast({ title: "连接失败", description: err.message || "请检查配置", variant: "destructive" }); },
   });
 
   // Agent API Key
@@ -723,6 +787,77 @@ export default function SettingsPage() {
                 >
                   <WifiOff className="w-3.5 h-3.5 mr-1.5" />
                   断开
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        {/* Feishu Configuration */}
+        <Card data-testid="card-feishu-settings">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${feishuUrl ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                <CardTitle className="text-base">飞书集成</CardTitle>
+              </div>
+              {feishuUrl && (
+                <Button variant="outline" size="sm" onClick={() => feishuTest.mutate()} disabled={feishuTest.isPending} data-testid="button-test-feishu">
+                  {feishuTest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Wifi className="w-3.5 h-3.5 mr-1.5" />}
+                  测试
+                </Button>
+              )}
+            </div>
+            <CardDescription>将运势推送、日报等消息发送到飞书群。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="feishu-url" className="text-xs">Webhook URL</Label>
+              <Input id="feishu-url" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/..." value={feishuUrl} onChange={(e) => setFeishuUrl(e.target.value)} className="h-9 text-sm" data-testid="input-feishu-url" />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" onClick={() => feishuSave.mutate()} disabled={feishuSave.isPending} data-testid="button-save-feishu">
+                {feishuSave.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                保存
+              </Button>
+              {feishuUrl && (
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { setFeishuUrl(""); feishuSave.mutate(); }} data-testid="button-clear-feishu">
+                  <WifiOff className="w-3.5 h-3.5 mr-1.5" />断开
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* DingDing Configuration */}
+        <Card data-testid="card-dingding-settings">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${dingdingUrl ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                <CardTitle className="text-base">钉钉集成</CardTitle>
+              </div>
+              {dingdingUrl && (
+                <Button variant="outline" size="sm" onClick={() => dingdingTest.mutate()} disabled={dingdingTest.isPending} data-testid="button-test-dingding">
+                  {dingdingTest.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Wifi className="w-3.5 h-3.5 mr-1.5" />}
+                  测试
+                </Button>
+              )}
+            </div>
+            <CardDescription>将运势推送、日报等消息发送到钉钉群。</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="dingding-url" className="text-xs">Webhook URL</Label>
+              <Input id="dingding-url" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." value={dingdingUrl} onChange={(e) => setDingdingUrl(e.target.value)} className="h-9 text-sm" data-testid="input-dingding-url" />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Button size="sm" onClick={() => dingdingSave.mutate()} disabled={dingdingSave.isPending} data-testid="button-save-dingding">
+                {dingdingSave.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
+                保存
+              </Button>
+              {dingdingUrl && (
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { setDingdingUrl(""); dingdingSave.mutate(); }} data-testid="button-clear-dingding">
+                  <WifiOff className="w-3.5 h-3.5 mr-1.5" />断开
                 </Button>
               )}
             </div>

@@ -93,6 +93,9 @@ export interface IStorage {
   // Feishu settings
   updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined>;
 
+  // DingDing settings
+  updateUserDingDing(userId: string, webhookUrl: string): Promise<User | undefined>;
+
   // Agent follows
   getFollow(followerId: string, followeeId: string): Promise<AgentFollow | undefined>;
   createFollow(followerId: string, followeeId: string): Promise<AgentFollow>;
@@ -486,6 +489,16 @@ export class DatabaseStorage implements IStorage {
   async updateUserFeishu(userId: string, webhookUrl: string): Promise<User | undefined> {
     const [user] = await db.update(users)
       .set({ feishuWebhookUrl: webhookUrl || null })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  // ─── DingDing Settings ─────────────────────────────────────────
+
+  async updateUserDingDing(userId: string, webhookUrl: string): Promise<User | undefined> {
+    const [user] = await db.update(users)
+      .set({ dingdingWebhookUrl: webhookUrl || null })
       .where(eq(users.id, userId))
       .returning();
     return user;

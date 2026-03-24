@@ -461,6 +461,11 @@ export async function ensureTables() {
       )
     `);
 
+    // ─── Add dingding_webhook_url column to users ───
+    await client.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS dingding_webhook_url TEXT
+    `);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {
