@@ -2,11 +2,15 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { Link, useParams } from "wouter";
+import SparkMap from "@/components/SparkMap";
+import type { SparkScore } from "@/components/SparkMap";
+import { DOMAINS } from "@/components/SparkMap";
 import {
   ArrowLeft, Plus, Target, Calendar, Trophy, Clock,
   BookOpen, Palette, Users, Dumbbell, Lightbulb,
   Check, Play, Trash2, X,
-  Star, Moon, Pencil
+  Star, Moon, Pencil, Heart, Sparkles, Brain,
+  MessageCircle, TrendingUp
 } from "lucide-react";
 
 // --- Types ---
@@ -15,6 +19,9 @@ interface Goal { id: string; childId: string; category: string; title: string; d
 interface ScheduleEntry { id: string; childId: string; dayOfWeek: number; startTime: string; endTime: string; activity: string; category: string | null; color: string | null; }
 interface Milestone { id: string; childId: string; title: string; description: string | null; category: string | null; achievedDate: string | null; }
 interface DailyLog { id: string; childId: string; date: string; mood: string | null; sleepHours: number | null; notes: string | null; highlights: string[] | null; }
+interface LearningStory { id: string; childId: string; title: string; narrative: string; domains: string[]; photoUrl: string | null; date: string; }
+interface SparkScoreEntry { id: string; childId: string; date: string; cognitive: number; language: number; socialEmotional: number; physical: number; creative: number; independence: number; notes: string | null; }
+interface WeeklyReflection { id: string; childId: string; weekStart: string; proudestMoment: string | null; biggestChallenge: string | null; focusNextWeek: string | null; parentNotes: string | null; }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const FULL_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -71,12 +78,12 @@ function formatTime(time: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-type TabType = "schedule" | "goals" | "milestones" | "daily-log";
+type TabType = "stories" | "spark" | "schedule" | "goals" | "milestones" | "daily-log" | "reflections";
 
 export default function ChildDetail() {
   const { childId } = useParams<{ childId: string }>();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabType>("schedule");
+  const [activeTab, setActiveTab] = useState<TabType>("stories");
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
 
   const { data: children = [] } = useQuery<Child[]>({ queryKey: ["/api/children"] });
@@ -102,6 +109,21 @@ export default function ChildDetail() {
     enabled: !!childId,
   });
 
+  const { data: stories = [] } = useQuery<LearningStory[]>({
+    queryKey: [`/api/children/${childId}/stories`],
+    enabled: !!childId,
+  });
+
+  const { data: sparkScores = [] } = useQuery<SparkScoreEntry[]>({
+    queryKey: [`/api/children/${childId}/spark-scores`],
+    enabled: !!childId,
+  });
+
+  const { data: reflections = [] } = useQuery<WeeklyReflection[]>({
+    queryKey: [`/api/children/${childId}/reflections`],
+    enabled: !!childId,
+  });
+
   if (!child) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-950 flex items-center justify-center">
@@ -111,11 +133,15 @@ export default function ChildDetail() {
   }
 
   const themeColor = child.avatarColor || "#8b5cf6";
+  const latestSpark = sparkScores.length > 0 ? sparkScores[0] : null;
   const tabs: { key: TabType; label: string; icon: any; count?: number }[] = [
+    { key: "stories", label: "Stories", icon: BookOpen, count: stories.length },
+    { key: "spark", label: "Spark", icon: Sparkles },
     { key: "schedule", label: "Schedule", icon: Calendar, count: schedule.length },
     { key: "goals", label: "Goals", icon: Target, count: goals.filter(g => g.status === "active").length },
     { key: "milestones", label: "Milestones", icon: Trophy, count: milestones.length },
-    { key: "daily-log", label: "Daily Log", icon: Star, count: dailyLogs.length },
+    { key: "daily-log", label: "Log", icon: Star, count: dailyLogs.length },
+    { key: "reflections", label: "Reflect", icon: Heart },
   ];
 
   return (
@@ -172,10 +198,13 @@ export default function ChildDetail() {
 
       {/* Tab Content */}
       <div className="max-w-lg mx-auto px-4 py-4">
+        {activeTab === "stories" && <StoriesTab childId={childId!} stories={stories} themeColor={themeColor} childName={child.name} />}
+        {activeTab === "spark" && <SparkTab childId={childId!} sparkScores={sparkScores} latestSpark={latestSpark} themeColor={themeColor} childName={child.name} />}
         {activeTab === "schedule" && <ScheduleTab childId={childId!} schedule={schedule} selectedDay={selectedDay} setSelectedDay={setSelectedDay} themeColor={themeColor} />}
         {activeTab === "goals" && <GoalsTab childId={childId!} goals={goals} themeColor={themeColor} />}
         {activeTab === "milestones" && <MilestonesTab childId={childId!} milestones={milestones} themeColor={themeColor} />}
         {activeTab === "daily-log" && <DailyLogTab childId={childId!} dailyLogs={dailyLogs} themeColor={themeColor} childName={child.name} />}
+        {activeTab === "reflections" && <ReflectionsTab childId={childId!} reflections={reflections} themeColor={themeColor} childName={child.name} />}
       </div>
     </div>
   );
@@ -618,6 +647,325 @@ function DailyLogTab({ childId, dailyLogs, themeColor, childName }: { childId: s
                   ))}
                 </div>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Learning Stories Tab ---
+const DOMAIN_OPTIONS = [
+  { value: "cognitive", label: "Cognitive", icon: Brain, color: "#3b82f6" },
+  { value: "language", label: "Language", icon: MessageCircle, color: "#8b5cf6" },
+  { value: "social-emotional", label: "Social-Emotional", icon: Heart, color: "#ec4899" },
+  { value: "physical", label: "Physical", icon: Dumbbell, color: "#10b981" },
+  { value: "creative", label: "Creative", icon: Palette, color: "#f59e0b" },
+  { value: "independence", label: "Independence", icon: Star, color: "#ef4444" },
+];
+
+function StoriesTab({ childId, stories, themeColor, childName }: { childId: string; stories: LearningStory[]; themeColor: string; childName: string; }) {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [formTitle, setFormTitle] = useState("");
+  const [formNarrative, setFormNarrative] = useState("");
+  const [formDomains, setFormDomains] = useState<string[]>([]);
+  const [formDate, setFormDate] = useState(new Date().toISOString().split("T")[0]);
+
+  const addMutation = useMutation({
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", `/api/children/${childId}/stories`, data); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/children/${childId}/stories`] }); setShowForm(false); setFormTitle(""); setFormNarrative(""); setFormDomains([]); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/children/${childId}/stories/${id}`); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/children/${childId}/stories`] }); },
+  });
+
+  function toggleDomain(d: string) {
+    setFormDomains(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Learning Stories</h3>
+          <p className="text-[10px] text-gray-500">Capture moments of growth and discovery</p>
+        </div>
+        <button className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => setShowForm(!showForm)}>
+          <Plus className="w-3.5 h-3.5" /> New Story
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 p-4 space-y-3">
+          <input className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" placeholder={`What happened with ${childName} today?`} value={formTitle} onChange={e => setFormTitle(e.target.value)} required />
+          <textarea
+            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm min-h-[120px] resize-none"
+            placeholder={`Tell the story... What did ${childName} do? What did you observe? Why was this moment meaningful?`}
+            value={formNarrative}
+            onChange={e => setFormNarrative(e.target.value)}
+          />
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5">Development domains</p>
+            <div className="flex flex-wrap gap-1.5">
+              {DOMAIN_OPTIONS.map(d => (
+                <button key={d.value} type="button" onClick={() => toggleDomain(d.value)}
+                  className={`text-xs px-2.5 py-1 rounded-full flex items-center gap-1 transition-all ${formDomains.includes(d.value) ? "text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500"}`}
+                  style={formDomains.includes(d.value) ? { backgroundColor: d.color } : {}}
+                ><d.icon className="w-3 h-3" />{d.label}</button>
+              ))}
+            </div>
+          </div>
+          <input className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" type="date" value={formDate} onChange={e => setFormDate(e.target.value)} />
+          <div className="flex gap-2">
+            <button type="button" className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-700 text-sm" onClick={() => setShowForm(false)}>Cancel</button>
+            <button
+              onClick={() => { if (formTitle && formNarrative) addMutation.mutate({ title: formTitle, narrative: formNarrative, domains: formDomains, date: formDate }); }}
+              className="flex-1 py-2 rounded-xl bg-violet-600 text-white text-sm disabled:opacity-50"
+              disabled={!formTitle || !formNarrative || addMutation.isPending}
+            >Save Story</button>
+          </div>
+        </div>
+      )}
+
+      {stories.length === 0 && !showForm ? (
+        <div className="text-center py-12 text-gray-400">
+          <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-50" />
+          <p className="text-sm font-medium">No stories yet</p>
+          <p className="text-xs mt-1 max-w-[250px] mx-auto">Capture a moment when {childName} showed growth, curiosity, resilience, or joy.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {stories.map(story => (
+            <div key={story.id} className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+              <div className="h-1" style={{ backgroundColor: themeColor }} />
+              <div className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-semibold text-sm">{story.title}</h4>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{new Date(story.date).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>
+                  </div>
+                  <button onClick={() => deleteMutation.mutate(story.id)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/20 text-gray-400 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mt-2 leading-relaxed whitespace-pre-wrap">{story.narrative}</p>
+                {story.domains.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-3">
+                    {story.domains.map(d => {
+                      const domain = DOMAIN_OPTIONS.find(o => o.value === d);
+                      return domain ? (
+                        <span key={d} className="text-[10px] px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: domain.color }}>{domain.label}</span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Spark Map Tab ---
+function SparkTab({ childId, sparkScores, latestSpark, themeColor, childName }: {
+  childId: string; sparkScores: SparkScoreEntry[]; latestSpark: SparkScoreEntry | null; themeColor: string; childName: string;
+}) {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [formScores, setFormScores] = useState({ cognitive: 5, language: 5, socialEmotional: 5, physical: 5, creative: 5, independence: 5 });
+
+  const addMutation = useMutation({
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", `/api/children/${childId}/spark-scores`, data); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/children/${childId}/spark-scores`] }); setShowForm(false); },
+  });
+
+  const sparkData: SparkScore | null = latestSpark ? {
+    cognitive: latestSpark.cognitive,
+    language: latestSpark.language,
+    socialEmotional: latestSpark.socialEmotional,
+    physical: latestSpark.physical,
+    creative: latestSpark.creative,
+    independence: latestSpark.independence,
+  } : null;
+
+  const prevSpark = sparkScores.length >= 2 ? sparkScores[1] : null;
+  const prevData: SparkScore | null = prevSpark ? {
+    cognitive: prevSpark.cognitive, language: prevSpark.language, socialEmotional: prevSpark.socialEmotional,
+    physical: prevSpark.physical, creative: prevSpark.creative, independence: prevSpark.independence,
+  } : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Spark Map</h3>
+          <p className="text-[10px] text-gray-500">A portrait of {childName}'s growth across 6 domains</p>
+        </div>
+        <button className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => setShowForm(!showForm)}>
+          <TrendingUp className="w-3.5 h-3.5" /> Update
+        </button>
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 flex justify-center">
+        {sparkData ? (
+          <SparkMap
+            scores={sparkData}
+            themeColor={themeColor}
+            childName={latestSpark ? new Date(latestSpark.date).toLocaleDateString("en-US", { month: "short" }) : undefined}
+            compareScores={prevData}
+            compareName={prevSpark ? `${new Date(prevSpark.date).toLocaleDateString("en-US", { month: "short" })} (prev)` : undefined}
+            compareColor="#94a3b8"
+          />
+        ) : (
+          <div className="text-center py-8 text-gray-400">
+            <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            <p className="text-sm font-medium">No spark scores yet</p>
+            <p className="text-xs mt-1">Rate {childName}'s development to see the portrait</p>
+          </div>
+        )}
+      </div>
+
+      {showForm && (
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 p-4 space-y-4">
+          <p className="text-xs text-gray-500">Rate each domain 1-10. Not a grade -- a portrait of where {childName} is right now.</p>
+          {DOMAINS.map(d => {
+            const key = d.key as keyof typeof formScores;
+            return (
+              <div key={d.key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-medium" style={{ color: d.color }}>{d.label}</span>
+                  <span className="text-xs font-bold" style={{ color: d.color }}>{formScores[key]}</span>
+                </div>
+                <input type="range" min={1} max={10} value={formScores[key]}
+                  onChange={e => setFormScores({ ...formScores, [key]: parseInt(e.target.value) })}
+                  className="w-full h-2 rounded-full appearance-none cursor-pointer" style={{ accentColor: d.color }} />
+                <div className="flex justify-between text-[9px] text-gray-400 mt-0.5"><span>Emerging</span><span>Developing</span><span>Strong</span></div>
+              </div>
+            );
+          })}
+          <div className="flex gap-2">
+            <button type="button" className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-700 text-sm" onClick={() => setShowForm(false)}>Cancel</button>
+            <button onClick={() => addMutation.mutate({ ...formScores, date: new Date().toISOString().split("T")[0] })}
+              className="flex-1 py-2 rounded-xl bg-violet-600 text-white text-sm disabled:opacity-50" disabled={addMutation.isPending}>Save Spark Map</button>
+          </div>
+        </div>
+      )}
+
+      {sparkScores.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-xs text-gray-500 mb-2">History</h4>
+          <div className="space-y-2">
+            {sparkScores.map(s => (
+              <div key={s.id} className="rounded-xl border border-gray-200 dark:border-gray-800 p-3">
+                <p className="text-xs font-medium mb-1.5">{new Date(s.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+                <div className="grid grid-cols-6 gap-1">
+                  {DOMAINS.map(d => (
+                    <div key={d.key} className="text-center">
+                      <div className="text-sm font-bold" style={{ color: d.color }}>{(s as any)[d.key] || 0}</div>
+                      <div className="text-[8px] text-gray-400">{d.label.slice(0, 4)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Weekly Reflections Tab ---
+function ReflectionsTab({ childId, reflections, themeColor, childName }: {
+  childId: string; reflections: WeeklyReflection[]; themeColor: string; childName: string;
+}) {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [proudest, setProudest] = useState("");
+  const [challenge, setChallenge] = useState("");
+  const [focus, setFocus] = useState("");
+  const [parentNotes, setParentNotes] = useState("");
+
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const weekStart = monday.toISOString().split("T")[0];
+  const thisWeekReflection = reflections.find(r => r.weekStart === weekStart);
+
+  const addMutation = useMutation({
+    mutationFn: async (data: any) => { const res = await apiRequest("POST", `/api/children/${childId}/reflections`, data); return res.json(); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: [`/api/children/${childId}/reflections`] }); setShowForm(false); setProudest(""); setChallenge(""); setFocus(""); setParentNotes(""); },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-semibold text-sm">Weekly Reflections</h3>
+          <p className="text-[10px] text-gray-500">Pause. Reflect. Be intentional.</p>
+        </div>
+        {!thisWeekReflection && (
+          <button className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-xl border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => setShowForm(!showForm)}>
+            <Pencil className="w-3.5 h-3.5" /> This Week
+          </button>
+        )}
+      </div>
+
+      {!thisWeekReflection && !showForm && (
+        <div className="rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 p-5 text-center">
+          <Heart className="w-8 h-8 mx-auto mb-2 text-violet-400" />
+          <p className="text-sm font-medium">Sunday Reflection</p>
+          <p className="text-xs text-gray-500 mt-1 max-w-[280px] mx-auto">
+            What was {childName}'s proudest moment this week? What challenged them? What do you want to focus on next week?
+          </p>
+          <button onClick={() => setShowForm(true)} className="mt-3 px-4 py-2 rounded-xl bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 transition-colors">
+            Write This Week's Reflection
+          </button>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 p-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium mb-1" style={{ color: "#10b981" }}>Proudest Moment</p>
+            <p className="text-[10px] text-gray-500 mb-1.5">What moment made you most proud of {childName} this week?</p>
+            <textarea className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm min-h-[60px] resize-none" value={proudest} onChange={e => setProudest(e.target.value)} />
+          </div>
+          <div>
+            <p className="text-xs font-medium mb-1" style={{ color: "#f59e0b" }}>Biggest Challenge</p>
+            <p className="text-[10px] text-gray-500 mb-1.5">What was hardest for {childName} this week?</p>
+            <textarea className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm min-h-[60px] resize-none" value={challenge} onChange={e => setChallenge(e.target.value)} />
+          </div>
+          <div>
+            <p className="text-xs font-medium mb-1" style={{ color: "#3b82f6" }}>Focus Next Week</p>
+            <p className="text-[10px] text-gray-500 mb-1.5">What's one thing you want to focus on?</p>
+            <textarea className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm min-h-[60px] resize-none" value={focus} onChange={e => setFocus(e.target.value)} />
+          </div>
+          <div>
+            <p className="text-xs font-medium mb-1 text-gray-500">Personal Notes</p>
+            <textarea className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm min-h-[40px] resize-none" value={parentNotes} onChange={e => setParentNotes(e.target.value)} />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-700 text-sm" onClick={() => setShowForm(false)}>Cancel</button>
+            <button onClick={() => addMutation.mutate({ weekStart, proudestMoment: proudest, biggestChallenge: challenge, focusNextWeek: focus, parentNotes })}
+              className="flex-1 py-2 rounded-xl bg-violet-600 text-white text-sm disabled:opacity-50" disabled={addMutation.isPending}>Save Reflection</button>
+          </div>
+        </div>
+      )}
+
+      {reflections.length > 0 && (
+        <div className="space-y-3">
+          {reflections.map(r => (
+            <div key={r.id} className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+              <p className="text-xs font-medium text-gray-500 mb-2">Week of {new Date(r.weekStart + "T00:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" })}</p>
+              {r.proudestMoment && (<div className="mb-2"><p className="text-[10px] font-medium" style={{ color: "#10b981" }}>Proudest Moment</p><p className="text-sm text-gray-700 dark:text-gray-300">{r.proudestMoment}</p></div>)}
+              {r.biggestChallenge && (<div className="mb-2"><p className="text-[10px] font-medium" style={{ color: "#f59e0b" }}>Challenge</p><p className="text-sm text-gray-700 dark:text-gray-300">{r.biggestChallenge}</p></div>)}
+              {r.focusNextWeek && (<div className="mb-2"><p className="text-[10px] font-medium" style={{ color: "#3b82f6" }}>Focus</p><p className="text-sm text-gray-700 dark:text-gray-300">{r.focusNextWeek}</p></div>)}
+              {r.parentNotes && <p className="text-xs text-gray-500 italic mt-1">{r.parentNotes}</p>}
             </div>
           ))}
         </div>

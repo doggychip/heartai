@@ -3,10 +3,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/api";
 import { Link } from "wouter";
 import {
-  ArrowLeft, Plus, Baby, Target, Calendar, Trophy, Clock,
+  Plus, Baby, Target, Calendar, Trophy, Clock,
   ChevronRight, Pencil, Trash2, X, BookOpen, Palette,
   Users, Dumbbell, Lightbulb, Moon,
-  CheckCircle2, Activity,
+  CheckCircle2, Activity, Sparkles, Heart, Library,
 } from "lucide-react";
 
 // --- Types ---
@@ -555,6 +555,32 @@ export default function Dashboard() {
             </div>
           );
         })}
+
+        {/* Quick Navigation */}
+        {!isLoading && children.length > 0 && (
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/milestone-library">
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:shadow-md transition-all group">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-2">
+                  <BookOpen className="w-5 h-5 text-amber-500" />
+                </div>
+                <h4 className="font-semibold text-sm">Milestone Library</h4>
+                <p className="text-[10px] text-gray-500 mt-0.5">Age-based developmental milestones</p>
+              </div>
+            </Link>
+            {children.length >= 2 && (
+              <Link href="/siblings">
+                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4 cursor-pointer hover:shadow-md transition-all group">
+                  <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center mb-2">
+                    <Heart className="w-5 h-5 text-pink-500" />
+                  </div>
+                  <h4 className="font-semibold text-sm">Sibling Portraits</h4>
+                  <p className="text-[10px] text-gray-500 mt-0.5">Compare development side by side</p>
+                </div>
+              </Link>
+            )}
+          </div>
+        )}
 
         {/* Add another child hint */}
         {!isLoading && children.length > 0 && children.length < 2 && !showAddForm && (
