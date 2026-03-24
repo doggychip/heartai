@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/PageHeader";
 import { ArrowLeft, ClipboardList, Clock } from "lucide-react";
 import type { AssessmentResult, Assessment } from "@shared/schema";
 
@@ -33,13 +34,7 @@ export default function AssessmentHistoryPage() {
           </Button>
         </Link>
 
-        <div className="mb-8">
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-primary" />
-            测评历史
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">查看你过去完成的所有测评记录</p>
-        </div>
+        <PageHeader icon={ClipboardList} title="测评历史" description="查看你过去完成的所有测评记录" className="mb-8" />
 
         {isLoading ? (
           <div className="space-y-3">

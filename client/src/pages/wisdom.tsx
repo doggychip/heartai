@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -185,15 +186,7 @@ export default function WisdomPage() {
   return (
     <div className="flex-1 overflow-y-auto" data-testid="wisdom-page">
       <PageContainer className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            智慧问答
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            融合星座·MBTI·命理，AI为你个性化解答
-          </p>
-        </div>
+        <PageHeader icon={Sparkles} title="智慧问答" description="融合星座·MBTI·命理，AI为你个性化解答" iconClassName="text-amber-500" />
 
         {/* Personal context for personalized answers */}
         <div className="grid grid-cols-2 gap-3">

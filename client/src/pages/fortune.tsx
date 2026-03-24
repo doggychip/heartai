@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -248,36 +249,33 @@ export default function FortunePage() {
     <div className="flex-1 overflow-y-auto" data-testid="fortune-page">
       <PageContainer className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-500" />
-              今日运势
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {liveDate.display} {data.zodiac ? `· ${data.zodiac}` : ""}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {fortune && (
-              <FortuneShareButton
-                fortune={data}
-                nickname={user?.nickname || "\u89c2\u661f\u7528\u6237"}
-                zodiac={data.zodiac || user?.zodiacSign || undefined}
-              />
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              data-testid="button-refresh-fortune"
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-              刷新
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={Sparkles}
+          iconClassName="text-amber-500"
+          title="今日运势"
+          description={`${liveDate.display} ${data.zodiac ? `· ${data.zodiac}` : ""}`}
+          actions={
+            <div className="flex items-center gap-2">
+              {fortune && (
+                <FortuneShareButton
+                  fortune={data}
+                  nickname={user?.nickname || "\u89c2\u661f\u7528\u6237"}
+                  zodiac={data.zodiac || user?.zodiacSign || undefined}
+                />
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                data-testid="button-refresh-fortune"
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+                刷新
+              </Button>
+            </div>
+          }
+        />
 
         {/* Score Ring Card */}
         <Card className="border-0 shadow-md bg-gradient-to-br from-card to-primary/5" data-testid="card-fortune-score">

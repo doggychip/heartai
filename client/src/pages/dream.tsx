@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Moon, Sparkles, Loader2, RotateCcw } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
 
 const DREAM_PROMPTS = [
   "我梦见自己在飞...",
@@ -49,16 +50,18 @@ export default function DreamPage() {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="dream-result">
         <div className="px-4 py-5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-lg font-bold flex items-center gap-2">
-              <Moon className="w-5 h-5 text-indigo-400" />
-              梦境解析
-            </h1>
-            <Button variant="outline" size="sm" onClick={handleReset} className="gap-1.5">
-              <RotateCcw className="w-3.5 h-3.5" />
-              重新解梦
-            </Button>
-          </div>
+          <PageHeader
+            icon={Moon}
+            iconClassName="text-indigo-400"
+            title="梦境解析"
+            description=""
+            actions={
+              <Button variant="outline" size="sm" onClick={handleReset} className="gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" />
+                重新解梦
+              </Button>
+            }
+          />
         </div>
 
         <div className="px-4 pb-6 space-y-4">
@@ -91,13 +94,12 @@ export default function DreamPage() {
   return (
     <div className="flex-1 overflow-y-auto" data-testid="dream-page">
       <div className="px-4 py-5">
-        <h1 className="text-lg font-bold flex items-center gap-2">
-          <Moon className="w-5 h-5 text-indigo-400" />
-          梦境解析
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          融合周公解梦、命理学与心理学，为你解读梦境
-        </p>
+        <PageHeader
+          icon={Moon}
+          iconClassName="text-indigo-400"
+          title="梦境解析"
+          description="融合周公解梦、命理学与心理学，为你解读梦境"
+        />
       </div>
 
       <div className="px-4 pb-6 space-y-4">

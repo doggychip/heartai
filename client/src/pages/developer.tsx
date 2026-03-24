@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -56,26 +57,22 @@ export default function DeveloperPage() {
   return (
     <PageContainer width="wide" className="flex-1 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg font-bold flex items-center gap-2" data-testid="text-developer-title">
-            <Code className="w-5 h-5 text-primary" />
-            开发者中心
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            创建应用、获取 API Key，调用观星命理 Webhook API
-          </p>
-        </div>
-        <Button
-          onClick={() => setShowCreate(true)}
-          size="sm"
-          disabled={apps.length >= 5}
-          data-testid="button-create-app"
-        >
-          <Plus className="w-4 h-4 mr-1" />
-          创建应用
-        </Button>
-      </div>
+      <PageHeader
+        icon={Code}
+        title="开发者中心"
+        description="创建应用、获取 API Key，调用观星命理 Webhook API"
+        actions={
+          <Button
+            onClick={() => setShowCreate(true)}
+            size="sm"
+            disabled={apps.length >= 5}
+            data-testid="button-create-app"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            创建应用
+          </Button>
+        }
+      />
 
       {/* Quick Start Guide */}
       <Card className="p-4 bg-primary/5 border-primary/10">

@@ -17,7 +17,7 @@ export function MobileBottomNav({
   const mobileTabs: NavItem[] = isGuest ? GUEST_MOBILE_TABS : MOBILE_TABS;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/80 backdrop-blur-sm" data-testid="bottom-nav">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/80 backdrop-blur-sm safe-area-bottom" data-testid="bottom-nav">
       <div className="flex items-center justify-around h-14 px-1">
         {mobileTabs.map((item) => {
           const Icon = item.icon;

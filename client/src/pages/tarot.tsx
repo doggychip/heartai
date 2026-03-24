@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -283,15 +284,7 @@ export default function TarotPage() {
   return (
     <div className="flex-1 overflow-y-auto" data-testid="tarot-page">
       <PageContainer className="space-y-6">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-500" />
-            塔罗占卜
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            选择牌阵，让塔罗牌为你指引方向
-          </p>
-        </div>
+        <PageHeader icon={Sparkles} title="塔罗占卜" description="选择牌阵，让塔罗牌为你指引方向" iconClassName="text-purple-500" />
 
         {/* Spread selection — upgraded visuals */}
         <div className="space-y-3">

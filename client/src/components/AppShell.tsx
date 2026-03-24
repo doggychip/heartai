@@ -57,7 +57,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <MobileHeader isDark={isDark} onToggleTheme={toggleTheme} />
 
           {/* Main content */}
-          <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pb-16">
+          <main className="flex-1 flex flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]">
             {children}
           </main>
 
