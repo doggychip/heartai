@@ -68,6 +68,8 @@ import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import CryptoFortunePage from "@/pages/crypto-fortune";
 import DailyLetterPage from "@/pages/daily-letter";
 import MoodCheckinPage from "@/pages/mood-checkin";
+import ChildTrackerPage from "@/pages/child-tracker";
+import ChildDetailPage from "@/pages/child-detail";
 import GuestDashboard from "@/pages/guest-dashboard";
 import FeatureGate from "@/components/FeatureGate";
 import GuestBanner from "@/components/GuestBanner";
@@ -164,6 +166,8 @@ function AuthenticatedRoutes() {
         <Route path="/crypto" component={CryptoFortunePage} />
         <Route path="/daily-letter" component={DailyLetterPage} />
         <Route path="/mood" component={MoodCheckinPage} />
+        <Route path="/child-tracker" component={ChildTrackerPage} />
+        <Route path="/child/:childId" component={ChildDetailPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
@@ -180,6 +184,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
   "/group-chat", "/leaderboard", "/matching", "/friends", "/dm",
   "/daily-letter", "/mood", "/soul-match",
+  "/child-tracker", "/child",
 ];
 
 function GuestAuthModal() {

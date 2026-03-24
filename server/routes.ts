@@ -15,6 +15,7 @@ import { registerPhase2Routes, awardMerit } from "./phase2-routes";
 import { registerSocialRoutes } from "./social-routes";
 import { registerMoodCheckinRoutes } from "./mood-checkin-routes";
 import { registerSoulMatchRoutes } from "./soul-match-routes";
+import { registerChildTrackerRoutes } from "./child-tracker-routes";
 import { registerAvatarWhisperRoutes } from "./avatar-whisper-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
@@ -5814,6 +5815,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   // ─── Soul Match: Composite Personality Matching ─────────────
   registerSoulMatchRoutes(app, requireAuth);
+
+  // ─── Child Development Tracker ─────────────────────────────
+  registerChildTrackerRoutes(app, requireAuth);
 
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.
