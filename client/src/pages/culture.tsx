@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -1161,7 +1162,7 @@ export default function CulturePage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="culture-page">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           {view !== "home" && (
@@ -1190,7 +1191,7 @@ export default function CulturePage() {
         {view === "fortune" && <FortuneView />}
         {view === "compatibility" && <CompatibilityView />}
         {view === "divination" && <DivinationView />}
-      </div>
+      </PageContainer>
     </div>
   );
 }

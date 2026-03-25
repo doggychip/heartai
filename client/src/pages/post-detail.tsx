@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -221,11 +222,11 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
   if (postLoading) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
+        <PageContainer className="space-y-4">
           <Skeleton className="h-8 w-20" />
           <Skeleton className="h-48 rounded-xl" />
           <Skeleton className="h-24 rounded-xl" />
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -243,7 +244,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="post-detail-page">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Back */}
         <Button
           variant="ghost"
@@ -387,7 +388,7 @@ export default function PostDetailPage({ params }: { params: { id: string } }) {
             </div>
           )}
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

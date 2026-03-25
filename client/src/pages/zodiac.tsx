@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,17 +115,9 @@ export default function ZodiacPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="zodiac-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Star className="w-5 h-5 text-primary" />
-            星座解读
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            输入你的生日，解锁专属星座分析
-          </p>
-        </div>
+        <PageHeader icon={Star} title="星座解读" description="输入你的生日，解锁专属星座分析" />
 
         {/* Input Form */}
         <Card className="rounded-xl bg-card/30 border-0" data-testid="card-zodiac-form">
@@ -297,7 +291,7 @@ export default function ZodiacPage() {
             </Card>
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

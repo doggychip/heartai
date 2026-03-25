@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,7 +115,7 @@ export default function FengshuiPage() {
   if (result) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="fengshui-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">风水评估</h1>
             <Button variant="outline" size="sm" onClick={restart} data-testid="button-fengshui-restart">
@@ -234,7 +235,7 @@ export default function FengshuiPage() {
           <p className="text-xs text-center text-muted-foreground pb-4">
             * 以上内容基于传统风水文化，仅供参考
           </p>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -244,7 +245,7 @@ export default function FengshuiPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="fengshui-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <PageContainer className="space-y-6">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Home className="w-5 h-5 text-emerald-500" />
@@ -334,7 +335,7 @@ export default function FengshuiPage() {
         <p className="text-xs text-center text-muted-foreground">
           * 基于中国传统风水学，结合AI智能分析，仅供文化探索参考
         </p>
-      </div>
+      </PageContainer>
     </div>
   );
 }

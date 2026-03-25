@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -399,7 +400,7 @@ export default function LifeCurvePage() {
   if (!user?.birthDate) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="life-curve-no-birth">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <h1 className="text-xl font-bold flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-amber-500" />
             人生运势曲线
@@ -416,19 +417,19 @@ export default function LifeCurvePage() {
               </Link>
             </CardContent>
           </Card>
-        </div>
+        </PageContainer>
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+      <div className="flex-1 overflow-y-auto">
+        <PageContainer className="space-y-4">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="h-[220px] w-full rounded-xl" />
           <Skeleton className="h-40 w-full rounded-xl" />
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -443,7 +444,7 @@ export default function LifeCurvePage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="life-curve-page">
-      <div className="max-w-2xl mx-auto p-4 space-y-4">
+      <PageContainer className="space-y-4">
         {/* Header */}
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
@@ -530,7 +531,7 @@ export default function LifeCurvePage() {
             ⚠️ 免责声明：基于八字命理学推算，仅供文化探索和娱乐参考。人生掌握在自己手中。
           </p>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

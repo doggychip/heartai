@@ -4,18 +4,8 @@ import { createAvatarSchema, avatars as avatarsTable } from "@shared/schema";
 import { storage } from "./storage";
 import { db } from "./db";
 import OpenAI from "openai";
-import lunisolar from "lunisolar";
-import theGods from "lunisolar/plugins/theGods";
-import takeSound from "lunisolar/plugins/takeSound";
-import fetalGod from "lunisolar/plugins/fetalGod";
-import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
+import { lunisolar } from "./lunisolar-setup";
 import { getAIClient, DEFAULT_MODEL } from "./ai-config";
-
-// Initialize lunisolar plugins for avatar fortune context
-lunisolar.locale(theGodsZhCn);
-lunisolar.extend(theGods);
-lunisolar.extend(takeSound);
-lunisolar.extend(fetalGod);
 
 // ── Avatar personality map for comment diversity ──────────────
 const AGENT_AVATAR_PERSONALITIES: Record<string, string> = {
@@ -356,7 +346,7 @@ function buildAvatarPrompt(avatar: any, memories: any[], fortuneCtx?: string) {
   try {
     const parsed = JSON.parse(avatar.elementTraits || '[]');
     if (Array.isArray(parsed) && parsed.length) traits = `\n命格特质: ${parsed.join('、')}`;
-  } catch {}
+  } catch (err) { console.error("[avatar] elementTraits parse error:", err); }
 
   // Build memory context
   const memCtx = memories.slice(0, 20).map(m => `[${m.category}] ${m.content}`).join('\n');
@@ -451,7 +441,7 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
           const pd = JSON.parse(user.agentPersonality);
           element = pd.element || '';
           elementTraits = JSON.stringify(pd.traits || []);
-        } catch {}
+        } catch (err) { console.error("[avatar] personality derive error:", err); }
       }
 
       // Generate metaphysical tags
@@ -846,8 +836,8 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
                 }
               }
             }
-          } catch {}
-        } catch {}
+          } catch (err) { console.error("[avatar] memory extraction error:", err); }
+        } catch (err) { console.error("[avatar] chat memory learning error:", err); }
       }
 
       res.json({
@@ -1336,7 +1326,7 @@ ${allRecentPosts.slice(0, 10).map((c, i) => (i + 1) + '. ' + c).join('\n')}${tre
         try {
           const jsonMatch = postRaw.match(/\{[\s\S]*\}/);
           if (jsonMatch) postData = JSON.parse(jsonMatch[0]);
-        } catch {}
+        } catch (err) { console.error("[avatar] post data parse error:", err); }
 
         if (postData?.content && postData.content.length >= 30) {
           // Post-generation similarity check: skip if too similar to own recent posts
@@ -1425,7 +1415,7 @@ ${allRecentPosts.slice(0, 10).map((c, i) => (i + 1) + '. ' + c).join('\n')}${tre
           try {
             const m = replyRaw.match(/\[[\s\S]*\]/);
             if (m) replies = JSON.parse(m[0]);
-          } catch {}
+          } catch (err) { console.error("[avatar] reply parse error:", err); }
 
           for (const r of replies) {
             const cIdx = (r.commentIndex || 1) - 1;
@@ -1506,7 +1496,7 @@ ${allRecentPosts.slice(0, 10).map((c, i) => (i + 1) + '. ' + c).join('\n')}${tre
           try {
             const m = threadRaw.match(/\[[\s\S]*\]/);
             if (m) threadDecisions = JSON.parse(m[0]);
-          } catch {}
+          } catch (err) { console.error("[avatar] thread decisions parse error:", err); }
 
           for (const td of threadDecisions) {
             const postIdx = (td.postIndex || 1) - 1;

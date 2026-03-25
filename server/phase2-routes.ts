@@ -177,7 +177,7 @@ async function ensureWeeklyAMA() {
       const topics = seasonTopics[season] || seasonTopics['春'];
       const picked = topics[Math.floor(Math.random() * topics.length)];
       topic = `${avatar.name}开讲${solarTerm ? `·${solarTerm}` : ''}：${picked}`;
-    } catch {}
+    } catch (err) { console.error("[phase2] Failed to generate AMA session topic from solar term:", err); }
 
     await pool.query(
       `INSERT INTO ama_sessions (id, avatar_id, topic, description, status, created_at, closes_at)
@@ -270,7 +270,7 @@ export function registerPhase2Routes(
         const tg = (d as any).theGods;
         const goodActs = tg?.getGoodActs?.('day')?.slice(0, 3).map((a: any) => a.toString()).join('、') || '诸事皆宜';
         dailyMessage = `今日${dayStem}${dayBranch}${dayEl}日，宜${goodActs}`;
-      } catch {}
+      } catch (err) { console.error("[phase2] Failed to compute daily checkin calendar message:", err); }
 
       // Insert checkin
       await pool.query(

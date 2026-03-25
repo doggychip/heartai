@@ -98,7 +98,7 @@ export async function handleFortune(birthDate?: string): Promise<string> {
         const birthDM = birth.char8.day.stem.toString();
         birthElement = getStemElement(birthDM);
         birthInfo = `\n用户出生日期: ${birthDate}\n用户八字: ${birthBazi}\n日主五行: ${birthElement}(${birthDM})`;
-      } catch {}
+      } catch (err) { console.error("[BOT] birth bazi parse error:", err); }
     }
 
     // Get 宜忌
@@ -109,7 +109,7 @@ export async function handleFortune(birthDate?: string): Promise<string> {
         good = (rawActs.good || rawActs[0] || []).map((a: any) => a.toString());
         bad = (rawActs.bad || rawActs[1] || []).map((a: any) => a.toString());
       }
-    } catch {}
+    } catch (err) { console.error("[BOT] theGods getActs error:", err); }
 
     const client = getAIClient();
     const prompt = `你是一位精通中国传统命理学的AI顾问。生成今日运势报告。
@@ -273,7 +273,7 @@ export async function handleBazi(birthDate: string, birthHour?: number): Promise
         ],
       });
       aiInsight = resp.choices[0]?.message?.content?.trim() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] bazi AI insight error:", err); }
 
     return `🔮 *八字分析*
 
@@ -341,7 +341,7 @@ export async function handleQiuqian(category?: string, question?: string): Promi
         ],
       });
       aiReading = resp.choices[0]?.message?.content?.trim() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] qiuqian AI reading error:", err); }
 
     const rankEmoji = qian.rank.includes("上") ? "🔴" : qian.rank.includes("下") ? "🟢" : "🟡";
 
@@ -410,7 +410,7 @@ export async function handleTarot(question?: string): Promise<string> {
         ],
       });
       aiReading = resp.choices[0]?.message?.content?.trim() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] tarot AI reading error:", err); }
 
     return `🃏 *塔罗占卜*
 
@@ -454,7 +454,7 @@ export async function handleDream(dreamText: string): Promise<string> {
         ],
       });
       interpretation = resp.choices[0]?.message?.content?.trim() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] dream AI interpretation error:", err); }
 
     if (!interpretation) {
       // Fallback
@@ -509,7 +509,7 @@ export async function handleAlmanac(dateStr?: string): Promise<string> {
         bad = (rawActs.bad || []).map((a: any) => a.toString());
       }
       duty12 = (d as any).theGods?.getDuty12God?.()?.toString() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] almanac acts error:", err); }
 
     // 吉神方位
     let wealthDir = "", joyDir = "";
@@ -520,7 +520,7 @@ export async function handleAlmanac(dateStr?: string): Promise<string> {
         if (god === "喜神") joyDir = d24?.direction || "";
         if (god === "財神") wealthDir = d24?.direction || "";
       }
-    } catch {}
+    } catch (err) { console.error("[BOT] almanac directions error:", err); }
 
     return `📅 *老黄历* — ${targetDate}
 
@@ -564,7 +564,7 @@ export async function handleFengshui(input: string): Promise<string> {
         ],
       });
       aiResult = resp.choices[0]?.message?.content?.trim() || "";
-    } catch {}
+    } catch (err) { console.error("[BOT] fengshui AI error:", err); }
 
     if (!aiResult) {
       aiResult = "风水讲究藏风聚气。建议保持空间通风明亮，避免门对门、镜对床。摆放绿色植物有助于提升气场。";

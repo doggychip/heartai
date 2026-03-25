@@ -163,10 +163,11 @@ export async function queryMemories(q: MemoryQuery): Promise<AgentMemoryEntry[]>
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const limit = q.limit || 10;
+    const limit = Math.min(Math.max(parseInt(String(q.limit)) || 10, 1), 100);
+    params.push(limit);
 
     const result = await client.query(
-      `SELECT * FROM agent_shared_memory ${where} ORDER BY importance DESC, created_at DESC LIMIT ${limit}`,
+      `SELECT * FROM agent_shared_memory ${where} ORDER BY importance DESC, created_at DESC LIMIT $${paramIdx}`,
       params
     );
 

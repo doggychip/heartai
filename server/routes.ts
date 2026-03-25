@@ -2,9 +2,12 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+// Shared auth module — new route files should import from "./auth" instead of duplicating
+// import { authMiddleware, requireAuth, getUserId, generateToken, checkRateLimit, hashPassword, verifyPassword, validateAdminSecret } from "./auth";
 import { storage } from "./storage";
 import { pool, db } from "./db";
-import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers } from "@shared/schema";
+import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, dingdingSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers, sharedResults } from "@shared/schema";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import type { SafeUser, PublicAgent, AgentProfile, User, DeepEmotionAnalysis } from "@shared/schema";
 import { analyzeEmotion, toLegacyEmotion } from "./emotion";
@@ -26,18 +29,8 @@ import { publish, getSubscriptionStats } from "./event-bus";
 import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommunityInsights } from "./recommendations";
 import { createMcpServer, transports, SSEServerTransport } from "./mcp-server";
 import OpenAI from "openai";
-import lunisolar from "lunisolar";
-import theGods from "lunisolar/plugins/theGods";
-import takeSound from "lunisolar/plugins/takeSound";
-import fetalGod from "lunisolar/plugins/fetalGod";
-import theGodsZhCn from "@lunisolar/plugin-thegods/locale/zh-cn";
+import { lunisolar } from "./lunisolar-setup";
 import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL } from "./ai-config";
-
-// Initialize lunisolar plugins — locale must be loaded before fetalGod
-lunisolar.locale(theGodsZhCn);
-lunisolar.extend(theGods);
-lunisolar.extend(takeSound);
-lunisolar.extend(fetalGod);
 
 // ─── Public ID Generator ───────────────────────────────────
 function generatePublicId(): string {
@@ -157,7 +150,7 @@ function parseEmotionTag(text: string): { cleanText: string; emotion: string; sc
   let score = 5;
   let cleanText = text;
   if (match) {
-    try { const p = JSON.parse(match[1]); emotion = p.emotion || "neutral"; score = p.score || 5; } catch {}
+    try { const p = JSON.parse(match[1]); emotion = p.emotion || "neutral"; score = p.score || 5; } catch (err) { console.error("[routes] Failed to parse AI emotion JSON response:", err); }
     cleanText = text.replace(/<!--EMOTION:.*?-->/, "").trim();
   }
   return { cleanText, emotion, score };
@@ -208,7 +201,7 @@ async function buildUserContext(userId: string): Promise<string> {
         if (user.zodiacSign) identityLines.push(`星座: ${user.zodiacSign}`);
         if (user.mbtiType) identityLines.push(`MBTI: ${user.mbtiType}`);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("[routes] Failed to parse user identity/personality data:", err); }
 
     // ── 2. Soul archetype ──
     try {
@@ -216,7 +209,7 @@ async function buildUserContext(userId: string): Promise<string> {
       if (archetypeMemories.length > 0) {
         identityLines.push(archetypeMemories[0].summary);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("[routes] Failed to query soul archetype memories:", err); }
 
     // ── 3. Today's fortune score (if available) ──
     try {
@@ -227,7 +220,7 @@ async function buildUserContext(userId: string): Promise<string> {
       if (fortuneRow.rows.length > 0) {
         identityLines.push(`今日运势: ${fortuneRow.rows[0].total_score}/100`);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("[routes] Failed to query today's fortune score:", err); }
 
     if (identityLines.length > 0) {
       parts.push(`## 用户画像\n${identityLines.map(l => `  - ${l}`).join("\n")}`);
@@ -282,9 +275,9 @@ async function buildUserContext(userId: string): Promise<string> {
 
         parts.push(`## 近期情绪${trend}\n${lines.join("\n")}${topTriggers.length > 0 ? `\n  常见触发: ${topTriggers.join("、")}` : ""}`);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.error("[routes] Failed to build mood history context:", err); }
 
-  } catch { /* ignore */ }
+  } catch (err) { console.error("[routes] Failed to build user context:", err); }
 
   if (parts.length === 0) return "";
 
@@ -553,7 +546,7 @@ async function botCreateDailyTopic() {
       lastDailyTopicDate = today;
       return; // Already posted today in DB
     }
-  } catch {}
+  } catch (err) { console.error("[routes] Failed to check daily bot topics:", err); }
 
   lastDailyTopicDate = today;
 
@@ -852,8 +845,56 @@ function checkRateLimit(key: string, maxRequests: number, windowMs: number): boo
   return true;
 }
 
+// Periodic cleanup of expired rate-limit and cache entries (every 5 min)
+setInterval(() => {
+  const now = Date.now();
+  const rlKeys = Array.from(rateLimitMap.keys());
+  for (const k of rlKeys) {
+    const v = rateLimitMap.get(k);
+    if (v && now > v.resetAt) rateLimitMap.delete(k);
+  }
+  const cacheKeys = Array.from(responseCache.keys());
+  for (const k of cacheKeys) {
+    const v = responseCache.get(k);
+    if (v && now > v.expiresAt) responseCache.delete(k);
+  }
+}, 5 * 60_000).unref();
+
+// ─── TTL Response Cache (for expensive/daily content) ───────
+const responseCache = new Map<string, { data: any; expiresAt: number }>();
+
+function getCached<T>(key: string): T | null {
+  const entry = responseCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) responseCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache(key: string, data: any, ttlMs: number): void {
+  responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  // Prevent unbounded growth — prune if too large
+  if (responseCache.size > 5000) {
+    const now = Date.now();
+    const keys = Array.from(responseCache.keys());
+    for (const k of keys) {
+      const v = responseCache.get(k);
+      if (v && now > v.expiresAt) responseCache.delete(k);
+    }
+  }
+}
+
 // JWT-based authentication (stateless — survives server restarts)
-const JWT_SECRET = process.env.JWT_SECRET || "heartai-dev-secret-change-in-production";
+const JWT_SECRET = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    console.error("[FATAL] JWT_SECRET must be set in production. Exiting.");
+    process.exit(1);
+  }
+  console.warn("[security] JWT_SECRET not set — using insecure default for development only.");
+  return "heartai-dev-secret-change-in-production";
+})();
 
 function generateToken(userId: string): string {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: "30d" });
@@ -1226,7 +1267,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           const pd = JSON.parse(user.agentPersonality);
           element = pd.element || '';
           elementTraits = pd.traits || [];
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to parse agent personality JSON:", err); }
       }
 
       // Fallback: assign random element if none
@@ -1318,6 +1359,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   // ─── Auth Routes ────────────────────────────────────────────
   app.post("/api/auth/register", async (req, res) => {
     try {
+      // Rate limit: 5 registrations per IP per 15 min
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`register:${ip}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "注册请求太频繁，请15分钟后再试" });
+      }
+
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
         const msg = parsed.error.errors.map(e => e.message).join("; ");
@@ -1328,8 +1375,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const existing = await storage.getUserByUsername(username);
       if (existing) return res.status(409).json({ error: "用户名已存在" });
 
+      const hashedPassword = await bcrypt.hash(password, 12);
       const publicId = await getUniquePublicId();
-      const user = await storage.createUser({ username, password, nickname });
+      const user = await storage.createUser({ username, password: hashedPassword, nickname });
       // Assign public ID
       await storage.updateUser(user.id, { publicId });
       const updatedUser = await storage.getUser(user.id);
@@ -1348,13 +1396,37 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
 
   app.post("/api/auth/login", async (req, res) => {
     try {
+      // Rate limit: 5 login attempts per IP per 15 min (brute-force protection)
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`login:${ip}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "登录请求太频繁，请15分钟后再试" });
+      }
+
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "请输入用户名和密码" });
 
       const { username, password } = parsed.data;
+
+      // Also rate limit per username (prevent targeted brute-force)
+      if (!checkRateLimit(`login:user:${username}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "该账户登录尝试次数过多，请15分钟后再试" });
+      }
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
+      if (!user) {
         return res.status(401).json({ error: "用户名或密码错误" });
+      }
+      // Support both bcrypt hashed passwords and legacy plaintext (auto-upgrade on login)
+      const isHashed = user.password.startsWith("$2a$") || user.password.startsWith("$2b$");
+      const passwordMatch = isHashed
+        ? await bcrypt.compare(password, user.password)
+        : user.password === password;
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "用户名或密码错误" });
+      }
+      // Auto-upgrade legacy plaintext password to bcrypt
+      if (!isHashed) {
+        const hashed = await bcrypt.hash(password, 12);
+        await storage.updateUserPassword(user.id, hashed);
       }
 
       const token = generateToken(user.id);
@@ -1380,6 +1452,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   // Agent login via API Key (returns session token like normal login)
   app.post("/api/auth/agent-login", async (req, res) => {
     try {
+      // Rate limit: 10 attempts per IP per 15 min (API key brute-force protection)
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`agent-login:${ip}`, 10, 15 * 60_000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+
       const { apiKey } = req.body;
       if (!apiKey || typeof apiKey !== "string") {
         return res.status(400).json({ error: "请输入 API Key" });
@@ -1397,9 +1475,15 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     }
   });
 
-  // Reset password (no auth required — plaintext passwords, no email)
+  // Reset password (no auth required)
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
+      // Rate limit: 3 resets per IP per 30 min
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`reset:${ip}`, 3, 30 * 60_000)) {
+        return res.status(429).json({ error: "重置请求太频繁，请30分钟后再试" });
+      }
+
       const { username, newPassword } = req.body;
       if (!username || !newPassword) {
         return res.status(400).json({ error: "请填写用户名和新密码" });
@@ -1411,7 +1495,8 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       if (!user) {
         return res.status(404).json({ error: "用户名不存在" });
       }
-      await storage.updateUserPassword(user.id, newPassword);
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(user.id, hashedPassword);
       res.json({ ok: true });
     } catch (err) {
       console.error("Reset password error:", err);
@@ -1437,10 +1522,16 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ error: "用户不存在" });
-      if (user.password !== currentPassword) {
+      // Support both bcrypt hashed and legacy plaintext
+      const isHashed = user.password.startsWith("$2a$") || user.password.startsWith("$2b$");
+      const passwordMatch = isHashed
+        ? await bcrypt.compare(currentPassword, user.password)
+        : user.password === currentPassword;
+      if (!passwordMatch) {
         return res.status(401).json({ error: "当前密码错误" });
       }
-      await storage.updateUserPassword(userId, newPassword);
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(userId, hashedNewPassword);
       res.json({ ok: true });
     } catch (err) {
       console.error("Change password error:", err);
@@ -1630,7 +1721,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
             chatSystemPrompt = `${specialist.systemPrompt}\n\n同时，你也是用户的情感陪伴者。回答要专业但温暖，像一个懂命理的好朋友。回复控制在200字以内。使用简体中文。\n请在每次回复末尾，用JSON格式在 <!--EMOTION:{"emotion":"xxx","score":N}--> 标记中返回你对用户当前情绪的分析。emotion 可选值：joy, sadness, anger, fear, anxiety, surprise, calm, neutral。score 为 1-10。`;
             routedAgent = specialistKey;
           }
-        } catch { /* fallback to main */ }
+        } catch (err) { console.error("[routes] Failed to load specialist agent prompt:", err); }
       }
 
       chatSystemPrompt += userCtx;
@@ -1755,7 +1846,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
               createdAt: m.createdAt,
               ...deep,
             };
-          } catch { return null; }
+          } catch (err) { console.error("[routes] Failed to parse emotion data for message:", err); return null; }
         })
         .filter(Boolean);
       res.json(emotions);
@@ -1784,7 +1875,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
                 arousal: deep.arousal,
                 dimensions: deep.dimensions?.slice(0, 5),
               });
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to parse emotion data for frequency analysis:", err); }
           }
         }
       }
@@ -1852,7 +1943,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
                 primary: deep.primary?.nameZh || "未知",
                 emoji: deep.primary?.emoji || "😐",
               });
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to parse emotion data for timeline:", err); }
           }
         }
       }
@@ -1934,7 +2025,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
               dayMap[dayKey].primaries.push(deep.primary?.nameZh || "未知");
               dayMap[dayKey].emojis.push(deep.primary?.emoji || "😐");
               dayMap[dayKey].count++;
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to parse emotion data for calendar heatmap:", err); }
           }
         }
       }
@@ -1953,7 +2044,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         try {
           const tags = JSON.parse(entry.emotionTags) as string[];
           if (tags.length > 0) dayMap[dayKey].primaries.push(tags[0]);
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to parse mood entry emotion tags JSON:", err); }
       }
 
       const days = Object.entries(dayMap).map(([day, data]) => {
@@ -1998,7 +2089,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
                 insight: deep.insight || "",
                 suggestion: deep.suggestion || "",
               });
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to parse message emotion data JSON:", err); }
           }
         }
       }
@@ -2103,6 +2194,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     try {
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const dateStr = (req.query.date as string) || new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+
+      // Cache almanac per date+tz — same for all users, valid for 1 hour
+      const cacheKey = `almanac:${dateStr}:${tz}`;
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+
       const d = lunisolar(dateStr);
 
       // Lunar info
@@ -2165,22 +2262,22 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         try {
           goodGods = d.theGods.getGoodGods('MD').map((g: any) => g.name || g.toString());
           badGods = d.theGods.getBadGods('MD').map((g: any) => g.name || g.toString());
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get good/bad gods from theGods API:", err); }
 
         // 黄黑道十二神 (青龙/明堂等)
         try {
           by12God = d.theGods.getBy12God('day')?.toString() || '';
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get 黄黑道十二神 (by12God):", err); }
 
         // 长生十二神
         try {
           life12God = d.theGods.getLife12God('day')?.toString() || '';
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get 长生十二神 (life12God):", err); }
 
         // 胎神占方
         try {
           fetalGodDesc = (d as any).fetalGod || '';
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get 胎神占方 (fetalGod):", err); }
 
         // 冲煞
         try {
@@ -2190,7 +2287,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           const directionMap: Record<number, string> = { 0:'北', 1:'东北', 2:'东北', 3:'东', 4:'东南', 5:'东南', 6:'南', 7:'西南', 8:'西南', 9:'西', 10:'西北', 11:'西北' };
           chong = `冲${zodiacNames[conflictBranch.value]}(${conflictBranch.toString()})`;
           sha = `煞${directionMap[conflictBranch.value] || ''}`;
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate 冲煞 (chong/sha):", err); }
 
         // 彭祖百忌
         try {
@@ -2211,7 +2308,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           if (stemIdx >= 0 && branchIdx >= 0) {
             pengzuTaboo = PENGZU_TABOO[stemIdx] + '，' + PENGZU_TABOO[branchIdx + 10];
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate 彭祖百忌 (pengzuTaboo):", err); }
 
         // 吉神方位
         const dirs = ['喜神', '福神', '財神', '陽貴', '陰貴'] as const;
@@ -2219,7 +2316,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           try {
             const [d24] = d.theGods.getLuckDirection(god);
             luckDirections[god] = d24?.direction || '';
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get luck direction for", god, ":", err); }
         }
 
         // ─── 每日运势 fortune data ───
@@ -2291,7 +2388,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         console.error('theGods error:', e);
       }
 
-      res.json({
+      const almanacResult = {
         date: dateStr,
         lunar,
         bazi,
@@ -2313,7 +2410,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         hourDetails,
         // 每日运势 fortune fields
         fortune: fortuneData,
-      });
+      };
+      setCache(cacheKey, almanacResult, 60 * 60_000); // 1 hour TTL
+      res.json(almanacResult);
     } catch (err) {
       console.error('Almanac error:', err);
       res.status(500).json({ error: 'Failed to get almanac data' });
@@ -2696,6 +2795,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const { birthDate, birthHour } = req.body;
       if (!birthDate) return res.status(400).json({ error: 'birthDate is required (YYYY-MM-DD)' });
 
+      // Cache per birthDate+hour per day — same input = same fortune
+      const todayDate = new Date().toLocaleDateString('sv-SE');
+      const dfCacheKey = `daily-fortune:${birthDate}:${birthHour ?? 'default'}:${todayDate}`;
+      const cachedDf = getCached(dfCacheKey);
+      if (cachedDf) return res.json(cachedDf);
+
       const hour = birthHour ?? 12;
       const birth = lunisolar(birthDate);
       const today = lunisolar(new Date());
@@ -2781,7 +2886,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         };
       }
 
-      res.json({
+      const dfResult = {
         ...fortune,
         meta: {
           birthDate,
@@ -2790,7 +2895,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           todayLunar,
           solarTerm: todaySolarTerm || null,
         }
-      });
+      };
+      setCache(dfCacheKey, dfResult, 4 * 60 * 60_000); // 4 hour TTL
+      res.json(dfResult);
     } catch (err) {
       console.error('Daily fortune error:', err);
       res.status(500).json({ error: 'Failed to generate daily fortune' });
@@ -3262,7 +3369,7 @@ ${najiaDesc}
             if ((user as any).zodiacSign) parts.push(`星座：${(user as any).zodiacSign}`);
             if (parts.length > 0) userProfile = parts.join('，');
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to decode JWT or fetch user profile for chat:", err); }
       }
 
       // 获取当前时辰信息
@@ -3624,14 +3731,14 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             const lunar = d.lunar;
             lunarDate = `${lunar.getMonthName()}${lunar.getDayName()}`;
             zodiac = d.char8?.year?.branch?.toString() || '';
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get lunar date info for date picker:", err); }
 
           try {
             const rawActs = d.theGods.getActs();
             goodActs = (rawActs.good || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
             badActs = (rawActs.bad || []).map((a: any) => typeof a === 'string' ? a : (a.name || a.toString()));
             duty12 = d.theGods.getDuty12God()?.toString() || '';
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get good/bad acts for date picker:", err); }
 
           try {
             const dayBranch = d.char8?.day?.branch;
@@ -3641,7 +3748,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             if (dayChongIdx >= 0) {
               chong = `冲${ANIMALS[dayChongIdx]}(${BRANCHES[dayChongIdx]})`;
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to calculate 冲 (chong) for date picker:", err); }
 
           try {
             const shaMap: Record<number, string> = { 0: '北', 3: '东', 6: '南', 9: '西' };
@@ -3649,7 +3756,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             if (dayBranchVal !== undefined) {
               sha = '煞' + (shaMap[(dayBranchVal + 6) % 12 % 4 * 3] || '');
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to calculate 煞 (sha) for date picker:", err); }
 
           try {
             const gods = ['喜神', '财神', '福神'];
@@ -3657,9 +3764,9 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
               try {
                 const [d24] = d.theGods.getLuckDirection(god);
                 luckDirections[god] = d24?.direction || '';
-              } catch {}
+              } catch (err) { console.error("[routes] Failed to get luck direction for", god, ":", err); }
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to get luck directions for date picker:", err); }
 
           // Check if this day matches the event
           // Find which good acts matched
@@ -3714,10 +3821,16 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
   app.post("/api/mood", requireAuth, async (req, res) => {
     try {
+      const moodScore = parseInt(req.body.moodScore);
+      if (isNaN(moodScore) || moodScore < 1 || moodScore > 10) {
+        return res.status(400).json({ error: "moodScore must be 1–10" });
+      }
+      const emotionTags = Array.isArray(req.body.emotionTags) ? req.body.emotionTags.slice(0, 20) : [];
+
       const entry = await storage.createMoodEntry({
         userId: getUserId(req),
-        moodScore: req.body.moodScore,
-        emotionTags: JSON.stringify(req.body.emotionTags || []),
+        moodScore,
+        emotionTags: JSON.stringify(emotionTags),
         note: req.body.note || null,
       });
       res.json(entry);
@@ -3946,7 +4059,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
             fromUserId: userId,
           }).catch(() => {});
         }
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to send like notification:", err); }
     }
   });
 
@@ -5108,8 +5221,17 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   app.post("/api/admin/trigger-bot", async (req, res) => {
     try {
       const secret = req.headers["x-admin-secret"] as string;
-      const expected = process.env.ADMIN_SECRET || "guanxing-bootstrap-2026";
-      if (secret !== expected) return res.status(403).json({ error: "Unauthorized" });
+      const expected = process.env.ADMIN_SECRET;
+      if (!expected) {
+        if (process.env.NODE_ENV === "production") {
+          console.error("[security] ADMIN_SECRET not set in production — admin endpoints disabled");
+          return res.status(503).json({ error: "Admin not configured" });
+        }
+        // Development fallback only
+        console.warn("[security] ADMIN_SECRET not set — using insecure dev default");
+      }
+      const adminSecret = expected || "guanxing-bootstrap-2026";
+      if (secret !== adminSecret) return res.status(403).json({ error: "Unauthorized" });
 
       const action = req.body?.action || "post"; // "post" | "topic" | "status"
 
@@ -5180,10 +5302,14 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   // ─── Admin: Bootstrap silent agents (run autoStarterKit retroactively) ────
   app.post("/api/admin/bootstrap-agents", async (req, res) => {
     try {
-      // Simple secret check — use ADMIN_SECRET env or fallback
+      // Admin secret check
       const secret = req.headers["x-admin-secret"] as string;
-      const expected = process.env.ADMIN_SECRET || "guanxing-bootstrap-2026";
-      if (secret !== expected) {
+      const expected = process.env.ADMIN_SECRET;
+      if (!expected && process.env.NODE_ENV === "production") {
+        return res.status(503).json({ error: "Admin not configured" });
+      }
+      const adminSecret = expected || "guanxing-bootstrap-2026";
+      if (secret !== adminSecret) {
         return res.status(403).json({ error: "Unauthorized" });
       }
 
@@ -5381,6 +5507,29 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       res.json({ feishuWebhookUrl: user.feishuWebhookUrl || "" });
     } catch (err) {
       console.error("Update Feishu settings error:", err);
+      res.status(500).json({ error: "保存失败" });
+    }
+  });
+
+  // ─── DingDing Settings Routes ─────────────────────────────
+  app.get("/api/settings/dingding", requireAuth, async (req, res) => {
+    const user = await storage.getUser(getUserId(req));
+    if (!user) return res.status(401).json({ error: "用户不存在" });
+    res.json({ dingdingWebhookUrl: user.dingdingWebhookUrl || "" });
+  });
+
+  app.put("/api/settings/dingding", requireAuth, async (req, res) => {
+    try {
+      const parsed = dingdingSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const msg = parsed.error.errors.map(e => e.message).join("; ");
+        return res.status(400).json({ error: msg });
+      }
+      const user = await storage.updateUserDingDing(getUserId(req), parsed.data.dingdingWebhookUrl);
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+      res.json({ dingdingWebhookUrl: user.dingdingWebhookUrl || "" });
+    } catch (err) {
+      console.error("Update DingDing settings error:", err);
       res.status(500).json({ error: "保存失败" });
     }
   });
@@ -5720,8 +5869,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             const acts = theGods.getActs();
             lunarInfo.yi = (acts?.good || []).slice(0, 6).join('、') || '';
           }
-        } catch {}
-      } catch {}
+        } catch (err) { console.error("[routes] Failed to get daily good acts from theGods:", err); }
+      } catch (err) { console.error("[routes] Failed to get lunar info for daily summary:", err); }
 
       // User personality summary
       const personality = user ? {
@@ -5770,7 +5919,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           poem: q.poem,
           rank: q.rank,
         };
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to compute daily qian (签):", err); }
 
       res.json({
         date: dateStr,
@@ -6103,6 +6252,32 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // Test DingDing webhook connection
+  app.post("/api/settings/dingding/test", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(getUserId(req));
+      if (!user) return res.status(401).json({ error: "用户不存在" });
+      const url = user.dingdingWebhookUrl;
+      if (!url) return res.status(400).json({ error: "请先配置钉钉 Webhook 地址" });
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          msgtype: "text",
+          text: { content: "🦉 观星 HeartAI 连接测试成功！你的运势推送将发送到此群。" },
+        }),
+      });
+      if (response.ok) {
+        res.json({ success: true, message: "钉钉连接成功" });
+      } else {
+        res.status(400).json({ error: `连接失败 (HTTP ${response.status})` });
+      }
+    } catch (err: any) {
+      console.error("DingDing test error:", err);
+      res.status(500).json({ error: `连接失败: ${err.message || "未知错误"}` });
+    }
+  });
+
   // ─── 星座解读 API ────────────────────────────────────────────
   app.post("/api/zodiac/analyze", requireAuth, async (req, res) => {
     try {
@@ -6279,7 +6454,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData = { description: "", careerAdvice: "", relationshipAdvice: "", socialAdvice: "" };
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         type,
@@ -6620,7 +6795,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           const yearStem = yearLs.char8?.year?.stem?.toString() || '';
           yearElement = STEM_ELEMENT[yearStem] || '木';
           dayPillar = yearLs.char8?.day?.toString() || '';
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to get year stem/branch element from lunisolar:", err); }
 
         // Base score with age curve (natural life curve)
         const ageCurve = -0.015 * (age - 38) * (age - 38) + 70; // Parabola peaking ~38
@@ -6687,6 +6862,12 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+
+      // Cache per user+date — fortune doesn't change within a day, avoid repeat AI calls
+      const fortuneCacheKey = `fortune:${userId}:${dateStr}`;
+      const cachedFortune = getCached(fortuneCacheKey);
+      if (cachedFortune) return res.json(cachedFortune);
+
       const today = new Date(dateStr);
 
       // Get user profile for personalized calculation
@@ -6801,6 +6982,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             `INSERT INTO fortune_history (user_id, date, total_score) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO UPDATE SET total_score = EXCLUDED.total_score`,
             [userId, dateStr, fortune.totalScore]
           ).catch(() => {});
+          // Cache for 4 hours — fortune doesn't change within a day
+          setCache(fortuneCacheKey, fortune, 4 * 60 * 60_000);
           return res.json(fortune);
         } catch {
           if (calculated) {
@@ -6892,8 +7075,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             yi = (acts?.good || []).slice(0, 6).join('、') || '';
             ji = (acts?.bad || []).slice(0, 6).join('、') || '';
           }
-        } catch {}
-      } catch {}
+        } catch (err) { console.error("[routes] Failed to get fortune good/bad acts from theGods:", err); }
+      } catch (err) { console.error("[routes] Failed to get fortune lunar/calendar data:", err); }
 
       // Optional personalization via query params
       const birthDate = req.query.birthDate as string | undefined;
@@ -6906,7 +7089,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         try {
           calculated = calculatePersonalizedFortune(birthDate, birthHour, today);
           isPersonalized = true;
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate personalized fortune:", err); }
       }
 
       // Deterministic daily fortune for guests (no user id — use date only)
@@ -6950,7 +7133,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         });
         const txt = resp.choices[0]?.message?.content?.trim();
         if (txt) aiInsight = txt;
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to generate AI fortune insight:", err); }
 
       res.json({
         date: dateStr,
@@ -7001,7 +7184,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         fourPillars: { year: yearPillar, month: monthPillar, day: dayPillar, hour: hourPillar },
@@ -7081,7 +7264,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = { cards: [], overall: "", advice: "" };
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         question: question || "今日运势如何？",
@@ -7124,7 +7307,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         spaceType,
@@ -7170,7 +7353,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         sign,
@@ -7256,7 +7439,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         question,
@@ -7307,7 +7490,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       const defaultRadar = {
         bond: { score: 78, label: "羁绊", desc: "两人命中有一定联结" },
@@ -7353,7 +7536,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             };
             element = stemElement[dayMaster.toString()] || "";
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate user day master element from birth date:", err); }
       }
       res.json({ nickname: u.nickname || u.username, element });
     } catch (e: any) {
@@ -7397,7 +7580,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const raw = response.choices[0]?.message?.content?.trim() || "";
       const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       let aiData: any = {};
-      try { aiData = JSON.parse(cleaned); } catch {}
+      try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
       res.json({
         userInfo: { birthDate, element: elem, zodiacSign, mbtiType, gender },
@@ -7466,7 +7649,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
                 isAgent: sender.isAgent ?? false,
               };
             }
-          } catch {}
+          } catch (err) { console.error("[routes] Failed to fetch notification sender info:", err); }
         }
 
         // Extract post preview from linkTo (e.g. "/community/postId")
@@ -7478,7 +7661,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
               if (post) {
                 postPreview = post.content.slice(0, 80);
               }
-            } catch {}
+            } catch (err) { console.error("[routes] Failed to fetch post preview for notification:", err); }
           }
         }
 
@@ -7530,7 +7713,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       // Get recent posts
@@ -7643,7 +7826,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/recent-posts", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const result = await pool.query(`
@@ -7676,7 +7859,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/recent-comments", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const result = await pool.query(`
@@ -7710,7 +7893,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/active-users", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const postsResult = await pool.query(`
@@ -7788,7 +7971,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       let personality = null;
       try {
         if (user.agentPersonality) personality = JSON.parse(user.agentPersonality);
-      } catch {}
+      } catch (err) { console.error("[routes] Failed to parse agent personality JSON:", err); }
 
       const soulProfile = (soulRow as any).rows?.[0] || null;
       res.json({
@@ -9526,7 +9709,7 @@ ${birthDate ? `出生日期: ${birthDate}` : ""}${birthHour !== undefined ? ` �
             const bLsr = lunisolar(bDate);
             userDayMaster = bLsr.char8.day.stem.e5?.toString() || null;
           }
-        } catch {}
+        } catch (err) { console.error("[routes] Failed to calculate user day master from birth date:", err); }
       }
 
       const tokens = CRYPTO_FORTUNE_TOKENS.map((t) => {
@@ -10044,6 +10227,67 @@ ${userTopics ? `近期话题: ${userTopics}` : ''}
     } catch (err) {
       console.error("[daily-letter] Error:", err);
       res.status(500).json({ error: "生成日报失败，请稍后再试" });
+    }
+  });
+
+  // ─── Shared Results (公开分享链接) ─────────────────────────
+  // Create a shareable link for a result
+  app.post("/api/share", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { resultType, resultData } = req.body;
+      if (!resultType || !resultData) {
+        return res.status(400).json({ error: "Missing resultType or resultData" });
+      }
+      const allowed = ["fortune", "tarot", "bazi", "compatibility"];
+      if (!allowed.includes(resultType)) {
+        return res.status(400).json({ error: "Invalid resultType" });
+      }
+      const [shared] = await db
+        .insert(sharedResults)
+        .values({
+          userId,
+          resultType,
+          resultData: typeof resultData === "string" ? resultData : JSON.stringify(resultData),
+          createdAt: new Date().toISOString(),
+        })
+        .returning();
+      res.json({ id: shared.id, url: `/share/${shared.id}` });
+    } catch (err) {
+      console.error("[share] Error:", err);
+      res.status(500).json({ error: "创建分享链接失败" });
+    }
+  });
+
+  // Get a shared result (PUBLIC - no auth required)
+  app.get("/api/share/:id", async (req: Request, res: Response) => {
+    try {
+      const [result] = await db
+        .select()
+        .from(sharedResults)
+        .where(eq(sharedResults.id, req.params.id))
+        .limit(1);
+      if (!result) {
+        return res.status(404).json({ error: "分享内容不存在或已过期" });
+      }
+      // Increment view count
+      await db
+        .update(sharedResults)
+        .set({ viewCount: sql`${sharedResults.viewCount} + 1` })
+        .where(eq(sharedResults.id, req.params.id));
+      // Get sharer nickname
+      const user = await storage.getUser(result.userId);
+      res.json({
+        id: result.id,
+        resultType: result.resultType,
+        resultData: JSON.parse(result.resultData),
+        nickname: user?.nickname || "观星用户",
+        createdAt: result.createdAt,
+        viewCount: result.viewCount + 1,
+      });
+    } catch (err) {
+      console.error("[share] Error:", err);
+      res.status(500).json({ error: "获取分享内容失败" });
     }
   });
 

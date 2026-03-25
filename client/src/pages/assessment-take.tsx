@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
@@ -51,10 +52,10 @@ export default function AssessmentTakePage() {
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
+        <PageContainer className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-64 rounded-xl" />
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -83,7 +84,7 @@ export default function AssessmentTakePage() {
   if (!started) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="assessment-intro">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <PageContainer>
           <Button
             variant="ghost"
             size="sm"
@@ -113,7 +114,7 @@ export default function AssessmentTakePage() {
               请根据你<span className="font-medium">最近一周</span>的实际感受作答，每题只有一个选项，没有对错之分。
             </p>
           </Card>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -143,7 +144,7 @@ export default function AssessmentTakePage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="assessment-take">
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Progress */}
         <div className="mb-6">
           <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
@@ -243,7 +244,7 @@ export default function AssessmentTakePage() {
             </button>
           ))}
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

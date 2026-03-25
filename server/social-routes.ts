@@ -77,7 +77,7 @@ export function registerSocialRoutes(app: Express, requireAuth: any) {
           linkTo: '/friends',
           fromUserId: userId,
         });
-      } catch {}
+      } catch (err) { console.error("[social] Failed to create friend request notification:", err); }
 
       res.json({ ok: true, friendshipId: created.id });
     } catch (err) {
@@ -138,7 +138,7 @@ export function registerSocialRoutes(app: Express, requireAuth: any) {
           linkTo: '/friends',
           fromUserId: userId,
         });
-      } catch {}
+      } catch (err) { console.error("[social] Failed to create friend request accepted notification:", err); }
 
       res.json({ ok: true });
     } catch (err) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense } from "react";
 import { Switch, Route, Router, Redirect, useLocation } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
@@ -6,72 +6,78 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import PageLoading from "@/components/PageLoading";
 import AppShell from "@/components/AppShell";
+
+// ─── Eager-loaded (critical path) ────────────────────────────
 import AuthPage from "@/pages/auth";
-import DashboardPage from "@/pages/dashboard";
-import FortunePage from "@/pages/fortune";
-import ZodiacPage from "@/pages/zodiac";
-import MBTIPage from "@/pages/mbti";
-import ChatPage from "@/pages/chat";
-import AssessmentsPage from "@/pages/assessments";
-import AssessmentTakePage from "@/pages/assessment-take";
-import AssessmentResultPage from "@/pages/assessment-result";
-import AssessmentHistoryPage from "@/pages/assessment-history";
-import JournalPage from "@/pages/journal";
-import CommunityPage from "@/pages/community";
-import PostDetailPage from "@/pages/post-detail";
-import SettingsPage from "@/pages/settings";
-import AgentsPage from "@/pages/agents";
-import AgentProfilePage from "@/pages/agent-profile";
-import EmotionInsightsPage from "@/pages/emotion-insights";
-import CulturePage from "@/pages/culture";
-import BaziPage from "@/pages/bazi";
-import TarotPage from "@/pages/tarot";
-import FengshuiPage from "@/pages/fengshui";
-import HoroscopePage from "@/pages/horoscope";
-import WisdomPage from "@/pages/wisdom";
-import CompatibilityPage from "@/pages/compatibility";
-import SoulmatePage from "@/pages/soulmate";
-import AlmanacPage from "@/pages/almanac";
-import NameScorePage from "@/pages/name-score";
-import AvatarPage from "@/pages/avatar";
-import AvatarPlazaPage from "@/pages/avatar-plaza";
-import DreamPage from "@/pages/dream";
-import QiuqianPage from "@/pages/qiuqian";
-import ZejiPage from "@/pages/zeji";
-import ProfilePage from "@/pages/profile";
-import NotificationsPage from "@/pages/notifications";
-import AgentTeamPage from "@/pages/agent-team";
-import DeveloperPage from "@/pages/developer";
-import ClawHubPage from "@/pages/clawhub";
-import InviteCompatPage from "@/pages/invite-compat";
-import LifeCurvePage from "@/pages/life-curve";
-import ActivitySummaryPage from "@/pages/activity-summary";
-import EnneagramPage from "@/pages/enneagram";
-import StarMansionPage from "@/pages/star-mansion";
-import ZodiacDetailPage from "@/pages/zodiac-detail";
-import NumerologyPage from "@/pages/numerology";
-import ZiweiPage from "@/pages/ziwei";
-import ChakraPage from "@/pages/chakra";
-import HtpPage from "@/pages/htp";
-import MayanPage from "@/pages/mayan";
-import HumanDesignPage from "@/pages/human-design";
-import ZhengyuPage from "@/pages/zhengyu";
-import SoulMatchPage from "@/pages/soul-match";
-import OnboardingPage from "@/pages/onboarding";
-import GroupChatPage from "@/pages/group-chat";
-import LeaderboardPage from "@/pages/leaderboard";
-import MatchingPage from "@/pages/matching";
-import FriendsPage from "@/pages/friends";
-import DmPage from "@/pages/dm";
-import CommunityGuidelinesPage from "@/pages/community-guidelines";
-import CryptoFortunePage from "@/pages/crypto-fortune";
-import DailyLetterPage from "@/pages/daily-letter";
-import MoodCheckinPage from "@/pages/mood-checkin";
-import GuestDashboard from "@/pages/guest-dashboard";
-import FeatureGate from "@/components/FeatureGate";
-import GuestBanner from "@/components/GuestBanner";
 import NotFound from "@/pages/not-found";
+
+// ─── Lazy-loaded pages ───────────────────────────────────────
+const DashboardPage = lazy(() => import("@/pages/dashboard"));
+const GuestDashboard = lazy(() => import("@/pages/guest-dashboard"));
+const FortunePage = lazy(() => import("@/pages/fortune"));
+const ZodiacPage = lazy(() => import("@/pages/zodiac"));
+const MBTIPage = lazy(() => import("@/pages/mbti"));
+const ChatPage = lazy(() => import("@/pages/chat"));
+const AssessmentsPage = lazy(() => import("@/pages/assessments"));
+const AssessmentTakePage = lazy(() => import("@/pages/assessment-take"));
+const AssessmentResultPage = lazy(() => import("@/pages/assessment-result"));
+const AssessmentHistoryPage = lazy(() => import("@/pages/assessment-history"));
+const JournalPage = lazy(() => import("@/pages/journal"));
+const CommunityPage = lazy(() => import("@/pages/community"));
+const PostDetailPage = lazy(() => import("@/pages/post-detail"));
+const SettingsPage = lazy(() => import("@/pages/settings"));
+const AgentsPage = lazy(() => import("@/pages/agents"));
+const AgentProfilePage = lazy(() => import("@/pages/agent-profile"));
+const EmotionInsightsPage = lazy(() => import("@/pages/emotion-insights"));
+const CulturePage = lazy(() => import("@/pages/culture"));
+const BaziPage = lazy(() => import("@/pages/bazi"));
+const TarotPage = lazy(() => import("@/pages/tarot"));
+const FengshuiPage = lazy(() => import("@/pages/fengshui"));
+const HoroscopePage = lazy(() => import("@/pages/horoscope"));
+const WisdomPage = lazy(() => import("@/pages/wisdom"));
+const CompatibilityPage = lazy(() => import("@/pages/compatibility"));
+const SoulmatePage = lazy(() => import("@/pages/soulmate"));
+const AlmanacPage = lazy(() => import("@/pages/almanac"));
+const NameScorePage = lazy(() => import("@/pages/name-score"));
+const AvatarPage = lazy(() => import("@/pages/avatar"));
+const AvatarPlazaPage = lazy(() => import("@/pages/avatar-plaza"));
+const DreamPage = lazy(() => import("@/pages/dream"));
+const QiuqianPage = lazy(() => import("@/pages/qiuqian"));
+const ZejiPage = lazy(() => import("@/pages/zeji"));
+const ProfilePage = lazy(() => import("@/pages/profile"));
+const NotificationsPage = lazy(() => import("@/pages/notifications"));
+const AgentTeamPage = lazy(() => import("@/pages/agent-team"));
+const DeveloperPage = lazy(() => import("@/pages/developer"));
+const ClawHubPage = lazy(() => import("@/pages/clawhub"));
+const InviteCompatPage = lazy(() => import("@/pages/invite-compat"));
+const LifeCurvePage = lazy(() => import("@/pages/life-curve"));
+const ActivitySummaryPage = lazy(() => import("@/pages/activity-summary"));
+const EnneagramPage = lazy(() => import("@/pages/enneagram"));
+const StarMansionPage = lazy(() => import("@/pages/star-mansion"));
+const ZodiacDetailPage = lazy(() => import("@/pages/zodiac-detail"));
+const NumerologyPage = lazy(() => import("@/pages/numerology"));
+const ZiweiPage = lazy(() => import("@/pages/ziwei"));
+const ChakraPage = lazy(() => import("@/pages/chakra"));
+const HtpPage = lazy(() => import("@/pages/htp"));
+const MayanPage = lazy(() => import("@/pages/mayan"));
+const HumanDesignPage = lazy(() => import("@/pages/human-design"));
+const ZhengyuPage = lazy(() => import("@/pages/zhengyu"));
+const SoulMatchPage = lazy(() => import("@/pages/soul-match"));
+const OnboardingPage = lazy(() => import("@/pages/onboarding"));
+const GroupChatPage = lazy(() => import("@/pages/group-chat"));
+const LeaderboardPage = lazy(() => import("@/pages/leaderboard"));
+const MatchingPage = lazy(() => import("@/pages/matching"));
+const FriendsPage = lazy(() => import("@/pages/friends"));
+const DmPage = lazy(() => import("@/pages/dm"));
+const CommunityGuidelinesPage = lazy(() => import("@/pages/community-guidelines"));
+const CryptoFortunePage = lazy(() => import("@/pages/crypto-fortune"));
+const DailyLetterPage = lazy(() => import("@/pages/daily-letter"));
+const MoodCheckinPage = lazy(() => import("@/pages/mood-checkin"));
+const SharedResultPage = lazy(() => import("@/pages/shared-result"));
+const FeatureGate = lazy(() => import("@/components/FeatureGate"));
 
 // Feature descriptions for gate interstitials
 const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
@@ -103,69 +109,72 @@ function AuthenticatedRoutes() {
 
   return (
     <AppShell>
-      <Switch>
-        <Route path="/" component={DashboardPage} />
-        <Route path="/onboarding" component={OnboardingPage} />
-        <Route path="/fortune" component={FortunePage} />
-        <Route path="/zodiac" component={ZodiacPage} />
-        <Route path="/mbti" component={MBTIPage} />
-        <Route path="/chat" component={ChatPage} />
-        <Route path="/assessments" component={AssessmentsPage} />
-        <Route path="/assessments/:slug" component={AssessmentTakePage} />
-        <Route path="/assessment-results/:id" component={AssessmentResultPage} />
-        <Route path="/assessment-history" component={AssessmentHistoryPage} />
-        <Route path="/journal" component={JournalPage} />
-        <Route path="/community" component={CommunityPage} />
-        <Route path="/community/:id" component={PostDetailPage} />
-        <Route path="/emotion-insights" component={EmotionInsightsPage} />
-        <Route path="/culture" component={CulturePage} />
-        <Route path="/bazi" component={BaziPage} />
-        <Route path="/tarot" component={TarotPage} />
-        <Route path="/fengshui" component={FengshuiPage} />
-        <Route path="/horoscope" component={HoroscopePage} />
-        <Route path="/wisdom" component={WisdomPage} />
-        <Route path="/compatibility" component={CompatibilityPage} />
-        <Route path="/soulmate" component={SoulmatePage} />
-        <Route path="/almanac" component={AlmanacPage} />
-        <Route path="/name-score" component={NameScorePage} />
-        <Route path="/avatar" component={AvatarPage} />
-        <Route path="/avatar-plaza" component={AvatarPlazaPage} />
-        <Route path="/dream" component={DreamPage} />
-        <Route path="/qiuqian" component={QiuqianPage} />
-        <Route path="/zeji" component={ZejiPage} />
-        <Route path="/profile/:id" component={ProfilePage} />
-        <Route path="/notifications" component={NotificationsPage} />
-        <Route path="/settings" component={SettingsPage} />
-        <Route path="/agents" component={AgentsPage} />
-        <Route path="/agents/:id" component={AgentProfilePage} />
-        <Route path="/agent-team" component={AgentTeamPage} />
-        <Route path="/developer" component={DeveloperPage} />
-        <Route path="/clawhub" component={ClawHubPage} />
-        <Route path="/life-curve" component={LifeCurvePage} />
-        <Route path="/activity" component={ActivitySummaryPage} />
-        <Route path="/invite/compat/:userId" component={InviteCompatPage} />
-        <Route path="/discover/enneagram" component={EnneagramPage} />
-        <Route path="/discover/star-mansion" component={StarMansionPage} />
-        <Route path="/discover/zodiac" component={ZodiacDetailPage} />
-        <Route path="/discover/numerology" component={NumerologyPage} />
-        <Route path="/discover/ziwei" component={ZiweiPage} />
-        <Route path="/discover/chakra" component={ChakraPage} />
-        <Route path="/discover/htp" component={HtpPage} />
-        <Route path="/discover/mayan" component={MayanPage} />
-        <Route path="/discover/human-design" component={HumanDesignPage} />
-        <Route path="/group-chat" component={GroupChatPage} />
-        <Route path="/leaderboard" component={LeaderboardPage} />
-        <Route path="/matching" component={MatchingPage} />
-        <Route path="/soul-match" component={SoulMatchPage} />
-        <Route path="/friends" component={FriendsPage} />
-        <Route path="/dm/:friendId" component={DmPage} />
-        <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
-        <Route path="/discover/zhengyu" component={ZhengyuPage} />
-        <Route path="/crypto" component={CryptoFortunePage} />
-        <Route path="/daily-letter" component={DailyLetterPage} />
-        <Route path="/mood" component={MoodCheckinPage} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<PageLoading />}>
+        <Switch>
+          <Route path="/" component={DashboardPage} />
+          <Route path="/onboarding" component={OnboardingPage} />
+          <Route path="/fortune" component={FortunePage} />
+          <Route path="/zodiac" component={ZodiacPage} />
+          <Route path="/mbti" component={MBTIPage} />
+          <Route path="/chat" component={ChatPage} />
+          <Route path="/assessments" component={AssessmentsPage} />
+          <Route path="/assessments/:slug" component={AssessmentTakePage} />
+          <Route path="/assessment-results/:id" component={AssessmentResultPage} />
+          <Route path="/assessment-history" component={AssessmentHistoryPage} />
+          <Route path="/journal" component={JournalPage} />
+          <Route path="/community" component={CommunityPage} />
+          <Route path="/community/:id" component={PostDetailPage} />
+          <Route path="/emotion-insights" component={EmotionInsightsPage} />
+          <Route path="/culture" component={CulturePage} />
+          <Route path="/bazi" component={BaziPage} />
+          <Route path="/tarot" component={TarotPage} />
+          <Route path="/fengshui" component={FengshuiPage} />
+          <Route path="/horoscope" component={HoroscopePage} />
+          <Route path="/wisdom" component={WisdomPage} />
+          <Route path="/compatibility" component={CompatibilityPage} />
+          <Route path="/soulmate" component={SoulmatePage} />
+          <Route path="/almanac" component={AlmanacPage} />
+          <Route path="/name-score" component={NameScorePage} />
+          <Route path="/avatar" component={AvatarPage} />
+          <Route path="/avatar-plaza" component={AvatarPlazaPage} />
+          <Route path="/dream" component={DreamPage} />
+          <Route path="/qiuqian" component={QiuqianPage} />
+          <Route path="/zeji" component={ZejiPage} />
+          <Route path="/profile/:id" component={ProfilePage} />
+          <Route path="/notifications" component={NotificationsPage} />
+          <Route path="/settings" component={SettingsPage} />
+          <Route path="/agents" component={AgentsPage} />
+          <Route path="/agents/:id" component={AgentProfilePage} />
+          <Route path="/agent-team" component={AgentTeamPage} />
+          <Route path="/developer" component={DeveloperPage} />
+          <Route path="/clawhub" component={ClawHubPage} />
+          <Route path="/life-curve" component={LifeCurvePage} />
+          <Route path="/activity" component={ActivitySummaryPage} />
+          <Route path="/share/:id" component={SharedResultPage} />
+          <Route path="/invite/compat/:userId" component={InviteCompatPage} />
+          <Route path="/discover/enneagram" component={EnneagramPage} />
+          <Route path="/discover/star-mansion" component={StarMansionPage} />
+          <Route path="/discover/zodiac" component={ZodiacDetailPage} />
+          <Route path="/discover/numerology" component={NumerologyPage} />
+          <Route path="/discover/ziwei" component={ZiweiPage} />
+          <Route path="/discover/chakra" component={ChakraPage} />
+          <Route path="/discover/htp" component={HtpPage} />
+          <Route path="/discover/mayan" component={MayanPage} />
+          <Route path="/discover/human-design" component={HumanDesignPage} />
+          <Route path="/group-chat" component={GroupChatPage} />
+          <Route path="/leaderboard" component={LeaderboardPage} />
+          <Route path="/matching" component={MatchingPage} />
+          <Route path="/soul-match" component={SoulMatchPage} />
+          <Route path="/friends" component={FriendsPage} />
+          <Route path="/dm/:friendId" component={DmPage} />
+          <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
+          <Route path="/discover/zhengyu" component={ZhengyuPage} />
+          <Route path="/crypto" component={CryptoFortunePage} />
+          <Route path="/daily-letter" component={DailyLetterPage} />
+          <Route path="/mood" component={MoodCheckinPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </AppShell>
   );
 }
@@ -213,61 +222,66 @@ function GuestAuthModal() {
   );
 }
 
-function GuestProtectedRedirect() {
-  return <GuestAuthModal />;
-}
-
 function GuestFeatureGate({ path }: { path: string }) {
   const info = GATED_FEATURE_INFO[path] || { name: "此功能", desc: "注册后即可使用全部功能。" };
-  return <FeatureGate featureName={info.name} featureDescription={info.desc} />;
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FeatureGate featureName={info.name} featureDescription={info.desc} />
+    </Suspense>
+  );
 }
 
 function GuestRoutes() {
   return (
     <AppShell>
-      <Switch>
-        <Route path="/" component={GuestDashboard} />
-        <Route path="/community" component={CommunityPage} />
-        <Route path="/chat" component={ChatPage} />
-        <Route path="/community/:id" component={PostDetailPage} />
-        <Route path="/agents" component={AgentsPage} />
-        <Route path="/agents/:id" component={AgentProfilePage} />
-        <Route path="/culture" component={CulturePage} />
-        <Route path="/almanac" component={AlmanacPage} />
-        <Route path="/name-score" component={NameScorePage} />
-        <Route path="/horoscope" component={HoroscopePage} />
-        <Route path="/bazi" component={BaziPage} />
-        <Route path="/tarot" component={TarotPage} />
-        <Route path="/qiuqian" component={QiuqianPage} />
-        <Route path="/zeji" component={ZejiPage} />
-        <Route path="/dream" component={DreamPage} />
-        <Route path="/invite/compat/:userId" component={InviteCompatPage} />
-        <Route path="/discover/enneagram" component={EnneagramPage} />
-        <Route path="/discover/star-mansion" component={StarMansionPage} />
-        <Route path="/discover/zodiac" component={ZodiacDetailPage} />
-        <Route path="/discover/numerology" component={NumerologyPage} />
-        <Route path="/discover/ziwei" component={ZiweiPage} />
-        <Route path="/discover/chakra" component={ChakraPage} />
-        <Route path="/discover/htp" component={HtpPage} />
-        <Route path="/discover/mayan" component={MayanPage} />
-        <Route path="/discover/human-design" component={HumanDesignPage} />
-        <Route path="/discover/zhengyu" component={ZhengyuPage} />
-        <Route path="/crypto" component={CryptoFortunePage} />
-        <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
-        {/* Gated routes show feature gate interstitial instead of auth modal */}
-        {GUEST_PROTECTED_ROUTES.map((path) => (
-          <Route key={path} path={path}>
-            {() => <GuestFeatureGate path={path} />}
+      <Suspense fallback={<PageLoading />}>
+        <Switch>
+          <Route path="/" component={GuestDashboard} />
+          <Route path="/community" component={CommunityPage} />
+          <Route path="/chat" component={ChatPage} />
+          <Route path="/community/:id" component={PostDetailPage} />
+          <Route path="/agents" component={AgentsPage} />
+          <Route path="/agents/:id" component={AgentProfilePage} />
+          <Route path="/culture" component={CulturePage} />
+          <Route path="/almanac" component={AlmanacPage} />
+          <Route path="/name-score" component={NameScorePage} />
+          <Route path="/horoscope" component={HoroscopePage} />
+          <Route path="/bazi" component={BaziPage} />
+          <Route path="/tarot" component={TarotPage} />
+          <Route path="/qiuqian" component={QiuqianPage} />
+          <Route path="/zeji" component={ZejiPage} />
+          <Route path="/dream" component={DreamPage} />
+          <Route path="/invite/compat/:userId" component={InviteCompatPage} />
+          <Route path="/discover/enneagram" component={EnneagramPage} />
+          <Route path="/discover/star-mansion" component={StarMansionPage} />
+          <Route path="/discover/zodiac" component={ZodiacDetailPage} />
+          <Route path="/discover/numerology" component={NumerologyPage} />
+          <Route path="/discover/ziwei" component={ZiweiPage} />
+          <Route path="/discover/chakra" component={ChakraPage} />
+          <Route path="/discover/htp" component={HtpPage} />
+          <Route path="/discover/mayan" component={MayanPage} />
+          <Route path="/discover/human-design" component={HumanDesignPage} />
+          <Route path="/discover/zhengyu" component={ZhengyuPage} />
+          <Route path="/crypto" component={CryptoFortunePage} />
+          <Route path="/community-guidelines" component={CommunityGuidelinesPage} />
+          {/* Gated routes show feature gate interstitial instead of auth modal */}
+          {GUEST_PROTECTED_ROUTES.map((path) => (
+            <Route key={path} path={path}>
+              {() => <GuestFeatureGate path={path} />}
+            </Route>
+          ))}
+          <Route>
+            <Redirect to="/" />
           </Route>
-        ))}
-        <Route>
-          <Redirect to="/" />
-        </Route>
-      </Switch>
+        </Switch>
+      </Suspense>
       <GuestBanner />
     </AppShell>
   );
 }
+
+// Lazy-load GuestBanner since it's only needed for guest sessions
+import GuestBanner from "@/components/GuestBanner";
 
 function AppRouter() {
   const { user, isGuest } = useAuth();
@@ -290,9 +304,11 @@ function App() {
       <TooltipProvider>
         <AuthProvider>
           <Toaster />
-          <Router hook={useHashLocation}>
-            <AppRouter />
-          </Router>
+          <ErrorBoundary>
+            <Router hook={useHashLocation}>
+              <AppRouter />
+            </Router>
+          </ErrorBoundary>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

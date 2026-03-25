@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/PageContainer";
 import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -226,7 +227,7 @@ export default function MBTIPage() {
 
     return (
       <div className="flex-1 overflow-y-auto" data-testid="mbti-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">MBTI 测试结果</h1>
             <Button variant="outline" size="sm" onClick={restart} data-testid="button-mbti-restart">
@@ -493,7 +494,7 @@ export default function MBTIPage() {
               )}
             </TabsContent>
           </Tabs>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -502,7 +503,7 @@ export default function MBTIPage() {
   if (phase === "intro") {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="mbti-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div>
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Compass className="w-5 h-5 text-amber-500" />
@@ -563,7 +564,7 @@ export default function MBTIPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </PageContainer>
       </div>
     );
   }

@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
+import { TarotShareButton } from "@/components/share-cards";
 import {
   Sparkles,
   RotateCcw,
@@ -155,7 +158,7 @@ export default function TarotPage() {
     const allFlipped = flipped.size >= result.cards.length;
     return (
       <div className="flex-1 overflow-y-auto" data-testid="tarot-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <PageContainer className="space-y-6">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-500" />
@@ -257,6 +260,11 @@ export default function TarotPage() {
                   <p className="text-sm leading-relaxed text-foreground/80">{result.advice}</p>
                 </CardContent>
               </Card>
+
+              {/* Share */}
+              <div className="flex justify-center mt-4">
+                <TarotShareButton data={result} />
+              </div>
             </div>
           )}
 
@@ -273,7 +281,7 @@ export default function TarotPage() {
               ⚠️ 免责声明：塔罗占卜仅供娱乐和自我探索参考，不构成任何决策建议。请理性看待占卜结果。
             </p>
           </div>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -281,16 +289,8 @@ export default function TarotPage() {
   // ─── Input Form ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="tarot-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-500" />
-            塔罗占卜
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            选择牌阵，让塔罗牌为你指引方向
-          </p>
-        </div>
+      <PageContainer className="space-y-6">
+        <PageHeader icon={Sparkles} title="塔罗占卜" description="选择牌阵，让塔罗牌为你指引方向" iconClassName="text-purple-500" />
 
         {/* Spread selection — upgraded visuals */}
         <div className="space-y-3">
@@ -362,7 +362,7 @@ export default function TarotPage() {
             ⚠️ 免责声明：基于22张大阿卡那牌，AI智能解读，仅供娱乐和自我探索参考，不构成任何决策建议。
           </p>
         </div>
-      </div>
+      </PageContainer>
     </div>
   );
 }

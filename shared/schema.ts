@@ -14,6 +14,7 @@ export const users = pgTable("users", {
   openclawWebhookUrl: text("openclaw_webhook_url"),
   openclawWebhookToken: text("openclaw_webhook_token"),
   feishuWebhookUrl: text("feishu_webhook_url"),
+  dingdingWebhookUrl: text("dingding_webhook_url"),
   agentApiKey: text("agent_api_key"),
   // User profile (persistent, auto-populated)
   birthDate: text("birth_date"),             // YYYY-MM-DD
@@ -363,6 +364,12 @@ export const feishuSettingsSchema = z.object({
   feishuWebhookUrl: z.string().url("请输入有效的飞书 Webhook URL").or(z.literal("")),
 });
 export type FeishuSettings = z.infer<typeof feishuSettingsSchema>;
+
+// ─── DingDing Settings Schema ───────────────────────────────
+export const dingdingSettingsSchema = z.object({
+  dingdingWebhookUrl: z.string().url("请输入有效的钉钉 Webhook URL").or(z.literal("")),
+});
+export type DingDingSettings = z.infer<typeof dingdingSettingsSchema>;
 
 // ─── AI 分身 (Cyber Avatar) ─────────────────────────────────
 export const avatars = pgTable("avatars", {
@@ -765,3 +772,15 @@ export interface SoulMatchResult {
   bio?: string;
   isAi: boolean;
 }
+
+// ─── Shared Results (公开分享链接) ────────────────────────────
+export const sharedResults = pgTable("shared_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  resultType: text("result_type").notNull(), // 'fortune' | 'tarot' | 'bazi' | 'compatibility'
+  resultData: text("result_data").notNull(), // JSON string of the result
+  createdAt: text("created_at").notNull(),
+  viewCount: integer("view_count").notNull().default(0),
+});
+
+export type SharedResult = typeof sharedResults.$inferSelect;

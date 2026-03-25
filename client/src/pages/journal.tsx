@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -360,25 +362,21 @@ export default function JournalPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="journal-page">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
-        <div className="flex items-center justify-between mb-6 gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <BookHeart className="w-5 h-5 text-primary flex-shrink-0" />
-              <h1 className="text-lg sm:text-xl font-semibold">情绪日记</h1>
-            </div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              记录每天的心情，观察情绪变化趋势
-            </p>
-          </div>
-          {!showForm && (
-            <Button size="sm" onClick={() => setShowForm(true)} className="flex-shrink-0" data-testid="button-new-entry">
-              <Plus className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">记录</span>心情
-            </Button>
-          )}
-        </div>
+        <PageHeader
+          icon={BookHeart}
+          title="情绪日记"
+          description="记录每天的心情，观察情绪变化趋势"
+          actions={
+            !showForm && (
+              <Button size="sm" onClick={() => setShowForm(true)} className="flex-shrink-0" data-testid="button-new-entry">
+                <Plus className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">记录</span>心情
+              </Button>
+            )
+          }
+        />
 
         {/* New entry form */}
         {showForm && <NewEntryForm onClose={() => setShowForm(false)} />}
@@ -483,7 +481,7 @@ export default function JournalPage() {
             </TabsContent>
           </Tabs>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

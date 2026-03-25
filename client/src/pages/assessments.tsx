@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -24,17 +26,9 @@ export default function AssessmentsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto" data-testid="assessments-page">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <PageContainer>
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-2">
-            <ClipboardList className="w-5 h-5 text-primary" />
-            <h1 className="text-lg sm:text-xl font-semibold">心理测评</h1>
-          </div>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            通过科学的心理测评工具，更好地了解自己的情绪和心理状态。
-          </p>
-        </div>
+        <PageHeader icon={ClipboardList} title="心理测评" description="通过科学的心理测评工具，更好地了解自己的情绪和心理状态。" className="mb-8" />
 
         {/* Assessment list */}
         {isLoading ? (
@@ -101,7 +95,7 @@ export default function AssessmentsPage() {
             </Link>
           </div>
         )}
-      </div>
+      </PageContainer>
     </div>
   );
 }

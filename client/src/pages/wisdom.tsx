@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/PageContainer";
+import { PageHeader } from "@/components/PageHeader";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +80,7 @@ export default function WisdomPage() {
   if (result) {
     return (
       <div className="flex-1 overflow-y-auto" data-testid="wisdom-result-page">
-        <div className="max-w-2xl mx-auto p-6 space-y-5">
+        <PageContainer className="space-y-5">
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">智慧指引</h1>
             <Button variant="outline" size="sm" onClick={restart} data-testid="button-wisdom-restart">
@@ -175,7 +177,7 @@ export default function WisdomPage() {
           <p className="text-xs text-center text-muted-foreground pb-4">
             * 以上内容融合东方智慧与现代心理学，仅供娱乐和自我探索参考
           </p>
-        </div>
+        </PageContainer>
       </div>
     );
   }
@@ -183,16 +185,8 @@ export default function WisdomPage() {
   // ─── Input Form ─────
   return (
     <div className="flex-1 overflow-y-auto" data-testid="wisdom-page">
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            智慧问答
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            融合星座·MBTI·命理，AI为你个性化解答
-          </p>
-        </div>
+      <PageContainer className="space-y-6">
+        <PageHeader icon={Sparkles} title="智慧问答" description="融合星座·MBTI·命理，AI为你个性化解答" iconClassName="text-amber-500" />
 
         {/* Personal context for personalized answers */}
         <div className="grid grid-cols-2 gap-3">
@@ -279,7 +273,7 @@ export default function WisdomPage() {
         <p className="text-xs text-center text-muted-foreground">
           * 填写星座/MBTI可获得更个性化的解答，仅供娱乐参考
         </p>
-      </div>
+      </PageContainer>
     </div>
   );
 }

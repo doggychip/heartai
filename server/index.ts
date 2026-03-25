@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -12,7 +14,23 @@ import { startTelegramBot } from "./telegram-bot";
 import { startDiscordBot } from "./discord-bot";
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy hop — makes req.ip reliable behind reverse proxy
 const httpServer = createServer(app);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Let the SPA handle CSP via meta tags
+  crossOriginEmbedderPolicy: false, // Allow embedding external resources
+}));
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim())
+    : true, // Allow all origins in development; set ALLOWED_ORIGINS in production
+  credentials: true,
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+}));
 
 declare module "http" {
   interface IncomingMessage {
@@ -72,14 +90,15 @@ app.use((req, res, next) => {
   await ensureTables();
   await migrateAvatar();
   await ensureAgentMemoryTable();
-  await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(() => {});
+  await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(err => console.error("[startup] Avatar tag backfill failed:", err));
 
   // Initialize event bus subscriptions for cross-agent collaboration
   initializeDefaultSubscriptions();
   log("Agent event bus initialized", "event-bus");
 
   // Periodic cleanup of expired agent memories (every 6 hours)
-  setInterval(() => pruneExpiredMemories().catch(() => {}), 6 * 3600000);
+  const MEMORY_PRUNE_INTERVAL_MS = 6 * 3600_000; // 6 hours
+  setInterval(() => pruneExpiredMemories().catch(err => console.error("[memory] Prune expired memories failed:", err)), MEMORY_PRUNE_INTERVAL_MS);
 
   await registerRoutes(httpServer, app);
 
