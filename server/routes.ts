@@ -8540,6 +8540,103 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   // This is done by wrapping the existing handlers or calling publishEvent
   // from within the existing code paths. For now, we expose a simple trigger.
 
+  // ─── Zhihuiti Bridge Routes (智慧体多Agent系统) ──────────────
+  const {
+    isZhihuiTiAvailable,
+    submitGoal,
+    getGoalStatus,
+    executeGoal,
+    listAgents: listZhihuiTiAgents,
+    getSystemStatus: getZhihuiTiStatus,
+    checkZhihuiTiHealth,
+  } = await import("./zhihuiti-bridge");
+
+  // System status
+  app.get("/api/zhihuiti/status", requireAuth, async (_req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        // Try to reconnect
+        const ok = await checkZhihuiTiHealth();
+        if (!ok) return res.json({ available: false, message: "zhihuiti is not running" });
+      }
+      const status = await getZhihuiTiStatus();
+      res.json({ available: true, ...status });
+    } catch (err: any) {
+      res.json({ available: false, error: err.message });
+    }
+  });
+
+  // Submit a goal for multi-agent execution
+  app.post("/api/zhihuiti/goals", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const { goal, model, workers, retries } = req.body;
+      if (!goal || typeof goal !== "string") {
+        return res.status(400).json({ error: "goal is required" });
+      }
+      const result = await submitGoal(goal, { model, workers, retries });
+      res.json(result);
+    } catch (err: any) {
+      console.error("[zhihuiti] Goal submission error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get goal status/result
+  app.get("/api/zhihuiti/goals/:goalId", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const status = await getGoalStatus(req.params.goalId);
+      res.json(status);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Execute a goal synchronously (wait for completion)
+  app.post("/api/zhihuiti/execute", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const { goal, model, workers, retries, timeoutMs } = req.body;
+      if (!goal || typeof goal !== "string") {
+        return res.status(400).json({ error: "goal is required" });
+      }
+      const result = await executeGoal(goal, { model, workers, retries, timeoutMs });
+
+      // Store result in agent memory for the user
+      const userId = getUserId(req);
+      writeMemory({
+        agentKey: "zhihuiti",
+        userId,
+        category: "bazi_reading",
+        summary: `zhihuiti: ${goal.slice(0, 100)}`,
+        details: JSON.stringify(result.result),
+        importance: 6,
+      }).catch(() => {});
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("[zhihuiti] Goal execution error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // List zhihuiti agents
+  app.get("/api/zhihuiti/agents", requireAuth, async (_req, res) => {
+    try {
+      const agents = await listZhihuiTiAgents();
+      res.json(agents);
+    } catch (err: any) {
+      res.json([]);
+    }
+  });
+
   // ═══════════════════════════════════════════════════════════════
   // Phase 4: ClawHub Skills + Webhook API + Developer Ecosystem
   // ═══════════════════════════════════════════════════════════════

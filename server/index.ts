@@ -12,6 +12,7 @@ import { initializeDefaultSubscriptions } from "./event-bus";
 import { pruneExpiredMemories } from "./agent-memory";
 import { startTelegramBot } from "./telegram-bot";
 import { startDiscordBot } from "./discord-bot";
+import { initZhihuiTiBridge } from "./zhihuiti-bridge";
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy hop — makes req.ip reliable behind reverse proxy
@@ -142,6 +143,9 @@ app.use((req, res, next) => {
       // Start chat bots after server is listening (fire-and-forget)
       startTelegramBot().catch(err => log(`Telegram bot failed to start: ${err.message}`, "telegram"));
       startDiscordBot().catch(err => log(`Discord bot failed to start: ${err.message}`, "discord"));
+
+      // Initialize zhihuiti multi-agent bridge
+      initZhihuiTiBridge().catch(err => log(`zhihuiti bridge: ${err.message}`, "zhihuiti"));
     },
   );
 })();
