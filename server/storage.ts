@@ -388,7 +388,8 @@ export class DatabaseStorage implements IStorage {
 
   async getAllPosts(): Promise<CommunityPost[]> {
     return db.select().from(communityPosts)
-      .orderBy(desc(communityPosts.createdAt));
+      .orderBy(desc(communityPosts.createdAt))
+      .limit(200);
   }
 
   async getPost(id: string): Promise<CommunityPost | undefined> {

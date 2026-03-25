@@ -845,6 +845,21 @@ function checkRateLimit(key: string, maxRequests: number, windowMs: number): boo
   return true;
 }
 
+// Periodic cleanup of expired rate-limit and cache entries (every 5 min)
+setInterval(() => {
+  const now = Date.now();
+  const rlKeys = Array.from(rateLimitMap.keys());
+  for (const k of rlKeys) {
+    const v = rateLimitMap.get(k);
+    if (v && now > v.resetAt) rateLimitMap.delete(k);
+  }
+  const cacheKeys = Array.from(responseCache.keys());
+  for (const k of cacheKeys) {
+    const v = responseCache.get(k);
+    if (v && now > v.expiresAt) responseCache.delete(k);
+  }
+}, 5 * 60_000).unref();
+
 // ─── TTL Response Cache (for expensive/daily content) ───────
 const responseCache = new Map<string, { data: any; expiresAt: number }>();
 
@@ -1345,7 +1360,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   app.post("/api/auth/register", async (req, res) => {
     try {
       // Rate limit: 5 registrations per IP per 15 min
-      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const ip = req.ip || "unknown";
       if (!checkRateLimit(`register:${ip}`, 5, 15 * 60_000)) {
         return res.status(429).json({ error: "注册请求太频繁，请15分钟后再试" });
       }
@@ -1382,7 +1397,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   app.post("/api/auth/login", async (req, res) => {
     try {
       // Rate limit: 5 login attempts per IP per 15 min (brute-force protection)
-      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const ip = req.ip || "unknown";
       if (!checkRateLimit(`login:${ip}`, 5, 15 * 60_000)) {
         return res.status(429).json({ error: "登录请求太频繁，请15分钟后再试" });
       }
@@ -1437,6 +1452,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   // Agent login via API Key (returns session token like normal login)
   app.post("/api/auth/agent-login", async (req, res) => {
     try {
+      // Rate limit: 10 attempts per IP per 15 min (API key brute-force protection)
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`agent-login:${ip}`, 10, 15 * 60_000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+
       const { apiKey } = req.body;
       if (!apiKey || typeof apiKey !== "string") {
         return res.status(400).json({ error: "请输入 API Key" });
@@ -1458,7 +1479,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
       // Rate limit: 3 resets per IP per 30 min
-      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const ip = req.ip || "unknown";
       if (!checkRateLimit(`reset:${ip}`, 3, 30 * 60_000)) {
         return res.status(429).json({ error: "重置请求太频繁，请30分钟后再试" });
       }
@@ -3800,10 +3821,16 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
 
   app.post("/api/mood", requireAuth, async (req, res) => {
     try {
+      const moodScore = parseInt(req.body.moodScore);
+      if (isNaN(moodScore) || moodScore < 1 || moodScore > 10) {
+        return res.status(400).json({ error: "moodScore must be 1–10" });
+      }
+      const emotionTags = Array.isArray(req.body.emotionTags) ? req.body.emotionTags.slice(0, 20) : [];
+
       const entry = await storage.createMoodEntry({
         userId: getUserId(req),
-        moodScore: req.body.moodScore,
-        emotionTags: JSON.stringify(req.body.emotionTags || []),
+        moodScore,
+        emotionTags: JSON.stringify(emotionTags),
         note: req.body.note || null,
       });
       res.json(entry);
@@ -7686,7 +7713,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       // Get recent posts
@@ -7799,7 +7826,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/recent-posts", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const result = await pool.query(`
@@ -7832,7 +7859,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/recent-comments", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const result = await pool.query(`
@@ -7866,7 +7893,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
   app.get("/api/activity-summary/active-users", requireAuth, async (req, res) => {
     try {
-      const hours = parseInt(req.query.hours as string) || 8;
+      const hours = Math.min(Math.max(parseInt(req.query.hours as string) || 8, 1), 168);
       const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
       const postsResult = await pool.query(`

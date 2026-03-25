@@ -14,6 +14,7 @@ import { startTelegramBot } from "./telegram-bot";
 import { startDiscordBot } from "./discord-bot";
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy hop — makes req.ip reliable behind reverse proxy
 const httpServer = createServer(app);
 
 // Security headers
