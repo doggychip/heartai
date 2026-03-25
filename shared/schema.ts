@@ -737,6 +737,117 @@ export const dailyLetters = pgTable("daily_letters", {
 
 export type DailyLetter = typeof dailyLetters.$inferSelect;
 
+// ─── Child Development Tracker ─────────────────────────────
+export const children = pgTable("children", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // parent user
+  name: text("name").notNull(),
+  birthDate: text("birth_date"), // YYYY-MM-DD
+  avatarColor: text("avatar_color").default("#8b5cf6"), // theme color
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const childGoals = pgTable("child_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  category: text("category").notNull(), // academic, social, physical, creative, life-skills
+  title: text("title").notNull(),
+  description: text("description"),
+  targetDate: text("target_date"), // YYYY-MM-DD
+  status: text("status").notNull().default("active"), // active, completed, paused
+  progress: integer("progress").default(0), // 0-100
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const childSchedule = pgTable("child_schedule", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sun, 1=Mon...6=Sat
+  startTime: text("start_time").notNull(), // HH:MM
+  endTime: text("end_time").notNull(), // HH:MM
+  activity: text("activity").notNull(),
+  category: text("category"), // school, extracurricular, play, rest, meals, chores
+  color: text("color"),
+  recurring: boolean("recurring").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const childMilestones = pgTable("child_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"), // academic, social, physical, creative, life-skills
+  achievedDate: text("achieved_date"), // YYYY-MM-DD
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const childDailyLog = pgTable("child_daily_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  mood: text("mood"), // emoji
+  sleepHours: integer("sleep_hours"),
+  notes: text("notes"),
+  highlights: jsonb("highlights"), // string[]
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertChildSchema = createInsertSchema(children).pick({
+  name: true,
+  birthDate: true,
+  avatarColor: true,
+  notes: true,
+});
+
+export const insertChildGoalSchema = createInsertSchema(childGoals).pick({
+  childId: true,
+  category: true,
+  title: true,
+  description: true,
+  targetDate: true,
+});
+
+export const insertChildScheduleSchema = createInsertSchema(childSchedule).pick({
+  childId: true,
+  dayOfWeek: true,
+  startTime: true,
+  endTime: true,
+  activity: true,
+  category: true,
+  color: true,
+});
+
+export const insertChildMilestoneSchema = createInsertSchema(childMilestones).pick({
+  childId: true,
+  title: true,
+  description: true,
+  category: true,
+  achievedDate: true,
+});
+
+export const insertChildDailyLogSchema = createInsertSchema(childDailyLog).pick({
+  childId: true,
+  date: true,
+  mood: true,
+  sleepHours: true,
+  notes: true,
+  highlights: true,
+});
+
+export type Child = typeof children.$inferSelect;
+export type InsertChild = z.infer<typeof insertChildSchema>;
+export type ChildGoal = typeof childGoals.$inferSelect;
+export type ChildScheduleEntry = typeof childSchedule.$inferSelect;
+export type ChildMilestone = typeof childMilestones.$inferSelect;
+export type ChildDailyLog = typeof childDailyLog.$inferSelect;
+
 // ─── Soul Match (灵魂匹配) ─────────────────────────────────
 export interface SoulProfile {
   id: string;
@@ -765,3 +876,146 @@ export interface SoulMatchResult {
   bio?: string;
   isAi: boolean;
 }
+
+// ─── Child Development Tracker ──────────────────────────────
+
+export const children = pgTable("children", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: text("name").notNull(),
+  birthDate: text("birth_date"),
+  avatarColor: text("avatar_color").default("#8b5cf6"),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type Child = typeof children.$inferSelect;
+
+export const childGoals = pgTable("child_goals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  category: text("category").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  targetDate: text("target_date"),
+  status: text("status").notNull().default("active"),
+  progress: integer("progress").default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export type ChildGoal = typeof childGoals.$inferSelect;
+
+export const childSchedule = pgTable("child_schedule", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  activity: text("activity").notNull(),
+  category: text("category"),
+  color: text("color"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type ChildScheduleEntry = typeof childSchedule.$inferSelect;
+
+export const childMilestones = pgTable("child_milestones", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category"),
+  achievedDate: text("achieved_date"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type ChildMilestone = typeof childMilestones.$inferSelect;
+
+export const childDailyLog = pgTable("child_daily_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  date: text("date").notNull(),
+  mood: text("mood"),
+  sleepHours: integer("sleep_hours"),
+  notes: text("notes"),
+  highlights: text("highlights"), // JSON array
+  createdAt: text("created_at").notNull(),
+});
+
+export type ChildDailyLog = typeof childDailyLog.$inferSelect;
+
+export const learningStories = pgTable("learning_stories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  title: text("title").notNull(),
+  narrative: text("narrative").notNull(),
+  domains: text("domains"), // JSON array
+  photoUrl: text("photo_url"),
+  date: text("date").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export type LearningStory = typeof learningStories.$inferSelect;
+
+export const sparkScores = pgTable("spark_scores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  date: text("date").notNull(),
+  cognitive: integer("cognitive").default(0),
+  language: integer("language").default(0),
+  socialEmotional: integer("social_emotional").default(0),
+  physical: integer("physical").default(0),
+  creative: integer("creative").default(0),
+  independence: integer("independence").default(0),
+  notes: text("notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type SparkScore = typeof sparkScores.$inferSelect;
+
+export const weeklyReflections = pgTable("weekly_reflections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  weekStart: text("week_start").notNull(),
+  proudestMoment: text("proudest_moment"),
+  biggestChallenge: text("biggest_challenge"),
+  focusNextWeek: text("focus_next_week"),
+  parentNotes: text("parent_notes"),
+  createdAt: text("created_at").notNull(),
+});
+
+export type WeeklyReflection = typeof weeklyReflections.$inferSelect;
+
+// Milestone reference library (seeded, read-only)
+export const milestoneLibrary = pgTable("milestone_library", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ageMin: integer("age_min").notNull(),
+  ageMax: integer("age_max").notNull(),
+  domain: text("domain").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+});
+
+export type MilestoneLibraryEntry = typeof milestoneLibrary.$inferSelect;
+
+// AI-generated insights for children
+export const childInsights = pgTable("child_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  childId: varchar("child_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  insightType: text("insight_type").notNull(), // activity_suggestion, weekly_summary, milestone_prediction, strength_analysis
+  content: text("content").notNull(), // JSON: { title, body, suggestions[], domain? }
+  agentId: varchar("agent_id"), // zhihuiti agent that generated this
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+});
+
+export type ChildInsight = typeof childInsights.$inferSelect;

@@ -68,6 +68,8 @@ import CommunityGuidelinesPage from "@/pages/community-guidelines";
 import CryptoFortunePage from "@/pages/crypto-fortune";
 import DailyLetterPage from "@/pages/daily-letter";
 import MoodCheckinPage from "@/pages/mood-checkin";
+import ChildTrackerPage from "@/pages/child-tracker";
+import ChildDetailPage from "@/pages/child-detail";
 import GuestDashboard from "@/pages/guest-dashboard";
 import FeatureGate from "@/components/FeatureGate";
 import GuestBanner from "@/components/GuestBanner";
@@ -92,6 +94,7 @@ const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
   "/daily-letter": { name: "观星日报", desc: "AI分身每日为你生成个性化命理日报，星象解读与生活指引。" },
   "/mood": { name: "情绪签到", desc: "每日情绪签到，获得命理AI的温暖回应和五行洞察。" },
   "/soul-match": { name: "灵魂匹配", desc: "25道深度人格问题，9维Big Five+Jungian分析，发现你的灵魂共振者。" },
+  "/child-tracker": { name: "成长记录", desc: "记录孩子的成长旅程，AI育儿顾问提供个性化发展洞察和活动建议。" },
 };
 
 function AuthenticatedRoutes() {
@@ -164,6 +167,8 @@ function AuthenticatedRoutes() {
         <Route path="/crypto" component={CryptoFortunePage} />
         <Route path="/daily-letter" component={DailyLetterPage} />
         <Route path="/mood" component={MoodCheckinPage} />
+        <Route path="/child-tracker" component={ChildTrackerPage} />
+        <Route path="/child/:childId" component={ChildDetailPage} />
         <Route component={NotFound} />
       </Switch>
     </AppShell>
@@ -180,6 +185,7 @@ const GUEST_PROTECTED_ROUTES = [
   "/fengshui", "/wisdom", "/developer", "/clawhub", "/activity",
   "/group-chat", "/leaderboard", "/matching", "/friends", "/dm",
   "/daily-letter", "/mood", "/soul-match",
+  "/child-tracker", "/child",
 ];
 
 function GuestAuthModal() {
