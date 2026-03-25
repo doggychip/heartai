@@ -1398,7 +1398,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     try {
       // Rate limit: 5 login attempts per IP per 15 min (brute-force protection)
       const ip = req.ip || "unknown";
-      if (!checkRateLimit(`login:${ip}`, 5, 15 * 60_000)) {
+      if (!checkRateLimit(`login:${ip}`, 20, 15 * 60_000)) {
         return res.status(429).json({ error: "登录请求太频繁，请15分钟后再试" });
       }
 
@@ -1408,7 +1408,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const { username, password } = parsed.data;
 
       // Also rate limit per username (prevent targeted brute-force)
-      if (!checkRateLimit(`login:user:${username}`, 5, 15 * 60_000)) {
+      if (!checkRateLimit(`login:user:${username}`, 20, 15 * 60_000)) {
         return res.status(429).json({ error: "该账户登录尝试次数过多，请15分钟后再试" });
       }
       const user = await storage.getUserByUsername(username);
