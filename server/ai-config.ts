@@ -55,3 +55,51 @@ export function getAIClient(): OpenAI {
 export function getFortuneClient(): OpenAI {
   return getAIClient();
 }
+
+// ─── AI Helpers ──────────────────────────────────────────────
+
+/**
+ * Extract JSON from AI response text.
+ * Handles deepseek-reasoner's <think>...</think> preamble and markdown fences.
+ */
+export function extractJSON(raw: string): string {
+  // Strip <think>...</think> reasoning blocks from deepseek-reasoner
+  let stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  // Strip markdown code fences
+  stripped = stripped.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+  // Try to extract first JSON object or array
+  const match = stripped.match(/\{[\s\S]*\}/) || stripped.match(/\[[\s\S]*\]/);
+  return match ? match[0] : stripped;
+}
+
+/**
+ * Clamp a value to a numeric range with a default fallback.
+ * Use for score fields from AI responses that may be strings, NaN, or out of range.
+ */
+export function clampScore(v: any, lo = 0, hi = 100, def = 75): number {
+  const n = Number(v);
+  return isNaN(n) ? def : Math.max(lo, Math.min(hi, Math.round(n)));
+}
+
+/**
+ * AI completion with one retry on transient errors (429, 5xx).
+ * Drop-in replacement for client.chat.completions.create().
+ */
+export async function aiComplete(
+  params: Parameters<OpenAI['chat']['completions']['create']>[0],
+  retries = 1
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const client = getAIClient();
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await client.chat.completions.create(params) as OpenAI.Chat.Completions.ChatCompletion;
+    } catch (err: any) {
+      if (attempt < retries && (err?.status === 429 || err?.status >= 500)) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("AI completion failed after retries");
+}
