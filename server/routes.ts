@@ -845,6 +845,31 @@ function checkRateLimit(key: string, maxRequests: number, windowMs: number): boo
   return true;
 }
 
+// ─── TTL Response Cache (for expensive/daily content) ───────
+const responseCache = new Map<string, { data: any; expiresAt: number }>();
+
+function getCached<T>(key: string): T | null {
+  const entry = responseCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) responseCache.delete(key);
+    return null;
+  }
+  return entry.data as T;
+}
+
+function setCache(key: string, data: any, ttlMs: number): void {
+  responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  // Prevent unbounded growth — prune if too large
+  if (responseCache.size > 5000) {
+    const now = Date.now();
+    const keys = Array.from(responseCache.keys());
+    for (const k of keys) {
+      const v = responseCache.get(k);
+      if (v && now > v.expiresAt) responseCache.delete(k);
+    }
+  }
+}
+
 // JWT-based authentication (stateless — survives server restarts)
 const JWT_SECRET = (() => {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
@@ -1319,6 +1344,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
   // ─── Auth Routes ────────────────────────────────────────────
   app.post("/api/auth/register", async (req, res) => {
     try {
+      // Rate limit: 5 registrations per IP per 15 min
+      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      if (!checkRateLimit(`register:${ip}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "注册请求太频繁，请15分钟后再试" });
+      }
+
       const parsed = registerSchema.safeParse(req.body);
       if (!parsed.success) {
         const msg = parsed.error.errors.map(e => e.message).join("; ");
@@ -1350,10 +1381,21 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
 
   app.post("/api/auth/login", async (req, res) => {
     try {
+      // Rate limit: 5 login attempts per IP per 15 min (brute-force protection)
+      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      if (!checkRateLimit(`login:${ip}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "登录请求太频繁，请15分钟后再试" });
+      }
+
       const parsed = loginSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ error: "请输入用户名和密码" });
 
       const { username, password } = parsed.data;
+
+      // Also rate limit per username (prevent targeted brute-force)
+      if (!checkRateLimit(`login:user:${username}`, 5, 15 * 60_000)) {
+        return res.status(429).json({ error: "该账户登录尝试次数过多，请15分钟后再试" });
+      }
       const user = await storage.getUserByUsername(username);
       if (!user) {
         return res.status(401).json({ error: "用户名或密码错误" });
@@ -1412,9 +1454,15 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     }
   });
 
-  // Reset password (no auth required — plaintext passwords, no email)
+  // Reset password (no auth required)
   app.post("/api/auth/reset-password", async (req, res) => {
     try {
+      // Rate limit: 3 resets per IP per 30 min
+      const ip = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      if (!checkRateLimit(`reset:${ip}`, 3, 30 * 60_000)) {
+        return res.status(429).json({ error: "重置请求太频繁，请30分钟后再试" });
+      }
+
       const { username, newPassword } = req.body;
       if (!username || !newPassword) {
         return res.status(400).json({ error: "请填写用户名和新密码" });
@@ -2125,6 +2173,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     try {
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const dateStr = (req.query.date as string) || new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+
+      // Cache almanac per date+tz — same for all users, valid for 1 hour
+      const cacheKey = `almanac:${dateStr}:${tz}`;
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+
       const d = lunisolar(dateStr);
 
       // Lunar info
@@ -2313,7 +2367,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         console.error('theGods error:', e);
       }
 
-      res.json({
+      const almanacResult = {
         date: dateStr,
         lunar,
         bazi,
@@ -2335,7 +2389,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         hourDetails,
         // 每日运势 fortune fields
         fortune: fortuneData,
-      });
+      };
+      setCache(cacheKey, almanacResult, 60 * 60_000); // 1 hour TTL
+      res.json(almanacResult);
     } catch (err) {
       console.error('Almanac error:', err);
       res.status(500).json({ error: 'Failed to get almanac data' });
@@ -2718,6 +2774,12 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const { birthDate, birthHour } = req.body;
       if (!birthDate) return res.status(400).json({ error: 'birthDate is required (YYYY-MM-DD)' });
 
+      // Cache per birthDate+hour per day — same input = same fortune
+      const todayDate = new Date().toLocaleDateString('sv-SE');
+      const dfCacheKey = `daily-fortune:${birthDate}:${birthHour ?? 'default'}:${todayDate}`;
+      const cachedDf = getCached(dfCacheKey);
+      if (cachedDf) return res.json(cachedDf);
+
       const hour = birthHour ?? 12;
       const birth = lunisolar(birthDate);
       const today = lunisolar(new Date());
@@ -2803,7 +2865,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
         };
       }
 
-      res.json({
+      const dfResult = {
         ...fortune,
         meta: {
           birthDate,
@@ -2812,7 +2874,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           todayLunar,
           solarTerm: todaySolarTerm || null,
         }
-      });
+      };
+      setCache(dfCacheKey, dfResult, 4 * 60 * 60_000); // 4 hour TTL
+      res.json(dfResult);
     } catch (err) {
       console.error('Daily fortune error:', err);
       res.status(500).json({ error: 'Failed to generate daily fortune' });
@@ -6771,6 +6835,12 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: tz });
+
+      // Cache per user+date — fortune doesn't change within a day, avoid repeat AI calls
+      const fortuneCacheKey = `fortune:${userId}:${dateStr}`;
+      const cachedFortune = getCached(fortuneCacheKey);
+      if (cachedFortune) return res.json(cachedFortune);
+
       const today = new Date(dateStr);
 
       // Get user profile for personalized calculation
@@ -6885,6 +6955,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
             `INSERT INTO fortune_history (user_id, date, total_score) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO UPDATE SET total_score = EXCLUDED.total_score`,
             [userId, dateStr, fortune.totalScore]
           ).catch(() => {});
+          // Cache for 4 hours — fortune doesn't change within a day
+          setCache(fortuneCacheKey, fortune, 4 * 60 * 60_000);
           return res.json(fortune);
         } catch {
           if (calculated) {
