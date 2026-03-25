@@ -94,6 +94,7 @@ const GATED_FEATURE_INFO: Record<string, { name: string; desc: string }> = {
   "/daily-letter": { name: "观星日报", desc: "AI分身每日为你生成个性化命理日报，星象解读与生活指引。" },
   "/mood": { name: "情绪签到", desc: "每日情绪签到，获得命理AI的温暖回应和五行洞察。" },
   "/soul-match": { name: "灵魂匹配", desc: "25道深度人格问题，9维Big Five+Jungian分析，发现你的灵魂共振者。" },
+  "/child-tracker": { name: "成长记录", desc: "记录孩子的成长旅程，AI育儿顾问提供个性化发展洞察和活动建议。" },
 };
 
 function AuthenticatedRoutes() {

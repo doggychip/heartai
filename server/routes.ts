@@ -15,7 +15,7 @@ import { registerPhase2Routes, awardMerit } from "./phase2-routes";
 import { registerSocialRoutes } from "./social-routes";
 import { registerMoodCheckinRoutes } from "./mood-checkin-routes";
 import { registerSoulMatchRoutes } from "./soul-match-routes";
-import { registerChildTrackerRoutes } from "./child-tracker-routes";
+
 import { registerAvatarWhisperRoutes } from "./avatar-whisper-routes";
 import { seedAssessments } from "./seed-assessments";
 import { generateAgentAvatar } from "@shared/avatar-gen";
@@ -4664,8 +4664,81 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
           break;
         }
 
+        // ─── Child Development Agent Actions ────────────────────
+        case "child_summary": {
+          // Agent reads a child's development summary
+          if (!req.body.childId) return res.status(400).json({ error: "缺少 childId" });
+          const { children: childrenTable, sparkScores: sparkTable, learningStories: storiesTable, childGoals: goalsTable, childMilestones: msTable } = await import("@shared/schema");
+          const [targetChild] = await db.select().from(childrenTable).where(eq(childrenTable.id, req.body.childId));
+          if (!targetChild) return res.status(404).json({ error: "找不到该儿童" });
+
+          const [latestSpark] = await db.select().from(sparkTable).where(eq(sparkTable.childId, req.body.childId)).orderBy(desc(sparkTable.date)).limit(1);
+          const stories = await db.select().from(storiesTable).where(eq(storiesTable.childId, req.body.childId)).orderBy(desc(storiesTable.date)).limit(3);
+          const goals = await db.select().from(goalsTable).where(and(eq(goalsTable.childId, req.body.childId), eq(goalsTable.status, "active")));
+          const milestones = await db.select().from(msTable).where(eq(msTable.childId, req.body.childId)).orderBy(desc(msTable.achievedDate)).limit(5);
+
+          res.json({
+            ok: true,
+            child: { name: targetChild.name, birthDate: targetChild.birthDate },
+            sparkScore: latestSpark || null,
+            recentStories: stories.map((s: any) => ({ title: s.title, date: s.date, domains: s.domains ? JSON.parse(s.domains) : [] })),
+            activeGoals: goals.map((g: any) => ({ title: g.title, category: g.category, progress: g.progress })),
+            recentMilestones: milestones.map((m: any) => ({ title: m.title, category: m.category })),
+          });
+          break;
+        }
+
+        case "child_insight": {
+          // Agent generates and posts a development insight to the community
+          if (!req.body.childId) return res.status(400).json({ error: "缺少 childId" });
+          const { children: cTable, sparkScores: spTable, childInsights: insTable } = await import("@shared/schema");
+          const [insightChild] = await db.select().from(cTable).where(eq(cTable.id, req.body.childId));
+          if (!insightChild) return res.status(404).json({ error: "找不到该儿童" });
+
+          const [spark] = await db.select().from(spTable).where(eq(spTable.childId, req.body.childId)).orderBy(desc(spTable.date)).limit(1);
+
+          // Generate insight
+          const insightContent = req.body.content || `${insightChild.name}的发展观察`;
+          const insightType = req.body.insightType || "activity_suggestion";
+
+          const [saved] = await db.insert(insTable).values({
+            childId: req.body.childId, userId: insightChild.userId,
+            insightType, content: JSON.stringify({ title: insightContent, body: req.body.body || "", suggestions: req.body.suggestions || [], domain: req.body.domain }),
+            agentId: agentUser.id, createdAt: new Date().toISOString(),
+          }).returning();
+
+          // Optionally post to community
+          if (req.body.postToCommunity) {
+            const communityContent = `🌱 育儿观察 | ${insightChild.name}\n\n${req.body.body || insightContent}\n\n${(req.body.suggestions || []).map((s: string) => `✨ ${s}`).join("\n")}\n\n#育儿 #儿童发展 #${insightType === "activity_suggestion" ? "活动建议" : insightType === "strength_analysis" ? "优势分析" : "成长机会"}`;
+            const post = await storage.createPost({
+              userId: agentUser.id,
+              content: communityContent,
+              tag: "sharing",
+              isAnonymous: false,
+            });
+            res.json({ ok: true, insightId: saved.id, postId: post.id });
+          } else {
+            res.json({ ok: true, insightId: saved.id });
+          }
+          break;
+        }
+
+        case "child_celebrate": {
+          // Agent celebrates a milestone in the community
+          if (!req.body.childName || !req.body.milestone) return res.status(400).json({ error: "缺少 childName 或 milestone" });
+          const celebrationContent = `🎉 成长里程碑！\n\n${req.body.childName} 达成了新的里程碑：「${req.body.milestone}」\n\n${req.body.message || "每一步成长都值得被看见，每一个进步都值得被庆祝！"}\n\n#里程碑 #成长记录 #育儿`;
+          const celebPost = await storage.createPost({
+            userId: agentUser.id,
+            content: celebrationContent,
+            tag: "encouragement",
+            isAnonymous: false,
+          });
+          res.json({ ok: true, postId: celebPost.id });
+          break;
+        }
+
         default:
-          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, compose, list_posts, list_comments, like, notifications, agent_info, almanac, bazi, divination, name_score, compatibility, update_profile` });
+          res.status(400).json({ error: `未知的 action: ${action}。支持的 action: post, comment, chat, compose, list_posts, list_comments, like, notifications, agent_info, almanac, bazi, divination, name_score, compatibility, update_profile, child_summary, child_insight, child_celebrate` });
       }
     } catch (err) {
       console.error("Agent webhook error:", err);
@@ -5816,8 +5889,9 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   // ─── Soul Match: Composite Personality Matching ─────────────
   registerSoulMatchRoutes(app, requireAuth);
 
-  // ─── Child Development Tracker ─────────────────────────────
-  registerChildTrackerRoutes(app, requireAuth);
+  // ─── Child Development Tracker ────────────────────────────────
+  const { registerChildDevelopmentRoutes } = await import("./child-development-routes.js");
+  registerChildDevelopmentRoutes(app, requireAuth);
 
   // ─── IM Gateway: one endpoint for any IM bot ───────────────────
   // Natural language in, clean text out. Auto-routes to the right feature.
