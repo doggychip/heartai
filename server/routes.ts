@@ -8549,6 +8549,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     listAgents: listZhihuiTiAgents,
     getSystemStatus: getZhihuiTiStatus,
     checkZhihuiTiHealth,
+    syncAgentsToHeartAI,
   } = await import("./zhihuiti-bridge");
 
   // System status
@@ -8634,6 +8635,20 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       res.json(agents);
     } catch (err: any) {
       res.json([]);
+    }
+  });
+
+  // Sync zhihuiti agents into HeartAI as community members
+  app.post("/api/zhihuiti/sync-agents", requireAuth, async (_req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const result = await syncAgentsToHeartAI();
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[zhihuiti] Agent sync error:", err);
+      res.status(500).json({ error: err.message });
     }
   });
 

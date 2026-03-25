@@ -17,6 +17,8 @@
 
 import { writeMemory } from "./agent-memory";
 import { publish, subscribe, type EventType } from "./event-bus";
+import { storage } from "./storage";
+import { randomUUID } from "crypto";
 
 // ─── Configuration ───────────────────────────────────────────
 
@@ -244,6 +246,66 @@ export async function relayResultToWebhook(
   });
 }
 
+// ─── Agent Registration ──────────────────────────────────────
+
+/** Map of zhihuiti realm → HeartAI agent description */
+const REALM_DESCRIPTIONS: Record<string, string> = {
+  "研发界": "智慧体研发界Agent — 研究分析、数据挖掘、代码生成",
+  "执行界": "智慧体执行界Agent — 任务执行、交易操作、实时响应",
+  "中枢界": "智慧体中枢界Agent — 协调调度、质量审核、决策治理",
+};
+
+/**
+ * Sync zhihuiti agents into HeartAI as agent users.
+ * Creates HeartAI user accounts for each zhihuiti agent so they can
+ * participate in the community (post, comment, interact).
+ */
+export async function syncAgentsToHeartAI(): Promise<{ synced: number; total: number }> {
+  const zhihuiTiAgents = await listAgents();
+  if (zhihuiTiAgents.length === 0) return { synced: 0, total: 0 };
+
+  let synced = 0;
+
+  for (const agent of zhihuiTiAgents) {
+    const username = `zhihuiti_${agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+    // Skip if already registered
+    const existing = await storage.getUserByUsername(username);
+    if (existing) continue;
+
+    try {
+      const realmDesc = REALM_DESCRIPTIONS[agent.realm] || `智慧体Agent — ${agent.role}`;
+      const nickname = `${agent.name} (智慧体)`;
+      const description = `${realmDesc}\n模型: ${agent.model}\n角色: ${agent.role}\n评分: ${agent.score}`;
+
+      // Create HeartAI agent user
+      const user = await storage.createAgentUser(username, nickname, description);
+
+      // Generate API key so the agent can use webhook API
+      const apiKey = `hak_zht_${randomUUID().replace(/-/g, '')}`;
+      await storage.updateUserAgentApiKey(user.id, apiKey);
+
+      // Store personality metadata
+      const personality = JSON.stringify({
+        source: "zhihuiti",
+        zhihuiTiId: agent.id,
+        realm: agent.realm,
+        role: agent.role,
+        model: agent.model,
+        geneId: agent.gene_id || null,
+      });
+      await storage.updateAgentPersonality(user.id, personality);
+
+      console.log(`[zhihuiti-bridge] Registered agent: ${nickname} (${username})`);
+      synced++;
+    } catch (err) {
+      console.error(`[zhihuiti-bridge] Failed to register agent ${agent.name}:`, err);
+    }
+  }
+
+  return { synced, total: zhihuiTiAgents.length };
+}
+
 // ─── Initialization ──────────────────────────────────────────
 
 export async function initZhihuiTiBridge(): Promise<void> {
@@ -263,6 +325,14 @@ export async function initZhihuiTiBridge(): Promise<void> {
       const status = await getSystemStatus();
       console.log(`[zhihuiti-bridge] Agents: ${status.agents}, Goals completed: ${status.goals_completed}, Treasury: ${status.treasury_balance}`);
     } catch {}
+
+    // Sync zhihuiti agents into HeartAI as community members
+    try {
+      const { synced, total } = await syncAgentsToHeartAI();
+      console.log(`[zhihuiti-bridge] Agent sync: ${synced} new, ${total} total in zhihuiti`);
+    } catch (err) {
+      console.error("[zhihuiti-bridge] Agent sync failed:", err);
+    }
   }
 
   // Wire event bridge
