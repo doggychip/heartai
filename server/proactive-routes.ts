@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { proactiveMessages, groupChatSessions, groupChatMessages } from "@shared/schema";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
-import { getAIClient, DEFAULT_MODEL } from "./ai-config";
+import { getAIClient, FAST_MODEL, extractJSON } from "./ai-config";
 import lunisolar from "lunisolar";
 
 // ── Avatar IDs (from community_avatars) ──────────────────────
@@ -157,9 +157,9 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
 
       try {
         const response = await client.chat.completions.create({
-          model: DEFAULT_MODEL,
+          model: FAST_MODEL,
           max_tokens: 300,
-          temperature: 0.85,
+          response_format: { type: "json_object" },
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -167,9 +167,8 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || "";
-        const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
         try {
-          const parsed = JSON.parse(cleaned);
+          const parsed = JSON.parse(extractJSON(raw));
           message = parsed.message || message;
           tip = parsed.tip || tip;
         } catch {
@@ -361,9 +360,8 @@ export function registerProactiveRoutes(app: Express, requireAuth: any) {
 
         try {
           const response = await client.chat.completions.create({
-            model: DEFAULT_MODEL,
+            model: FAST_MODEL,
             max_tokens: 300,
-            temperature: 0.85,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: runningContext + `\n\n请以${avatar.name}的身份回应。${i > 0 ? '注意参考和回应之前其他大师的发言。' : '你是第一个发言的。'}` },

@@ -30,7 +30,7 @@ import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommun
 import { createMcpServer, transports, SSEServerTransport } from "./mcp-server";
 import OpenAI from "openai";
 import { lunisolar } from "./lunisolar-setup";
-import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL } from "./ai-config";
+import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL, extractJSON, clampScore } from "./ai-config";
 
 // ─── Public ID Generator ───────────────────────────────────
 function generatePublicId(): string {
@@ -2875,7 +2875,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       let fortune: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        fortune = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        fortune = JSON.parse(extractJSON(raw));
       } catch {
         fortune = {
           totalScore: 80, loveScore: 78, careerScore: 82, wealthScore: 76, healthScore: 85,
@@ -2885,6 +2885,13 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           advice: "保持乐观心态，多与自然接触", warning: "避免急躁冲动"
         };
       }
+
+      // Clamp scores to valid ranges
+      fortune.totalScore = clampScore(fortune.totalScore, 0, 100, 80);
+      fortune.loveScore = clampScore(fortune.loveScore, 0, 100, 78);
+      fortune.careerScore = clampScore(fortune.careerScore, 0, 100, 82);
+      fortune.wealthScore = clampScore(fortune.wealthScore, 0, 100, 76);
+      fortune.healthScore = clampScore(fortune.healthScore, 0, 100, 85);
 
       const dfResult = {
         ...fortune,
@@ -2984,7 +2991,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       let result: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        result = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        result = JSON.parse(extractJSON(raw));
       } catch {
         result = {
           totalScore: 78,
@@ -3202,7 +3209,7 @@ ${najiaDesc}
       let reading: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        reading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        reading = JSON.parse(extractJSON(raw));
       } catch {
         reading = {
           mainReading: `${hexName}，属${gongName}宫${gongElement}。当前局面利于沟通协调，保持耐心待时而动。`,
@@ -3418,7 +3425,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        aiReading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        aiReading = JSON.parse(extractJSON(raw));
       } catch (aiErr) {
         console.log('Qiuqian AI error (using fallback):', (aiErr as Error).message);
         aiReading = {
@@ -6337,7 +6344,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
       // Clean potential markdown code block wrappers
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       try {
         const result = JSON.parse(cleaned);
         res.json(result);
@@ -6452,7 +6459,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData = { description: "", careerAdvice: "", relationshipAdvice: "", socialAdvice: "" };
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -6963,9 +6970,16 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || "";
-        const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+        const cleaned = extractJSON(raw);
         try {
           const fortune = JSON.parse(cleaned);
+          // Clamp AI-generated scores to valid ranges
+          fortune.totalScore = clampScore(fortune.totalScore, 0, 100, 75);
+          if (fortune.dimensions) {
+            for (const k of ['love', 'wealth', 'career', 'study', 'social'] as const) {
+              if (fortune.dimensions[k] !== undefined) fortune.dimensions[k] = clampScore(fortune.dimensions[k], 0, 100, 70);
+            }
+          }
           fortune.date = dateStr;
           fortune.isPersonalized = isPersonalized;
           fortune.classicalQuote = fortuneQuote;
@@ -7182,7 +7196,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7262,7 +7276,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = { cards: [], overall: "", advice: "" };
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7305,7 +7319,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7351,7 +7365,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7437,7 +7451,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7488,7 +7502,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7578,7 +7592,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -10176,7 +10190,7 @@ ${userTopics ? `近期话题: ${userTopics}` : ''}
 
         try {
           const raw = response.choices[0]?.message?.content?.trim() || '{}';
-          const parsed = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+          const parsed = JSON.parse(extractJSON(raw));
           sections = parsed.sections || [];
           whisper = parsed.whisper || null;
           followUp = parsed.followUp || null;
