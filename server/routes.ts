@@ -2,6 +2,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+// Shared auth module — new route files should import from "./auth" instead of duplicating
+// import { authMiddleware, requireAuth, getUserId, generateToken, checkRateLimit, hashPassword, verifyPassword, validateAdminSecret } from "./auth";
 import { storage } from "./storage";
 import { pool, db } from "./db";
 import { chatRequestSchema, submitAssessmentSchema, registerSchema, loginSchema, createPostSchema, createCommentSchema, openclawSettingsSchema, agentRegisterSchema, feishuSettingsSchema, dingdingSettingsSchema, communityPosts, postComments, postLikes, users, agentFollows, notifications, avatars, avatarMemories, avatarActions, avatarChats, avatarChatMessages, conversations, messages, moodEntries, dailyLetters, avatarWhispers, sharedResults } from "@shared/schema";
@@ -843,8 +846,13 @@ function checkRateLimit(key: string, maxRequests: number, windowMs: number): boo
 }
 
 // JWT-based authentication (stateless — survives server restarts)
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
-  console.warn("[security] JWT_SECRET not set — using insecure default. Set JWT_SECRET env var in production!");
+const JWT_SECRET = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    console.error("[FATAL] JWT_SECRET must be set in production. Exiting.");
+    process.exit(1);
+  }
+  console.warn("[security] JWT_SECRET not set — using insecure default for development only.");
   return "heartai-dev-secret-change-in-production";
 })();
 
@@ -1321,8 +1329,9 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const existing = await storage.getUserByUsername(username);
       if (existing) return res.status(409).json({ error: "用户名已存在" });
 
+      const hashedPassword = await bcrypt.hash(password, 12);
       const publicId = await getUniquePublicId();
-      const user = await storage.createUser({ username, password, nickname });
+      const user = await storage.createUser({ username, password: hashedPassword, nickname });
       // Assign public ID
       await storage.updateUser(user.id, { publicId });
       const updatedUser = await storage.getUser(user.id);
@@ -1346,8 +1355,21 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
 
       const { username, password } = parsed.data;
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
+      if (!user) {
         return res.status(401).json({ error: "用户名或密码错误" });
+      }
+      // Support both bcrypt hashed passwords and legacy plaintext (auto-upgrade on login)
+      const isHashed = user.password.startsWith("$2a$") || user.password.startsWith("$2b$");
+      const passwordMatch = isHashed
+        ? await bcrypt.compare(password, user.password)
+        : user.password === password;
+      if (!passwordMatch) {
+        return res.status(401).json({ error: "用户名或密码错误" });
+      }
+      // Auto-upgrade legacy plaintext password to bcrypt
+      if (!isHashed) {
+        const hashed = await bcrypt.hash(password, 12);
+        await storage.updateUserPassword(user.id, hashed);
       }
 
       const token = generateToken(user.id);
@@ -1404,7 +1426,8 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       if (!user) {
         return res.status(404).json({ error: "用户名不存在" });
       }
-      await storage.updateUserPassword(user.id, newPassword);
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(user.id, hashedPassword);
       res.json({ ok: true });
     } catch (err) {
       console.error("Reset password error:", err);
@@ -1430,10 +1453,16 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const userId = getUserId(req);
       const user = await storage.getUser(userId);
       if (!user) return res.status(401).json({ error: "用户不存在" });
-      if (user.password !== currentPassword) {
+      // Support both bcrypt hashed and legacy plaintext
+      const isHashed = user.password.startsWith("$2a$") || user.password.startsWith("$2b$");
+      const passwordMatch = isHashed
+        ? await bcrypt.compare(currentPassword, user.password)
+        : user.password === currentPassword;
+      if (!passwordMatch) {
         return res.status(401).json({ error: "当前密码错误" });
       }
-      await storage.updateUserPassword(userId, newPassword);
+      const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(userId, hashedNewPassword);
       res.json({ ok: true });
     } catch (err) {
       console.error("Change password error:", err);
@@ -5101,8 +5130,17 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   app.post("/api/admin/trigger-bot", async (req, res) => {
     try {
       const secret = req.headers["x-admin-secret"] as string;
-      const expected = process.env.ADMIN_SECRET || (() => { console.warn("[security] ADMIN_SECRET not set — using insecure default"); return "guanxing-bootstrap-2026"; })();
-      if (secret !== expected) return res.status(403).json({ error: "Unauthorized" });
+      const expected = process.env.ADMIN_SECRET;
+      if (!expected) {
+        if (process.env.NODE_ENV === "production") {
+          console.error("[security] ADMIN_SECRET not set in production — admin endpoints disabled");
+          return res.status(503).json({ error: "Admin not configured" });
+        }
+        // Development fallback only
+        console.warn("[security] ADMIN_SECRET not set — using insecure dev default");
+      }
+      const adminSecret = expected || "guanxing-bootstrap-2026";
+      if (secret !== adminSecret) return res.status(403).json({ error: "Unauthorized" });
 
       const action = req.body?.action || "post"; // "post" | "topic" | "status"
 
@@ -5173,10 +5211,14 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   // ─── Admin: Bootstrap silent agents (run autoStarterKit retroactively) ────
   app.post("/api/admin/bootstrap-agents", async (req, res) => {
     try {
-      // Simple secret check — use ADMIN_SECRET env or fallback
+      // Admin secret check
       const secret = req.headers["x-admin-secret"] as string;
-      const expected = process.env.ADMIN_SECRET || (() => { console.warn("[security] ADMIN_SECRET not set — using insecure default"); return "guanxing-bootstrap-2026"; })();
-      if (secret !== expected) {
+      const expected = process.env.ADMIN_SECRET;
+      if (!expected && process.env.NODE_ENV === "production") {
+        return res.status(503).json({ error: "Admin not configured" });
+      }
+      const adminSecret = expected || "guanxing-bootstrap-2026";
+      if (secret !== adminSecret) {
         return res.status(403).json({ error: "Unauthorized" });
       }
 

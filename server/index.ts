@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -13,6 +15,21 @@ import { startDiscordBot } from "./discord-bot";
 
 const app = express();
 const httpServer = createServer(app);
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Let the SPA handle CSP via meta tags
+  crossOriginEmbedderPolicy: false, // Allow embedding external resources
+}));
+
+// CORS configuration
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim())
+    : true, // Allow all origins in development; set ALLOWED_ORIGINS in production
+  credentials: true,
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+}));
 
 declare module "http" {
   interface IncomingMessage {

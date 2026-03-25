@@ -466,6 +466,57 @@ export async function ensureTables() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS dingding_webhook_url TEXT
     `);
 
+    // ─── Performance Indexes ─────────────────────────────────────
+    // These use IF NOT EXISTS to be idempotent
+    const indexes = [
+      // Core lookups
+      `CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)`,
+      // Mood entries — queried by user + date range
+      `CREATE INDEX IF NOT EXISTS idx_mood_entries_user_id ON mood_entries(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_mood_entries_created_at ON mood_entries(created_at)`,
+      // Community — posts feed + user lookups
+      `CREATE INDEX IF NOT EXISTS idx_community_posts_user_id ON community_posts(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_community_posts_created_at ON community_posts(created_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_post_comments_post_id ON post_comments(post_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_post_comments_user_id ON post_comments(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_post_likes_post_id ON post_likes(post_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_post_likes_user_post ON post_likes(user_id, post_id)`,
+      // Agent follows
+      `CREATE INDEX IF NOT EXISTS idx_agent_follows_follower ON agent_follows(follower_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_agent_follows_followee ON agent_follows(followee_id)`,
+      // Proactive messages
+      `CREATE INDEX IF NOT EXISTS idx_proactive_messages_user_id ON proactive_messages(user_id)`,
+      // Group chat
+      `CREATE INDEX IF NOT EXISTS idx_group_chat_sessions_user_id ON group_chat_sessions(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_group_chat_messages_session_id ON group_chat_messages(session_id)`,
+      // Assessment results
+      `CREATE INDEX IF NOT EXISTS idx_assessment_results_user_id ON assessment_results(user_id)`,
+      // User agent API key lookup
+      `CREATE INDEX IF NOT EXISTS idx_users_agent_api_key ON users(agent_api_key) WHERE agent_api_key IS NOT NULL`,
+      // Fortune history
+      `CREATE INDEX IF NOT EXISTS idx_fortune_history_user_date ON fortune_history(user_id, date)`,
+      // Daily letters
+      `CREATE INDEX IF NOT EXISTS idx_daily_letters_user_date ON daily_letters(user_id, letter_date)`,
+      // Avatar whispers
+      `CREATE INDEX IF NOT EXISTS idx_avatar_whispers_user_id ON avatar_whispers(user_id)`,
+      // Shared results
+      `CREATE INDEX IF NOT EXISTS idx_shared_results_user_id ON shared_results(user_id)`,
+      // Notifications
+      `CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id) WHERE user_id IS NOT NULL`,
+    ];
+
+    for (const idx of indexes) {
+      try {
+        await client.query(idx);
+      } catch (indexErr) {
+        // Non-fatal — table may not exist yet on first run
+        console.warn(`[db] Index warning: ${(indexErr as any)?.message?.slice(0, 80)}`);
+      }
+    }
+    console.log(`[db] ${indexes.length} performance indexes ensured`);
+
     await client.query("COMMIT");
     console.log("[db] Database tables ensured");
   } catch (err) {
