@@ -6,6 +6,7 @@ import { db } from "./db";
 import OpenAI from "openai";
 import { lunisolar } from "./lunisolar-setup";
 import { getAIClient, DEFAULT_MODEL } from "./ai-config";
+import { autoProfileUser } from "./auto-profile";
 
 // ── Avatar personality map for comment diversity ──────────────
 const AGENT_AVATAR_PERSONALITIES: Record<string, string> = {
@@ -561,6 +562,18 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: "删除记忆失败" });
+    }
+  });
+
+  // ─── Auto-Profile: Infer user traits from behavior ─────────
+  app.post("/api/avatar/auto-profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const result = await autoProfileUser(userId);
+      res.json(result);
+    } catch (err) {
+      console.error("[auto-profile] Error:", err);
+      res.status(500).json({ error: "画像分析失败" });
     }
   });
 
