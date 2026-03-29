@@ -226,7 +226,41 @@ async function buildUserContext(userId: string): Promise<string> {
       parts.push(`## 用户画像\n${identityLines.map(l => `  - ${l}`).join("\n")}`);
     }
 
-    // ── 4. Mood history (last 7 entries) ──
+    // ── 4. Behavioral profile (auto-inferred from activity) ──
+    try {
+      const avatar = await storage.getAvatarByUser(userId);
+      if (avatar) {
+        const memories = await storage.getAvatarMemories(avatar.id);
+        if (memories.length > 0) {
+          const byCategory: Record<string, string[]> = {};
+          for (const m of memories) {
+            if (!byCategory[m.category]) byCategory[m.category] = [];
+            if (byCategory[m.category].length < 5) {
+              byCategory[m.category].push(m.content);
+            }
+          }
+
+          const categoryLabels: Record<string, string> = {
+            interest: "兴趣爱好",
+            style: "说话风格",
+            opinion: "价值观",
+            fact: "个人信息",
+            preference: "偏好习惯",
+          };
+
+          const profileLines: string[] = [];
+          for (const [cat, items] of Object.entries(byCategory)) {
+            const label = categoryLabels[cat] || cat;
+            profileLines.push(`  - ${label}: ${items.join("、")}`);
+          }
+          if (profileLines.length > 0) {
+            parts.push(`## 行为画像（从用户活动中推断）\n${profileLines.join("\n")}`);
+          }
+        }
+      }
+    } catch (err) { console.error("[routes] Failed to build behavioral profile context:", err); }
+
+    // ── 5. Mood history (last 7 entries) ──
     try {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const recent = await db.select({
@@ -277,11 +311,31 @@ async function buildUserContext(userId: string): Promise<string> {
       }
     } catch (err) { console.error("[routes] Failed to build mood history context:", err); }
 
+    // ── 6. Recent conversation themes ──
+    try {
+      const convs = await storage.getConversationsByUser(userId);
+      if (convs.length > 0) {
+        const recentTopics = convs.slice(0, 5).map(c => c.title).filter(Boolean);
+        if (recentTopics.length > 0) {
+          parts.push(`## 最近聊天话题\n${recentTopics.map(t => `  - ${t}`).join("\n")}`);
+        }
+      }
+    } catch (err) { console.error("[routes] Failed to build conversation themes:", err); }
+
+    // ── 7. Agent memory insights (accumulated from bazi, fortune, etc.) ──
+    try {
+      const agentInsights = await queryMemories({ userId, limit: 5 });
+      const meaningful = agentInsights.filter(m => m.importance >= 6 && m.summary);
+      if (meaningful.length > 0) {
+        parts.push(`## 历史洞察\n${meaningful.slice(0, 3).map(m => `  - ${m.summary.slice(0, 80)}`).join("\n")}`);
+      }
+    } catch (err) { console.error("[routes] Failed to build agent memory insights:", err); }
+
   } catch (err) { console.error("[routes] Failed to build user context:", err); }
 
   if (parts.length === 0) return "";
 
-  return "\n\n" + parts.join("\n\n") + "\n\n请基于以上用户画像自然地个性化你的回应。不要逐条念出画像，而是让你的回答体现对这个人的了解（比如用他的五行特质来比喻、结合他的情绪状态调整语气、引用他的性格特点来给建议）。";
+  return "\n\n" + parts.join("\n\n") + "\n\n请基于以上用户画像自然地个性化你的回应。不要逐条念出画像，而是让你的回答体现对这个人的了解。像一个认识他很久的朋友一样说话——知道他的兴趣、说话习惯、情绪状态、最近关心什么。用他的风格回应（如果他说广东话就偶尔夹杂广东话，如果他爱自嘲就配合他的幽默）。";
 }
 
 // Keep backward compat alias
