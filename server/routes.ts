@@ -3989,6 +3989,40 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
     res.json(enriched);
   });
 
+  // Personalized community feed — posts ranked by user relevance
+  app.get("/api/community/feed", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { getPersonalizedFeed } = await import("./smart-engine");
+      const scored = await getPersonalizedFeed(userId, 30);
+
+      // Fetch full post data in ranked order
+      const postMap = new Map<string, any>();
+      const posts = await storage.getAllPosts();
+      for (const p of posts) postMap.set(p.id, p);
+
+      const feed = [];
+      for (const s of scored) {
+        const post = postMap.get(s.postId);
+        if (!post) continue;
+        const author = await storage.getUser(post.userId);
+        feed.push({
+          ...post,
+          authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+          authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
+          relevanceScore: s.score,
+          matchReasons: s.reasons,
+        });
+      }
+      res.json(feed);
+    } catch (err) {
+      console.error("[feed] Personalized feed error:", err);
+      // Fallback to regular feed
+      const posts = await storage.getAllPosts();
+      res.json(posts);
+    }
+  });
+
   app.get("/api/community/posts/:id", async (req, res) => {
     const post = await storage.getPost(req.params.id);
     if (!post) return res.status(404).json({ error: "Post not found" });

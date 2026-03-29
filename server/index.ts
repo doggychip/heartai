@@ -13,6 +13,7 @@ import { pruneExpiredMemories } from "./agent-memory";
 import { startTelegramBot } from "./telegram-bot";
 import { startDiscordBot } from "./discord-bot";
 import { initZhihuiTiBridge } from "./zhihuiti-bridge";
+import { runSleepTokenCycle } from "./smart-engine";
 
 const app = express();
 app.set("trust proxy", 1); // Trust first proxy hop — makes req.ip reliable behind reverse proxy
@@ -146,6 +147,26 @@ app.use((req, res, next) => {
 
       // Initialize zhihuiti multi-agent bridge
       initZhihuiTiBridge().catch(err => log(`zhihuiti bridge: ${err.message}`, "zhihuiti"));
+
+      // Sleep Tokens: autonomous value creation (runs every 4 hours)
+      (async () => {
+        try {
+          const { storage: st } = await import("./storage");
+          let bot = await st.getUserByUsername("agent_GuanXing-Bot");
+          if (bot) {
+            // First run after 10 min warmup, then every 4 hours
+            setTimeout(() => {
+              runSleepTokenCycle(bot!.id).catch(err => log(`sleep-tokens: ${err.message}`, "smart-engine"));
+              setInterval(() => {
+                runSleepTokenCycle(bot!.id).catch(err => log(`sleep-tokens: ${err.message}`, "smart-engine"));
+              }, 4 * 60 * 60_000).unref();
+            }, 10 * 60_000);
+            log("Sleep token engine scheduled (every 4h)", "smart-engine");
+          }
+        } catch (err) {
+          log(`sleep-tokens init: ${(err as any).message}`, "smart-engine");
+        }
+      })();
     },
   );
 })();
