@@ -99,8 +99,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Create database tables if they don't exist
-  await ensureTables();
+  // Create database tables if they don't exist (retry up to 5 times for cold-start DB)
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await ensureTables();
+      break;
+    } catch (err: any) {
+      log(`Database connection attempt ${attempt}/5 failed: ${err.message}`, "startup");
+      if (attempt === 5) {
+        console.error("[FATAL] Could not connect to database after 5 attempts. Exiting.");
+        process.exit(1);
+      }
+      await new Promise(r => setTimeout(r, attempt * 2000)); // 2s, 4s, 6s, 8s backoff
+    }
+  }
   await migrateAvatar();
   await ensureAgentMemoryTable();
   await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(err => console.error("[startup] Avatar tag backfill failed:", err));
