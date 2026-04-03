@@ -6,6 +6,7 @@ import { db } from "./db";
 import OpenAI from "openai";
 import { lunisolar } from "./lunisolar-setup";
 import { getAIClient, DEFAULT_MODEL } from "./ai-config";
+import { autoProfileUser } from "./auto-profile";
 
 // ── Avatar personality map for comment diversity ──────────────
 const AGENT_AVATAR_PERSONALITIES: Record<string, string> = {
@@ -561,6 +562,18 @@ export function registerAvatarRoutes(app: Express, requireAuth: any) {
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: "删除记忆失败" });
+    }
+  });
+
+  // ─── Auto-Profile: Infer user traits from behavior ─────────
+  app.post("/api/avatar/auto-profile", requireAuth, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const result = await autoProfileUser(userId);
+      res.json(result);
+    } catch (err) {
+      console.error("[auto-profile] Error:", err);
+      res.status(500).json({ error: "画像分析失败" });
     }
   });
 
@@ -1584,10 +1597,51 @@ function startAutoBrowseLoop() {
     }
   }
 
+  // ─── Auto-Profile: daily behavioral analysis ─────────────
+  const profiledToday = new Set<string>();
+  async function runAutoProfile() {
+    try {
+      const allAvatars = await storage.getAllActiveAvatars();
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Reset tracked set at midnight
+      if (profiledToday.size > 0) {
+        const firstKey = profiledToday.values().next().value;
+        if (firstKey && !firstKey.startsWith(today)) profiledToday.clear();
+      }
+
+      for (const av of allAvatars) {
+        const key = `${today}:${av.userId}`;
+        if (profiledToday.has(key)) continue;
+        profiledToday.add(key);
+
+        try {
+          const result = await autoProfileUser(av.userId);
+          if (result.newMemories > 0) {
+            console.log(`[auto-profile] ${av.name}: +${result.newMemories} traits from ${result.dataPoints} signals — "${result.summary}"`);
+          }
+        } catch (err) {
+          console.error(`[auto-profile] Error for ${av.name}:`, (err as any)?.message || err);
+        }
+
+        // Stagger between users
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    } catch (err) {
+      console.error("[auto-profile] Cycle error:", err);
+    }
+  }
+
   // Initial run after 2 minutes (let server warm up)
   setTimeout(() => {
     runCycle();
     setInterval(runCycle, INTERVAL_MS);
+
+    // Run auto-profile once on startup (after 5 min), then every 6 hours
+    setTimeout(() => {
+      runAutoProfile();
+      setInterval(runAutoProfile, 6 * 60 * 60 * 1000).unref();
+    }, 3 * 60 * 1000);
   }, 2 * 60 * 1000);
   
   console.log('[auto-browse] Auto-browse loop registered (every 30 min)');

@@ -30,7 +30,7 @@ import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommun
 import { createMcpServer, transports, SSEServerTransport } from "./mcp-server";
 import OpenAI from "openai";
 import { lunisolar } from "./lunisolar-setup";
-import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL } from "./ai-config";
+import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL, extractJSON, clampScore } from "./ai-config";
 
 // ─── Public ID Generator ───────────────────────────────────
 function generatePublicId(): string {
@@ -226,7 +226,41 @@ async function buildUserContext(userId: string): Promise<string> {
       parts.push(`## 用户画像\n${identityLines.map(l => `  - ${l}`).join("\n")}`);
     }
 
-    // ── 4. Mood history (last 7 entries) ──
+    // ── 4. Behavioral profile (auto-inferred from activity) ──
+    try {
+      const avatar = await storage.getAvatarByUser(userId);
+      if (avatar) {
+        const memories = await storage.getAvatarMemories(avatar.id);
+        if (memories.length > 0) {
+          const byCategory: Record<string, string[]> = {};
+          for (const m of memories) {
+            if (!byCategory[m.category]) byCategory[m.category] = [];
+            if (byCategory[m.category].length < 5) {
+              byCategory[m.category].push(m.content);
+            }
+          }
+
+          const categoryLabels: Record<string, string> = {
+            interest: "兴趣爱好",
+            style: "说话风格",
+            opinion: "价值观",
+            fact: "个人信息",
+            preference: "偏好习惯",
+          };
+
+          const profileLines: string[] = [];
+          for (const [cat, items] of Object.entries(byCategory)) {
+            const label = categoryLabels[cat] || cat;
+            profileLines.push(`  - ${label}: ${items.join("、")}`);
+          }
+          if (profileLines.length > 0) {
+            parts.push(`## 行为画像（从用户活动中推断）\n${profileLines.join("\n")}`);
+          }
+        }
+      }
+    } catch (err) { console.error("[routes] Failed to build behavioral profile context:", err); }
+
+    // ── 5. Mood history (last 7 entries) ──
     try {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const recent = await db.select({
@@ -277,11 +311,31 @@ async function buildUserContext(userId: string): Promise<string> {
       }
     } catch (err) { console.error("[routes] Failed to build mood history context:", err); }
 
+    // ── 6. Recent conversation themes ──
+    try {
+      const convs = await storage.getConversationsByUser(userId);
+      if (convs.length > 0) {
+        const recentTopics = convs.slice(0, 5).map(c => c.title).filter(Boolean);
+        if (recentTopics.length > 0) {
+          parts.push(`## 最近聊天话题\n${recentTopics.map(t => `  - ${t}`).join("\n")}`);
+        }
+      }
+    } catch (err) { console.error("[routes] Failed to build conversation themes:", err); }
+
+    // ── 7. Agent memory insights (accumulated from bazi, fortune, etc.) ──
+    try {
+      const agentInsights = await queryMemories({ userId, limit: 5 });
+      const meaningful = agentInsights.filter(m => m.importance >= 6 && m.summary);
+      if (meaningful.length > 0) {
+        parts.push(`## 历史洞察\n${meaningful.slice(0, 3).map(m => `  - ${m.summary.slice(0, 80)}`).join("\n")}`);
+      }
+    } catch (err) { console.error("[routes] Failed to build agent memory insights:", err); }
+
   } catch (err) { console.error("[routes] Failed to build user context:", err); }
 
   if (parts.length === 0) return "";
 
-  return "\n\n" + parts.join("\n\n") + "\n\n请基于以上用户画像自然地个性化你的回应。不要逐条念出画像，而是让你的回答体现对这个人的了解（比如用他的五行特质来比喻、结合他的情绪状态调整语气、引用他的性格特点来给建议）。";
+  return "\n\n" + parts.join("\n\n") + "\n\n请基于以上用户画像自然地个性化你的回应。不要逐条念出画像，而是让你的回答体现对这个人的了解。像一个认识他很久的朋友一样说话——知道他的兴趣、说话习惯、情绪状态、最近关心什么。用他的风格回应（如果他说广东话就偶尔夹杂广东话，如果他爱自嘲就配合他的幽默）。";
 }
 
 // Keep backward compat alias
@@ -1398,7 +1452,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
     try {
       // Rate limit: 5 login attempts per IP per 15 min (brute-force protection)
       const ip = req.ip || "unknown";
-      if (!checkRateLimit(`login:${ip}`, 5, 15 * 60_000)) {
+      if (!checkRateLimit(`login:${ip}`, 20, 15 * 60_000)) {
         return res.status(429).json({ error: "登录请求太频繁，请15分钟后再试" });
       }
 
@@ -1408,7 +1462,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       const { username, password } = parsed.data;
 
       // Also rate limit per username (prevent targeted brute-force)
-      if (!checkRateLimit(`login:user:${username}`, 5, 15 * 60_000)) {
+      if (!checkRateLimit(`login:user:${username}`, 20, 15 * 60_000)) {
         return res.status(429).json({ error: "该账户登录尝试次数过多，请15分钟后再试" });
       }
       const user = await storage.getUserByUsername(username);
@@ -2875,7 +2929,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       let fortune: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        fortune = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        fortune = JSON.parse(extractJSON(raw));
       } catch {
         fortune = {
           totalScore: 80, loveScore: 78, careerScore: 82, wealthScore: 76, healthScore: 85,
@@ -2885,6 +2939,13 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
           advice: "保持乐观心态，多与自然接触", warning: "避免急躁冲动"
         };
       }
+
+      // Clamp scores to valid ranges
+      fortune.totalScore = clampScore(fortune.totalScore, 0, 100, 80);
+      fortune.loveScore = clampScore(fortune.loveScore, 0, 100, 78);
+      fortune.careerScore = clampScore(fortune.careerScore, 0, 100, 82);
+      fortune.wealthScore = clampScore(fortune.wealthScore, 0, 100, 76);
+      fortune.healthScore = clampScore(fortune.healthScore, 0, 100, 85);
 
       const dfResult = {
         ...fortune,
@@ -2984,7 +3045,7 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       let result: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        result = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        result = JSON.parse(extractJSON(raw));
       } catch {
         result = {
           totalScore: 78,
@@ -3202,7 +3263,7 @@ ${najiaDesc}
       let reading: any;
       try {
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        reading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        reading = JSON.parse(extractJSON(raw));
       } catch {
         reading = {
           mainReading: `${hexName}，属${gongName}宫${gongElement}。当前局面利于沟通协调，保持耐心待时而动。`,
@@ -3418,7 +3479,7 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        aiReading = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        aiReading = JSON.parse(extractJSON(raw));
       } catch (aiErr) {
         console.log('Qiuqian AI error (using fallback):', (aiErr as Error).message);
         aiReading = {
@@ -3926,6 +3987,40 @@ ${userProfile ? `求签者信息：${userProfile}` : ''}
       };
     }));
     res.json(enriched);
+  });
+
+  // Personalized community feed — posts ranked by user relevance
+  app.get("/api/community/feed", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { getPersonalizedFeed } = await import("./smart-engine");
+      const scored = await getPersonalizedFeed(userId, 30);
+
+      // Fetch full post data in ranked order
+      const postMap = new Map<string, any>();
+      const posts = await storage.getAllPosts();
+      for (const p of posts) postMap.set(p.id, p);
+
+      const feed = [];
+      for (const s of scored) {
+        const post = postMap.get(s.postId);
+        if (!post) continue;
+        const author = await storage.getUser(post.userId);
+        feed.push({
+          ...post,
+          authorNickname: post.isAnonymous ? "匿名用户" : (author?.nickname || "用户"),
+          authorAvatar: post.isAnonymous ? null : (author?.avatarUrl || null),
+          relevanceScore: s.score,
+          matchReasons: s.reasons,
+        });
+      }
+      res.json(feed);
+    } catch (err) {
+      console.error("[feed] Personalized feed error:", err);
+      // Fallback to regular feed
+      const posts = await storage.getAllPosts();
+      res.json(posts);
+    }
   });
 
   app.get("/api/community/posts/:id", async (req, res) => {
@@ -6337,7 +6432,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
       // Clean potential markdown code block wrappers
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       try {
         const result = JSON.parse(cleaned);
         res.json(result);
@@ -6452,7 +6547,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData = { description: "", careerAdvice: "", relationshipAdvice: "", socialAdvice: "" };
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -6963,9 +7058,16 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || "";
-        const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+        const cleaned = extractJSON(raw);
         try {
           const fortune = JSON.parse(cleaned);
+          // Clamp AI-generated scores to valid ranges
+          fortune.totalScore = clampScore(fortune.totalScore, 0, 100, 75);
+          if (fortune.dimensions) {
+            for (const k of ['love', 'wealth', 'career', 'study', 'social'] as const) {
+              if (fortune.dimensions[k] !== undefined) fortune.dimensions[k] = clampScore(fortune.dimensions[k], 0, 100, 70);
+            }
+          }
           fortune.date = dateStr;
           fortune.isPersonalized = isPersonalized;
           fortune.classicalQuote = fortuneQuote;
@@ -7182,7 +7284,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7262,7 +7364,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = { cards: [], overall: "", advice: "" };
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7305,7 +7407,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7351,7 +7453,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         ],
       });
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7437,7 +7539,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7488,7 +7590,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -7578,7 +7680,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       });
 
       const raw = response.choices[0]?.message?.content?.trim() || "";
-      const cleaned = raw.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+      const cleaned = extractJSON(raw);
       let aiData: any = {};
       try { aiData = JSON.parse(cleaned); } catch (err) { console.error("[routes] Failed to parse AI JSON response:", err); }
 
@@ -8525,6 +8627,118 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   // Monkey-patch: after qiuqian, bazi, fortune, post creation, emit events
   // This is done by wrapping the existing handlers or calling publishEvent
   // from within the existing code paths. For now, we expose a simple trigger.
+
+  // ─── Zhihuiti Bridge Routes (智慧体多Agent系统) ──────────────
+  const {
+    isZhihuiTiAvailable,
+    submitGoal,
+    getGoalStatus,
+    executeGoal,
+    listAgents: listZhihuiTiAgents,
+    getSystemStatus: getZhihuiTiStatus,
+    checkZhihuiTiHealth,
+    syncAgentsToHeartAI,
+  } = await import("./zhihuiti-bridge");
+
+  // System status
+  app.get("/api/zhihuiti/status", requireAuth, async (_req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        // Try to reconnect
+        const ok = await checkZhihuiTiHealth();
+        if (!ok) return res.json({ available: false, message: "zhihuiti is not running" });
+      }
+      const status = await getZhihuiTiStatus();
+      res.json({ available: true, ...status });
+    } catch (err: any) {
+      res.json({ available: false, error: err.message });
+    }
+  });
+
+  // Submit a goal for multi-agent execution
+  app.post("/api/zhihuiti/goals", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const { goal, model, workers, retries } = req.body;
+      if (!goal || typeof goal !== "string") {
+        return res.status(400).json({ error: "goal is required" });
+      }
+      const result = await submitGoal(goal, { model, workers, retries });
+      res.json(result);
+    } catch (err: any) {
+      console.error("[zhihuiti] Goal submission error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get goal status/result
+  app.get("/api/zhihuiti/goals/:goalId", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const status = await getGoalStatus(req.params.goalId);
+      res.json(status);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Execute a goal synchronously (wait for completion)
+  app.post("/api/zhihuiti/execute", requireAuth, async (req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const { goal, model, workers, retries, timeoutMs } = req.body;
+      if (!goal || typeof goal !== "string") {
+        return res.status(400).json({ error: "goal is required" });
+      }
+      const result = await executeGoal(goal, { model, workers, retries, timeoutMs });
+
+      // Store result in agent memory for the user
+      const userId = getUserId(req);
+      writeMemory({
+        agentKey: "zhihuiti",
+        userId,
+        category: "bazi_reading",
+        summary: `zhihuiti: ${goal.slice(0, 100)}`,
+        details: JSON.stringify(result.result),
+        importance: 6,
+      }).catch(() => {});
+
+      res.json(result);
+    } catch (err: any) {
+      console.error("[zhihuiti] Goal execution error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // List zhihuiti agents
+  app.get("/api/zhihuiti/agents", requireAuth, async (_req, res) => {
+    try {
+      const agents = await listZhihuiTiAgents();
+      res.json(agents);
+    } catch (err: any) {
+      res.json([]);
+    }
+  });
+
+  // Sync zhihuiti agents into HeartAI as community members
+  app.post("/api/zhihuiti/sync-agents", requireAuth, async (_req, res) => {
+    try {
+      if (!isZhihuiTiAvailable()) {
+        return res.status(503).json({ error: "zhihuiti is not available" });
+      }
+      const result = await syncAgentsToHeartAI();
+      res.json({ ok: true, ...result });
+    } catch (err: any) {
+      console.error("[zhihuiti] Agent sync error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   // ═══════════════════════════════════════════════════════════════
   // Phase 4: ClawHub Skills + Webhook API + Developer Ecosystem
@@ -10176,7 +10390,7 @@ ${userTopics ? `近期话题: ${userTopics}` : ''}
 
         try {
           const raw = response.choices[0]?.message?.content?.trim() || '{}';
-          const parsed = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+          const parsed = JSON.parse(extractJSON(raw));
           sections = parsed.sections || [];
           whisper = parsed.whisper || null;
           followUp = parsed.followUp || null;

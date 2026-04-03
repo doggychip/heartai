@@ -7,8 +7,8 @@ import { rm, readFile } from "fs/promises";
 const allowlist = [
   "@google/generative-ai",
   "axios",
+  "bcryptjs",
   "connect-pg-simple",
-  "cors",
   "date-fns",
   "drizzle-orm",
   "drizzle-zod",
@@ -23,7 +23,7 @@ const allowlist = [
   "openai",
   "passport",
   "passport-local",
-  "pg",
+  // pg is kept external — its pgpass/pg-native code paths break when bundled
   "stripe",
   "uuid",
   "ws",

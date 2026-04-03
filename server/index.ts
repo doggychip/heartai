@@ -1,6 +1,4 @@
 import express, { type Request, Response, NextFunction } from "express";
-import helmet from "helmet";
-import cors from "cors";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -12,25 +10,40 @@ import { initializeDefaultSubscriptions } from "./event-bus";
 import { pruneExpiredMemories } from "./agent-memory";
 import { startTelegramBot } from "./telegram-bot";
 import { startDiscordBot } from "./discord-bot";
+import { initZhihuiTiBridge } from "./zhihuiti-bridge";
+import { runSleepTokenCycle } from "./smart-engine";
 
 const app = express();
-app.set("trust proxy", 1); // Trust first proxy hop — makes req.ip reliable behind reverse proxy
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
-// Security headers
-app.use(helmet({
-  contentSecurityPolicy: false, // Let the SPA handle CSP via meta tags
-  crossOriginEmbedderPolicy: false, // Allow embedding external resources
-}));
+// Security headers (inline — avoids helmet ESBuild bundling issues)
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "0");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("X-Download-Options", "noopen");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  next();
+});
 
-// CORS configuration
-app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",").map(s => s.trim())
-    : true, // Allow all origins in development; set ALLOWED_ORIGINS in production
-  credentials: true,
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-}));
+// CORS (inline — avoids cors package ESBuild bundling issues)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  const allowed = process.env.ALLOWED_ORIGINS?.split(",").map(s => s.trim());
+  if (!allowed || (origin && allowed.includes(origin))) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+  }
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-API-Key,X-Admin-Secret");
+  if (req.method === "OPTIONS") return res.status(204).end();
+  next();
+});
 
 declare module "http" {
   interface IncomingMessage {
@@ -86,8 +99,20 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Create database tables if they don't exist
-  await ensureTables();
+  // Create database tables if they don't exist (retry up to 5 times for cold-start DB)
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      await ensureTables();
+      break;
+    } catch (err: any) {
+      log(`Database connection attempt ${attempt}/5 failed: ${err.message}`, "startup");
+      if (attempt === 5) {
+        console.error("[FATAL] Could not connect to database after 5 attempts. Exiting.");
+        process.exit(1);
+      }
+      await new Promise(r => setTimeout(r, attempt * 2000)); // 2s, 4s, 6s, 8s backoff
+    }
+  }
   await migrateAvatar();
   await ensureAgentMemoryTable();
   await backfillAvatarTags().then(r => r.updated > 0 && log(`Backfilled tags for ${r.updated} avatars`)).catch(err => console.error("[startup] Avatar tag backfill failed:", err));
@@ -142,7 +167,29 @@ app.use((req, res, next) => {
       // Start chat bots after server is listening (fire-and-forget)
       startTelegramBot().catch(err => log(`Telegram bot failed to start: ${err.message}`, "telegram"));
       startDiscordBot().catch(err => log(`Discord bot failed to start: ${err.message}`, "discord"));
+
+      // Initialize zhihuiti multi-agent bridge
+      initZhihuiTiBridge().catch(err => log(`zhihuiti bridge: ${err.message}`, "zhihuiti"));
+
+      // Sleep Tokens: autonomous value creation (runs every 4 hours)
+      (async () => {
+        try {
+          const { storage: st } = await import("./storage");
+          let bot = await st.getUserByUsername("agent_GuanXing-Bot");
+          if (bot) {
+            // First run after 10 min warmup, then every 4 hours
+            setTimeout(() => {
+              runSleepTokenCycle(bot!.id).catch(err => log(`sleep-tokens: ${err.message}`, "smart-engine"));
+              setInterval(() => {
+                runSleepTokenCycle(bot!.id).catch(err => log(`sleep-tokens: ${err.message}`, "smart-engine"));
+              }, 4 * 60 * 60_000).unref();
+            }, 10 * 60_000);
+            log("Sleep token engine scheduled (every 4h)", "smart-engine");
+          }
+        } catch (err) {
+          log(`sleep-tokens init: ${(err as any).message}`, "smart-engine");
+        }
+      })();
     },
   );
 })();
-

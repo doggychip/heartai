@@ -4,7 +4,7 @@ import { db } from "./db";
 import { moodEntries, users, avatars } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { storage } from "./storage";
-import { getFortuneClient, FORTUNE_MODEL } from "./ai-config";
+import { getAIClient, FAST_MODEL, extractJSON } from "./ai-config";
 import { writeMemory } from "./agent-memory";
 import lunisolar from "lunisolar";
 
@@ -107,11 +107,11 @@ ${wuxingContext ? `命理数据:\n${wuxingContext}` : ''}
       let ritual = "闭上眼睛，深呼吸三次。";
 
       try {
-        const client = getFortuneClient();
+        const client = getAIClient();
         const response = await client.chat.completions.create({
-          model: FORTUNE_MODEL,
+          model: FAST_MODEL,
           max_tokens: 500,
-          temperature: 0.85,
+          response_format: { type: "json_object" },
           messages: [
             { role: "system", content: "你是观星的情绪陪伴助手，精通五行命理。回应要温暖亲密、简洁有力。只返回JSON。" },
             { role: "user", content: prompt },
@@ -119,7 +119,7 @@ ${wuxingContext ? `命理数据:\n${wuxingContext}` : ''}
         });
 
         const raw = response.choices[0]?.message?.content?.trim() || '{}';
-        const parsed = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+        const parsed = JSON.parse(extractJSON(raw));
         aiResponse = parsed.aiResponse || aiResponse;
         wuxingInsight = parsed.wuxingInsight || wuxingInsight;
         ritual = parsed.ritual || ritual;

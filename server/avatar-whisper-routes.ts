@@ -4,7 +4,7 @@ import { db } from "./db";
 import { avatarWhispers, avatars, moodEntries, users } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { storage } from "./storage";
-import { getFortuneClient, FORTUNE_MODEL } from "./ai-config";
+import { getAIClient, FAST_MODEL, extractJSON } from "./ai-config";
 import lunisolar from "lunisolar";
 
 function getUserId(req: Request): string {
@@ -92,11 +92,11 @@ ${wuxingContext ? `- ${wuxingContext}` : ''}
 
 要求: 生成${whisperCount}条，每条不同类型。语气亲密像朋友发微信。可以用命理知识但要自然融入。`;
 
-    const client = getFortuneClient();
+    const client = getAIClient();
     const response = await client.chat.completions.create({
-      model: FORTUNE_MODEL,
+      model: FAST_MODEL,
       max_tokens: 500,
-      temperature: 0.9,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: `你是用户的AI分身「${avatarName}」，要给主人发亲密的私语消息。像好朋友发微信一样自然。只返回JSON。` },
         { role: "user", content: prompt },
@@ -104,7 +104,7 @@ ${wuxingContext ? `- ${wuxingContext}` : ''}
     });
 
     const raw = response.choices[0]?.message?.content?.trim() || '[]';
-    const parsed = JSON.parse(raw.replace(/```json\n?|```/g, ''));
+    const parsed = JSON.parse(extractJSON(raw));
     const whispers = Array.isArray(parsed) ? parsed : [];
 
     for (const w of whispers.slice(0, whisperCount)) {
