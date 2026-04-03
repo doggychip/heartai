@@ -100,7 +100,7 @@ export async function generateMorningInsights(): Promise<number> {
           category: "fortune_result",
           limit: 1,
         });
-        if (existing.length > 0 && existing[0].created_at?.startsWith(today)) continue;
+        if (existing.length > 0 && existing[0].createdAt?.startsWith(today)) continue;
 
         let element = "";
         try {
