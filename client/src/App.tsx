@@ -77,6 +77,10 @@ const CryptoFortunePage = lazy(() => import("@/pages/crypto-fortune"));
 const DailyLetterPage = lazy(() => import("@/pages/daily-letter"));
 const MoodCheckinPage = lazy(() => import("@/pages/mood-checkin"));
 const SharedResultPage = lazy(() => import("@/pages/shared-result"));
+const PremiumPage = lazy(() => import("@/pages/premium"));
+const ShopPage = lazy(() => import("@/pages/shop"));
+const AiPortraitPage = lazy(() => import("@/pages/ai-portrait"));
+const ReferralPage = lazy(() => import("@/pages/referral"));
 const FeatureGate = lazy(() => import("@/components/FeatureGate"));
 
 // Feature descriptions for gate interstitials
@@ -172,6 +176,10 @@ function AuthenticatedRoutes() {
           <Route path="/crypto" component={CryptoFortunePage} />
           <Route path="/daily-letter" component={DailyLetterPage} />
           <Route path="/mood" component={MoodCheckinPage} />
+          <Route path="/premium" component={PremiumPage} />
+          <Route path="/shop" component={ShopPage} />
+          <Route path="/ai-portrait" component={AiPortraitPage} />
+          <Route path="/referral" component={ReferralPage} />
           <Route component={NotFound} />
         </Switch>
       </Suspense>
