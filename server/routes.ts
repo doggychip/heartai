@@ -6821,7 +6821,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       const SHENG_ME: Record<string, string> = { '木': '水', '火': '木', '土': '火', '金': '土', '水': '金' };
       const KE_ME: Record<string, string> = { '木': '金', '火': '水', '土': '木', '金': '火', '水': '土' };
 
-      // Calculate scores for each year from age 1 to 80
+      // Calculate scores for each year from age 1 to 100
       const tz = (req.query.tz as string) || 'Asia/Shanghai';
       const currentYear = parseInt(new Date().toLocaleDateString('sv-SE', { timeZone: tz }).split('-')[0]);
       const currentAge = currentYear - birthYear;
@@ -6838,6 +6838,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         { range: [51, 60], name: '知命运', base: 3 },
         { range: [61, 70], name: '花甲运', base: -2 },
         { range: [71, 80], name: '古稀运', base: -5 },
+        { range: [81, 90], name: '耄耋运', base: -8 },
+        { range: [91, 100], name: '期颐运', base: -10 },
       ];
 
       // Branch → Element
@@ -6876,9 +6878,11 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         '知命运': ['五十知天命，智慧与阅历并重。', '人生下半场的开始。', '退一步海阔天空。'],
         '花甲运': ['花甲之年，岁月沉淀的智慧。', '享受人生果实的时期。', '与家人共享天伦之乐。'],
         '古稀运': ['人生七十古来稀，淡然处之。', '回归内心，享受宁静。', '岁月静好，安享晚年。'],
+        '耄耋运': ['八十耄耋，阅尽人间百态。', '宁静致远，心境通达。', '大道至简，返璞归真。'],
+        '期颐运': ['期颐之年，天道归一。', '百年一遇，福寿双全。', '圆满人生，无憾而终。'],
       };
 
-      for (let age = 1; age <= 80; age++) {
+      for (let age = 1; age <= 100; age++) {
         const year = birthYear + age;
         const phase = DAYUN_PHASES.find(p => age >= p.range[0] && age <= p.range[1]) || DAYUN_PHASES[0];
 
@@ -6938,7 +6942,7 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
         element: dayElement,
         dayMaster: dayMasterStem,
         points,
-        currentAge: Math.max(1, Math.min(80, currentAge)),
+        currentAge: Math.max(1, Math.min(100, currentAge)),
         peakAge: points.reduce((a: any, b: any) => a.totalScore > b.totalScore ? a : b).age,
         valleyAge: points.reduce((a: any, b: any) => a.totalScore < b.totalScore ? a : b).age,
       });
