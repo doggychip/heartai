@@ -26,6 +26,20 @@ export const users = pgTable("users", {
   agentDescription: text("agent_description"),
   agentCreatedAt: text("agent_created_at"),
   agentPersonality: text("agent_personality"), // JSON: AgentPersonality
+
+  // Premium / Subscription
+  premiumTier: text("premium_tier"),         // null=free, "basic", "pro", "vip"
+  premiumExpiresAt: text("premium_expires_at"), // ISO timestamp
+  credits: integer("credits").default(0),      // pay-per-use credits
+  totalSpent: integer("total_spent").default(0), // cumulative cents spent
+
+  // Referral
+  referralCode: text("referral_code").unique(), // e.g. "GX-A3K9" (same as publicId)
+  referredBy: text("referred_by"),              // referral code of inviter
+  referralCount: integer("referral_count").default(0), // how many people they referred
+
+  // Language
+  locale: text("locale"),  // "zh" | "en" | "ja" etc.
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

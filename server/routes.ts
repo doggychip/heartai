@@ -30,7 +30,7 @@ import { getTrendingPosts, getPersonalizedFeed, getPersonalityMatches, getCommun
 import { createMcpServer, transports, SSEServerTransport } from "./mcp-server";
 import OpenAI from "openai";
 import { lunisolar } from "./lunisolar-setup";
-import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL, extractJSON, clampScore } from "./ai-config";
+import { getAIClient, getFortuneClient, DEFAULT_MODEL, FORTUNE_MODEL, FAST_MODEL, extractJSON, clampScore, aiComplete } from "./ai-config";
 
 // ─── Public ID Generator ───────────────────────────────────
 function generatePublicId(): string {
@@ -6952,6 +6952,162 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
     }
   });
 
+  // ─── Guest Life Curve (public, no login required) ───────────
+  // Accepts birth date as query params for viral sharing
+  app.get("/api/fortune/life-curve/guest", async (req, res) => {
+    try {
+      const ip = req.ip || "unknown";
+      if (!checkRateLimit(`life-curve-guest:${ip}`, 10, 60000)) {
+        return res.status(429).json({ error: "请求太频繁，请稍后再试" });
+      }
+
+      const { birthDate: bd, birthHour: bh } = req.query;
+      if (!bd || typeof bd !== "string" || !/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(bd)) {
+        return res.status(400).json({ error: "请提供有效的出生日期 (YYYY-MM-DD)" });
+      }
+
+      const birthDate = bd;
+      const birthHour = bh ? parseInt(bh as string) : 12;
+      const birthYear = parseInt(birthDate.split(/[-\/]/)[0]);
+
+      if (birthYear < 1900 || birthYear > 2030) {
+        return res.status(400).json({ error: "出生年份需在1900-2030之间" });
+      }
+
+      // Reuse the same calculation logic as the authenticated endpoint
+      const birthLs = lunisolar(`${birthDate} ${birthHour}:00`);
+      const dayMasterStem = birthLs.char8?.day?.stem?.toString() || '';
+
+      const STEM_ELEMENT: Record<string, string> = {
+        '甲': '木', '乙': '木', '丙': '火', '丁': '火',
+        '戊': '土', '己': '土', '庚': '金', '辛': '金',
+        '壬': '水', '癸': '水',
+      };
+      const dayElement = STEM_ELEMENT[dayMasterStem] || '木';
+
+      const SHENG: Record<string, string> = { '木': '火', '火': '土', '土': '金', '金': '水', '水': '木' };
+      const KE: Record<string, string> = { '木': '土', '火': '金', '土': '水', '金': '木', '水': '火' };
+      const SHENG_ME: Record<string, string> = { '木': '水', '火': '木', '土': '火', '金': '土', '水': '金' };
+      const KE_ME: Record<string, string> = { '木': '金', '火': '水', '土': '木', '金': '火', '水': '土' };
+
+      function elementModifier(yearElement: string, myElement: string): number {
+        if (yearElement === myElement) return 5;
+        if (SHENG_ME[myElement] === yearElement) return 10;
+        if (SHENG[myElement] === yearElement) return 3;
+        if (KE[myElement] === yearElement) return -2;
+        if (KE_ME[myElement] === yearElement) return -8;
+        return 0;
+      }
+
+      function seededRand(seed: string): number {
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          hash = ((hash << 5) - hash) + seed.charCodeAt(i);
+          hash = hash & hash;
+        }
+        return (Math.abs(hash) % 100) / 100;
+      }
+
+      const DAYUN_PHASES = [
+        { range: [1, 10], name: '初运', base: 0 },
+        { range: [11, 20], name: '青年运', base: 5 },
+        { range: [21, 30], name: '而立运', base: 8 },
+        { range: [31, 40], name: '壮年运', base: 10 },
+        { range: [41, 50], name: '中年运', base: 6 },
+        { range: [51, 60], name: '知命运', base: 3 },
+        { range: [61, 70], name: '花甲运', base: -2 },
+        { range: [71, 80], name: '古稀运', base: -5 },
+        { range: [81, 90], name: '耄耋运', base: -8 },
+        { range: [91, 100], name: '期颐运', base: -10 },
+      ];
+
+      const tz = (req.query.tz as string) || 'Asia/Shanghai';
+      const currentYear = parseInt(new Date().toLocaleDateString('sv-SE', { timeZone: tz }).split('-')[0]);
+      const currentAge = currentYear - birthYear;
+
+      // Guest gets first 40 years free, rest requires signup (paywall hook)
+      const FREE_YEARS = 40;
+      const points: any[] = [];
+
+      for (let age = 1; age <= 100; age++) {
+        const year = birthYear + age;
+        const phase = DAYUN_PHASES.find(p => age >= p.range[0] && age <= p.range[1]) || DAYUN_PHASES[0];
+
+        let yearElement = '木';
+        let dayPillar = '';
+        try {
+          const yearLs = lunisolar(`${year}-06-15`);
+          const yearStem = yearLs.char8?.year?.stem?.toString() || '';
+          yearElement = STEM_ELEMENT[yearStem] || '木';
+          dayPillar = yearLs.char8?.day?.toString() || '';
+        } catch {}
+
+        const ageCurve = -0.015 * (age - 38) * (age - 38) + 70;
+        const phaseBonus = phase.base;
+        const elemMod = elementModifier(yearElement, dayElement);
+
+        const seed = `${birthDate}:${age}:${dayMasterStem}`;
+        const r1 = seededRand(seed + ':total');
+        const variation = (r1 - 0.5) * 20;
+
+        const rawTotal = Math.round(ageCurve + phaseBonus + elemMod + variation);
+        const totalScore = Math.max(15, Math.min(95, rawTotal));
+
+        const dimKeys = ['love', 'wealth', 'career', 'study', 'social'];
+        const dimOffsets = [3, -2, 5, -3, 1];
+        const dims: Record<string, number> = {};
+        dimKeys.forEach((k, i) => {
+          const dimSeed = seededRand(seed + ':' + k);
+          const dimVar = (dimSeed - 0.5) * 24;
+          const base = totalScore + dimOffsets[i] + dimVar;
+          dims[k] = Math.max(10, Math.min(98, Math.round(base)));
+        });
+
+        // Guest paywall: ages beyond FREE_YEARS show only totalScore, no details
+        if (age > FREE_YEARS) {
+          points.push({
+            age, year, totalScore,
+            love: 0, wealth: 0, career: 0, study: 0, social: 0,
+            dayPillar: '', luckyElement: '', phase: phase.name,
+            insight: '注册解锁完整报告',
+            locked: true,
+          });
+        } else {
+          const PHASE_INSIGHTS: Record<string, string[]> = {
+            '初运': ['童年时期，万物萌芽。', '少年不知愁滋味，正是学习好时光。', '根基稳固，未来可期。'],
+            '青年运': ['风华正茂，意气风发。', '学业事业打基础的黄金期。', '朝气蓬勃，勇往直前。'],
+            '而立运': ['三十而立，事业起步的关键期。', '感情与事业双线发展。', '开始收获人生的第一桶金。'],
+            '壮年运': ['人生黄金期，收获与挑战并存。', '事业上升期，把握机遇很要。', '家庭与事业需要平衡。'],
+          };
+          const insights = PHASE_INSIGHTS[phase.name] || ['运势稳步发展中。'];
+          const insightIdx = Math.abs(Math.round(seededRand(seed + ':insight') * 100)) % insights.length;
+
+          points.push({
+            age, year, totalScore, ...dims,
+            dayPillar, luckyElement: yearElement, phase: phase.name,
+            insight: insights[insightIdx], locked: false,
+          });
+        }
+      }
+
+      res.json({
+        birthYear,
+        birthDate,
+        element: dayElement,
+        dayMaster: dayMasterStem,
+        points,
+        currentAge: Math.max(1, Math.min(100, currentAge)),
+        peakAge: points.reduce((a: any, b: any) => a.totalScore > b.totalScore ? a : b).age,
+        valleyAge: points.reduce((a: any, b: any) => a.totalScore < b.totalScore ? a : b).age,
+        isGuest: true,
+        freeYears: FREE_YEARS,
+      });
+    } catch (err) {
+      console.error('Guest life curve error:', err);
+      res.status(500).json({ error: '运势曲线生成失败' });
+    }
+  });
+
   app.get("/api/fortune/today", requireAuth, async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -10506,6 +10662,308 @@ ${userTopics ? `近期话题: ${userTopics}` : ''}
     } catch (err) {
       console.error("[share] Error:", err);
       res.status(500).json({ error: "获取分享内容失败" });
+    }
+  });
+
+  // ─── Premium / Subscription / Referral API ─────────────────
+  const premium = await import("./premium");
+
+  // Get current user's premium status
+  app.get("/api/premium/status", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: "Not found" });
+
+      const tier = premium.getUserTier(user as any);
+      const tierInfo = premium.getTierInfo(tier);
+      const credits = user.credits ?? 0;
+      const referralCode = await premium.generateReferralCode(userId);
+
+      res.json({
+        tier,
+        tierInfo,
+        credits,
+        referralCode,
+        referralCount: user.referralCount ?? 0,
+        premiumExpiresAt: user.premiumExpiresAt || null,
+        tiers: premium.TIERS,
+      });
+    } catch (err) {
+      console.error("Premium status error:", err);
+      res.status(500).json({ error: "获取会员状态失败" });
+    }
+  });
+
+  // Apply referral code
+  app.post("/api/premium/referral", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { code } = req.body;
+      if (!code || typeof code !== "string") {
+        return res.status(400).json({ error: "请提供邀请码" });
+      }
+      const result = await premium.applyReferralCode(userId, code.trim().toUpperCase());
+      res.json(result);
+    } catch (err) {
+      console.error("Referral error:", err);
+      res.status(500).json({ error: "邀请码处理失败" });
+    }
+  });
+
+  // Purchase credits (placeholder — integrate with Stripe/WeChat Pay later)
+  app.post("/api/premium/buy-credits", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { amount } = req.body;
+      if (!amount || typeof amount !== "number" || amount < 1 || amount > 1000) {
+        return res.status(400).json({ error: "积分数量无效 (1-1000)" });
+      }
+      // TODO: integrate actual payment gateway
+      // For now, simulate purchase for testing
+      const newBalance = await premium.addCredits(userId, amount, "credit purchase");
+      res.json({ ok: true, credits: newBalance, message: `成功购买 ${amount} 积分` });
+    } catch (err) {
+      console.error("Buy credits error:", err);
+      res.status(500).json({ error: "购买积分失败" });
+    }
+  });
+
+  // Subscribe to a tier (placeholder — integrate with payment later)
+  app.post("/api/premium/subscribe", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { tier, months } = req.body;
+      if (!tier || !premium.TIERS[tier] || tier === "free") {
+        return res.status(400).json({ error: "无效的会员等级" });
+      }
+      const duration = (months && typeof months === "number") ? Math.min(12, months) : 1;
+      // TODO: integrate actual payment gateway
+      await premium.setSubscription(userId, tier, duration * 30);
+      const tierInfo = premium.getTierInfo(tier);
+      res.json({
+        ok: true,
+        tier,
+        duration,
+        message: `已开通${tierInfo.label} ${duration}个月`,
+      });
+    } catch (err) {
+      console.error("Subscribe error:", err);
+      res.status(500).json({ error: "订阅失败" });
+    }
+  });
+
+  // ─── AI Visual Readings (前世画像 / 未来伴侣) ──────────────
+  app.post("/api/fortune/ai-portrait", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      if (!checkRateLimit(`ai-portrait:${userId}`, 5, 3600000)) {
+        return res.status(429).json({ error: "每小时最多5次，请稍后再试" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: "Not found" });
+
+      const { type } = req.body; // "past_life" | "future_partner" | "spirit_animal"
+      const validTypes = ["past_life", "future_partner", "spirit_animal"];
+      if (!type || !validTypes.includes(type)) {
+        return res.status(400).json({ error: "无效的画像类型", validTypes });
+      }
+
+      // Check credits (costs 5 credits)
+      const PORTRAIT_COST = 5;
+      const hasCredits = await premium.deductCredits(userId, PORTRAIT_COST, `ai-portrait: ${type}`);
+      if (!hasCredits) {
+        const credits = await premium.getCredits(userId);
+        return res.status(402).json({
+          error: "积分不足",
+          required: PORTRAIT_COST,
+          current: credits,
+          message: `AI画像需要 ${PORTRAIT_COST} 积分`,
+        });
+      }
+
+      // Get user's bazi info for personalization
+      let element = "木", dayMaster = "甲", birthInfo = "";
+      if (user.birthDate) {
+        try {
+          const bh = user.birthHour ?? 12;
+          const ls = lunisolar(`${user.birthDate} ${bh}:00`);
+          dayMaster = ls.char8?.day?.stem?.toString() || "甲";
+          const STEM_EL: Record<string, string> = { '甲':'木','乙':'木','丙':'火','丁':'火','戊':'土','己':'土','庚':'金','辛':'金','壬':'水','癸':'水' };
+          element = STEM_EL[dayMaster] || "木";
+          birthInfo = `八字: ${ls.char8.toString()}, 日主${dayMaster}, ${element}命`;
+        } catch {}
+      }
+
+      const prompts: Record<string, string> = {
+        past_life: `基于此人的八字命理信息(${birthInfo})，创作一段关于他/她前世身份的描述。包含：
+1. 前世时代背景（朝代/时期）
+2. 前世身份与职业
+3. 前世性格特征
+4. 前世的关键经历
+5. 前世与今生的因果联系
+6. 前世画像的视觉描述（外貌、服饰、气质，详细到可以作为AI绘画提示词）
+用文学性的语言，200-300字。`,
+        future_partner: `基于此人的八字命理信息(${birthInfo})，描绘他/她的命定伴侣画像。包含：
+1. 伴侣的五行属性与气质
+2. 外貌特征描述（身高、体型、面部特征、气质）
+3. 性格特点
+4. 可能的职业方向
+5. 相遇的时机与场景
+6. 两人互补的方面
+用温暖浪漫的语调，200-300字。`,
+        spirit_animal: `基于此人的八字命理信息(${birthInfo})，揭示他/她的灵魂守护兽。包含：
+1. 守护兽是什么动物（基于五行选择）
+2. 为什么是这个动物（与命主的命理联系）
+3. 守护兽的性格与能力
+4. 守护兽给命主的启示
+5. 守护兽的视觉描述（颜色、形态、特殊标记）
+用神秘而温暖的语调，200-300字。`,
+      };
+
+      const systemPrompt = "你是一位融合了中华命理与灵性智慧的AI画像师。善于将八字命理转化为生动的视觉叙事。语言优美，但不要过于夸张。每个描述都要与命主的八字特征有具体关联。";
+
+      const completion = await aiComplete({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompts[type] },
+        ],
+        max_tokens: 800,
+      });
+      const aiResult = completion.choices[0]?.message?.content || "画像生成失败，请重试";
+
+      const typeLabels: Record<string, string> = {
+        past_life: "前世画像",
+        future_partner: "命定伴侣",
+        spirit_animal: "灵魂守护兽",
+      };
+
+      res.json({
+        ok: true,
+        type,
+        typeLabel: typeLabels[type],
+        portrait: aiResult,
+        element,
+        dayMaster,
+        creditsCost: PORTRAIT_COST,
+        note: "AI生成内容仅供娱乐参考，不代表真实预测。",
+      });
+    } catch (err) {
+      console.error("AI portrait error:", err);
+      res.status(500).json({ error: "AI画像生成失败" });
+    }
+  });
+
+  // ─── Merch Shop API ───────────────────────────────────────
+  // Product catalog tied to user's element/bazi
+  app.get("/api/shop/recommendations", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+
+      // Determine user's element for personalized recommendations
+      let userElement = "木"; // default
+      if (user?.birthDate) {
+        try {
+          const bh = user.birthHour ?? 12;
+          const ls = lunisolar(`${user.birthDate} ${bh}:00`);
+          const stem = ls.char8?.day?.stem?.toString() || "";
+          const STEM_EL: Record<string, string> = { '甲':'木','乙':'木','丙':'火','丁':'火','戊':'土','己':'土','庚':'金','辛':'金','壬':'水','癸':'水' };
+          userElement = STEM_EL[stem] || "木";
+        } catch {}
+      }
+
+      // Element-based product recommendations
+      const ELEMENT_PRODUCTS: Record<string, Array<{ name: string; desc: string; price: { cny: number; usd: number }; category: string }>> = {
+        "木": [
+          { name: "翡翠平安扣", desc: "木命之人佩戴翡翠，生生不息", price: { cny: 128, usd: 19.9 }, category: "玉石" },
+          { name: "檀木手串", desc: "檀香安神，助木命人心境平和", price: { cny: 68, usd: 9.9 }, category: "手串" },
+          { name: "绿幽灵水晶", desc: "招财聚气，木命必备", price: { cny: 198, usd: 29.9 }, category: "水晶" },
+        ],
+        "火": [
+          { name: "红玛瑙手链", desc: "火命人佩戴红玛瑙，旺运助事业", price: { cny: 88, usd: 12.9 }, category: "手链" },
+          { name: "紫水晶吊坠", desc: "安神定志，平衡火命之燥", price: { cny: 158, usd: 22.9 }, category: "水晶" },
+          { name: "朱砂转运珠", desc: "辟邪化煞，火命护身良品", price: { cny: 48, usd: 7.9 }, category: "转运" },
+        ],
+        "土": [
+          { name: "黄水晶招财树", desc: "土命生金，黄水晶催旺财运", price: { cny: 228, usd: 34.9 }, category: "摆件" },
+          { name: "和田玉手镯", desc: "温润如玉，土命之人的守护石", price: { cny: 388, usd: 59.9 }, category: "玉石" },
+          { name: "虎眼石手串", desc: "增强决断力，助土命人事业突破", price: { cny: 78, usd: 11.9 }, category: "手串" },
+        ],
+        "金": [
+          { name: "白水晶球", desc: "金命通透，白水晶提升灵性", price: { cny: 168, usd: 24.9 }, category: "水晶" },
+          { name: "银饰护身符", desc: "金属相生，银饰守护金命人", price: { cny: 108, usd: 15.9 }, category: "饰品" },
+          { name: "月光石吊坠", desc: "柔化金命锐气，增进人缘", price: { cny: 138, usd: 19.9 }, category: "水晶" },
+        ],
+        "水": [
+          { name: "黑曜石手串", desc: "水命人佩戴黑曜石，辟邪挡煞", price: { cny: 58, usd: 8.9 }, category: "手串" },
+          { name: "海蓝宝吊坠", desc: "水命之人的本命石，增智慧", price: { cny: 188, usd: 28.9 }, category: "水晶" },
+          { name: "蓝砂石转运珠", desc: "星光闪烁，助水命人把握机遇", price: { cny: 68, usd: 9.9 }, category: "转运" },
+        ],
+      };
+
+      const products = ELEMENT_PRODUCTS[userElement] || ELEMENT_PRODUCTS["木"];
+      const userTier = premium.getUserTier(user as any);
+      const discount = premium.getTierInfo(userTier).merchDiscount;
+
+      res.json({
+        element: userElement,
+        products: products.map(p => ({
+          ...p,
+          discountPercent: discount,
+          discountedPrice: discount > 0 ? {
+            cny: Math.round(p.price.cny * (1 - discount / 100)),
+            usd: +(p.price.usd * (1 - discount / 100)).toFixed(2),
+          } : null,
+        })),
+        disclaimer: "商品推荐基于五行命理，仅供参考。实际功效因人而异。",
+      });
+    } catch (err) {
+      console.error("Shop recommendations error:", err);
+      res.status(500).json({ error: "获取推荐失败" });
+    }
+  });
+
+  // ─── 真人解读 Booking API ─────────────────────────────────
+  app.post("/api/consult/book", requireAuth, async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: "Not found" });
+
+      const { topic, notes } = req.body;
+      if (!topic || typeof topic !== "string") {
+        return res.status(400).json({ error: "请选择咨询主题" });
+      }
+
+      const CONSULT_COST = 30; // 30 credits per consultation
+      const hasCredits = await premium.deductCredits(userId, CONSULT_COST, `consultation: ${topic}`);
+      if (!hasCredits) {
+        return res.status(402).json({
+          error: "积分不足",
+          required: CONSULT_COST,
+          current: user.credits ?? 0,
+          message: `真人解读需要 ${CONSULT_COST} 积分，你当前有 ${user.credits ?? 0} 积分`,
+        });
+      }
+
+      // Create a booking record (for now, store as a community post or notification)
+      // TODO: integrate real booking system (Calendly, etc.)
+      const bookingId = `BK-${Date.now().toString(36).toUpperCase()}`;
+
+      res.json({
+        ok: true,
+        bookingId,
+        topic,
+        creditsCost: CONSULT_COST,
+        message: "预约成功！命理师将在24小时内与你联系。",
+        note: "当前为测试版本，真人解读服务即将上线。",
+      });
+    } catch (err) {
+      console.error("Booking error:", err);
+      res.status(500).json({ error: "预约失败" });
     }
   });
 
