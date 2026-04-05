@@ -24,7 +24,10 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
+  Share2,
+  Download,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // ─── Types ──────────────────────────────────────────────────
 interface LifeFortunePoint {
@@ -366,11 +369,107 @@ function AgeDetail({ point, prevPoint }: { point: LifeFortunePoint; prevPoint?: 
   );
 }
 
+// ─── Share Card (screenshot-friendly) ──────────────────────
+function LifeCurveShareCard({
+  data,
+  chartRef,
+}: {
+  data: LifeFortuneData;
+  chartRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const peakPoint = data.points.reduce((a, b) => (a.totalScore > b.totalScore ? a : b));
+  const valleyPoint = data.points.reduce((a, b) => (a.totalScore < b.totalScore ? a : b));
+  const currentPoint = data.points.find(p => p.age === data.currentAge);
+
+  return (
+    <div
+      ref={chartRef}
+      className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-2xl space-y-4"
+      style={{ width: "100%", maxWidth: 420 }}
+    >
+      {/* Header */}
+      <div className="text-center space-y-1">
+        <h2 className="text-lg font-bold tracking-wide">人生运势 K 线图</h2>
+        <p className="text-xs text-indigo-300">
+          {data.dayMaster && `日主${data.dayMaster}`}
+          {data.element && ` · ${data.element}命`}
+          {` · ${data.birthDate}`}
+        </p>
+      </div>
+
+      {/* Mini chart (simplified for screenshot) */}
+      <div className="relative h-24 flex items-end gap-[2px]">
+        {data.points.filter((_, i) => i % 2 === 0).map((p) => {
+          const h = (p.totalScore / 100) * 100;
+          const isCurrent = p.age === data.currentAge;
+          const isPeak = p.age === peakPoint.age;
+          const isValley = p.age === valleyPoint.age;
+          return (
+            <div
+              key={p.age}
+              className="flex-1 rounded-t-sm relative"
+              style={{
+                height: `${h}%`,
+                backgroundColor: p.totalScore >= 70
+                  ? "rgba(34,197,94,0.7)"
+                  : p.totalScore >= 50
+                  ? "rgba(234,179,8,0.5)"
+                  : "rgba(239,68,68,0.6)",
+                border: isCurrent ? "1px solid #fff" : "none",
+              }}
+            >
+              {(isPeak || isValley || isCurrent) && (
+                <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] whitespace-nowrap font-bold">
+                  {isCurrent ? "今" : isPeak ? "🔺" : "🔻"}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="bg-white/10 rounded-lg py-2">
+          <p className="text-[10px] text-green-400">巅峰</p>
+          <p className="text-sm font-bold">{peakPoint.age}岁</p>
+          <p className="text-[10px] text-white/60">{peakPoint.totalScore}分</p>
+        </div>
+        <div className="bg-white/10 rounded-lg py-2">
+          <p className="text-[10px] text-indigo-300">当前</p>
+          <p className="text-sm font-bold">{data.currentAge}岁</p>
+          <p className="text-[10px] text-white/60">{currentPoint?.totalScore ?? "—"}分</p>
+        </div>
+        <div className="bg-white/10 rounded-lg py-2">
+          <p className="text-[10px] text-red-400">低谷</p>
+          <p className="text-sm font-bold">{valleyPoint.age}岁</p>
+          <p className="text-[10px] text-white/60">{valleyPoint.totalScore}分</p>
+        </div>
+      </div>
+
+      {/* Current year insight */}
+      {currentPoint?.insight && (
+        <p className="text-xs text-center text-indigo-200 italic">
+          "{currentPoint.insight}"
+        </p>
+      )}
+
+      {/* Branding */}
+      <div className="text-center pt-1 border-t border-white/10">
+        <p className="text-[10px] text-white/40">观星 HeartAI · 你的 AI 命理伙伴</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────
 export default function LifeCurvePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeDim, setActiveDim] = useState("total");
   const [selectedAge, setSelectedAge] = useState<number | null>(null);
+  const [showShareCard, setShowShareCard] = useState(false);
+  const shareCardRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading, error } = useQuery<LifeFortuneData>({
     queryKey: ["/api/fortune/life-curve"],
@@ -446,17 +545,40 @@ export default function LifeCurvePage() {
     <div className="flex-1 overflow-y-auto" data-testid="life-curve-page">
       <PageContainer className="space-y-4">
         {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-amber-500" />
-            人生运势曲线
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {data.dayMaster && `日主${data.dayMaster}`}
-            {data.element && ` · ${data.element}命`}
-            {` · ${data.birthDate}`}
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-amber-500" />
+              人生运势 K 线图
+            </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {data.dayMaster && `日主${data.dayMaster}`}
+              {data.element && ` · ${data.element}命`}
+              {` · ${data.birthDate}`}
+              {' · 100年运势'}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowShareCard(!showShareCard)}
+            data-testid="button-share-curve"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            分享
+          </Button>
         </div>
+
+        {/* Share Card (screenshot-ready) */}
+        {showShareCard && (
+          <div className="space-y-3">
+            <LifeCurveShareCard data={data} chartRef={shareCardRef} />
+            <p className="text-xs text-center text-muted-foreground">
+              长按或截图分享到朋友圈 / 社交媒体
+            </p>
+          </div>
+        )}
 
         {/* Quick Stats */}
         <div className="grid grid-cols-3 gap-2">
@@ -528,7 +650,7 @@ export default function LifeCurvePage() {
         {/* Disclaimer */}
         <div className="border-t border-border pt-3">
           <p className="text-[10px] text-center text-muted-foreground">
-            ⚠️ 免责声明：基于八字命理学推算，仅供文化探索和娱乐参考。人生掌握在自己手中。
+            ⚠️ 免责声明：基于八字命理学推算，仅供文化探索和娱乐参考。人生掌握在自己手中。AI 本质提供情绪价值，不是100%准确的预测。
           </p>
         </div>
       </PageContainer>

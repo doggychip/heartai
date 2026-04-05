@@ -71,7 +71,13 @@ async function zhihuiTiFetch(path: string, options: RequestInit = {}): Promise<a
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`zhihuiti ${res.status}: ${text}`);
+    throw new Error(`zhihuiti ${res.status}: ${text.slice(0, 200)}`);
+  }
+  // Guard against HTML responses (e.g. web UI served at API paths)
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("json")) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`zhihuiti returned non-JSON (${contentType}): ${text.slice(0, 100)}`);
   }
   return res.json();
 }
@@ -151,23 +157,46 @@ export async function executeGoal(
 
 // ─── Agent Listing ───────────────────────────────────────────
 
+// Cache the full /api/data response to avoid redundant fetches
+let _cachedApiData: any = null;
+let _cachedApiDataTime = 0;
+const API_DATA_CACHE_TTL_MS = 30_000; // 30s cache
+
+async function fetchApiData(): Promise<any> {
+  const now = Date.now();
+  if (_cachedApiData && now - _cachedApiDataTime < API_DATA_CACHE_TTL_MS) {
+    return _cachedApiData;
+  }
+  _cachedApiData = await zhihuiTiFetch("/api/data");
+  _cachedApiDataTime = now;
+  return _cachedApiData;
+}
+
 /**
  * List all agents in zhihuiti's agent pool.
+ * Uses /api/data (which works) instead of /api/agents (which returns HTML).
  */
 export async function listAgents(): Promise<ZhihuiTiAgent[]> {
   if (!_zhihuiTiAvailable) return [];
-  const data = await zhihuiTiFetch("/api/agents");
-  return Array.isArray(data) ? data : data.agents || [];
+  try {
+    const data = await fetchApiData();
+    const agents = data.agents || [];
+    return Array.isArray(agents) ? agents : [];
+  } catch (err) {
+    console.error("[zhihuiti-bridge] listAgents failed:", err);
+    return [];
+  }
 }
 
 /**
  * Get zhihuiti system status (economy, agent count, etc).
  */
 export async function getSystemStatus(): Promise<ZhihuiTiStatus> {
-  const data = await zhihuiTiFetch("/api/data");
+  const data = await fetchApiData();
+  const agents = data.agents || [];
   return {
-    agents: data.agents?.length || 0,
-    goals_completed: data.goals_completed || 0,
+    agents: Array.isArray(agents) ? agents.length : 0,
+    goals_completed: data.goals_completed || data.economy?.goals_completed || 0,
     treasury_balance: data.economy?.treasury?.balance || 0,
     active_goals: data.active_goals || 0,
   };
@@ -324,14 +353,14 @@ export async function initZhihuiTiBridge(): Promise<void> {
     try {
       const status = await getSystemStatus();
       console.log(`[zhihuiti-bridge] Agents: ${status.agents}, Goals completed: ${status.goals_completed}, Treasury: ${status.treasury_balance}`);
-    } catch {}
 
-    // Sync zhihuiti agents into HeartAI as community members
-    try {
+      // Sync zhihuiti agents into HeartAI as community members
       const { synced, total } = await syncAgentsToHeartAI();
-      console.log(`[zhihuiti-bridge] Agent sync: ${synced} new, ${total} total in zhihuiti`);
+      if (synced > 0) {
+        console.log(`[zhihuiti-bridge] Agent sync: ${synced} new agents registered, ${total} total`);
+      }
     } catch (err) {
-      console.error("[zhihuiti-bridge] Agent sync failed:", err);
+      console.error("[zhihuiti-bridge] Startup sync failed:", err);
     }
   }
 
