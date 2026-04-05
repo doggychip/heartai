@@ -38,6 +38,10 @@ import {
   Flame,
   Podcast,
   Scroll,
+  Crown,
+  ShoppingBag,
+  Palette,
+  Gift,
 } from "lucide-react";
 
 // ─── Navigation Types ─────────────────────────────────────
@@ -139,6 +143,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: "/community", label: "互助社区", icon: Users, guestVisible: true },
       { path: "/agents", label: "Agent 名录", icon: Bot, guestVisible: true },
       { path: "/agent-team", label: "Agent Team", icon: Network, guestVisible: false },
+    ],
+  },
+  {
+    label: "会员服务",
+    defaultOpen: false,
+    items: [
+      { path: "/premium", label: "会员中心", icon: Crown, guestVisible: false },
+      { path: "/shop", label: "开运商城", icon: ShoppingBag, guestVisible: false },
+      { path: "/ai-portrait", label: "AI 画像", icon: Palette, guestVisible: false },
+      { path: "/referral", label: "邀请好友", icon: Gift, guestVisible: false },
+      { path: "/life-curve", label: "人生K线", icon: TrendingUp, guestVisible: false },
     ],
   },
   {

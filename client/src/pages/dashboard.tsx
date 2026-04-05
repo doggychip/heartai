@@ -44,6 +44,10 @@ import {
   CircleDot,
   Grid3X3,
   MessagesSquare,
+  Crown,
+  ShoppingBag,
+  Palette,
+  Gift,
 } from "lucide-react";
 import { useDiscoverOverlay } from "@/components/AppShell";
 
@@ -201,6 +205,10 @@ const FEATURE_ITEMS = [
   { path: "/matching", label: "缘分配对", icon: Radar, color: "#ec4899" },
   { path: "/fengshui", label: "风水评估", icon: HomeIcon, color: "#0d9488" },
   { path: "/avatar", label: "AI 分身", icon: Zap, color: "#8b5cf6" },
+  { path: "/ai-portrait", label: "AI 画像", icon: Palette, color: "#a855f7" },
+  { path: "/shop", label: "开运商城", icon: ShoppingBag, color: "#d97706" },
+  { path: "/premium", label: "会员中心", icon: Crown, color: "#eab308" },
+  { path: "/referral", label: "邀请好友", icon: Gift, color: "#f43f5e" },
   { path: "/activity", label: "社区动态", icon: Activity, color: "#06b6d4" },
 ];
 
