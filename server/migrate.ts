@@ -466,6 +466,16 @@ export async function ensureTables() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS dingding_webhook_url TEXT
     `);
 
+    // ─── Premium / Subscription / Referral columns ───
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_tier TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_expires_at TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS total_spent INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locale TEXT`);
+
     // ─── Performance Indexes ─────────────────────────────────────
     // These use IF NOT EXISTS to be idempotent
     const indexes = [
