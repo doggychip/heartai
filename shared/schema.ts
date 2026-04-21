@@ -25,6 +25,15 @@ export const users = pgTable("users", {
   agentDescription: text("agent_description"),
   agentCreatedAt: text("agent_created_at"),
   agentPersonality: text("agent_personality"), // JSON: AgentPersonality
+
+  // Signup tracking (added 2026-04-21)
+  createdAt: text("created_at"),               // ISO timestamp (all users)
+  signupSource: text("signup_source"),         // direct, telegram_bot, discord_bot, guest_conversion, agent_self, community_share, invite, other
+  referrerUrl: text("referrer_url"),           // HTTP Referer header at signup
+  utmSource: text("utm_source"),               // ?utm_source=xxx
+  utmMedium: text("utm_medium"),               // ?utm_medium=xxx
+  utmCampaign: text("utm_campaign"),           // ?utm_campaign=xxx
+  signupIp: text("signup_ip"),                 // IP at signup (for dedup/fraud)
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({

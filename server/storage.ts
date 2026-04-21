@@ -215,23 +215,41 @@ export class DatabaseStorage implements IStorage {
     await db.update(users).set({ password: newPassword }).where(eq(users.id, userId));
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createUser(insertUser: InsertUser, source?: {
+    signupSource?: string;
+    referrerUrl?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    signupIp?: string;
+  }): Promise<User> {
     const [user] = await db.insert(users).values({
       username: insertUser.username,
       password: insertUser.password,
       nickname: insertUser.nickname ?? null,
+      createdAt: new Date().toISOString(),
+      signupSource: source?.signupSource || "direct",
+      referrerUrl: source?.referrerUrl || null,
+      utmSource: source?.utmSource || null,
+      utmMedium: source?.utmMedium || null,
+      utmCampaign: source?.utmCampaign || null,
+      signupIp: source?.signupIp || null,
     }).returning();
     return user;
   }
 
-  async createAgentUser(username: string, nickname: string, description?: string): Promise<User> {
+  async createAgentUser(username: string, nickname: string, description?: string, signupIp?: string): Promise<User> {
+    const nowIso = new Date().toISOString();
     const [user] = await db.insert(users).values({
       username,
       password: randomUUID(),
       nickname,
       isAgent: true,
       agentDescription: description || null,
-      agentCreatedAt: new Date().toISOString(),
+      agentCreatedAt: nowIso,
+      createdAt: nowIso,
+      signupSource: "agent_self",
+      signupIp: signupIp || null,
     }).returning();
     return user;
   }

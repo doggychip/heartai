@@ -896,6 +896,47 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+// Extract signup source from request — combines explicit body hint, UTM params, Referer header, and User-Agent heuristics
+function extractSignupSource(req: Request): {
+  signupSource: string;
+  referrerUrl?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  signupIp?: string;
+} {
+  const body = (req.body || {}) as Record<string, any>;
+  const query = (req.query || {}) as Record<string, any>;
+  const referer = (req.headers.referer || req.headers.referrer || "") as string;
+  const ua = (req.headers["user-agent"] || "").toString().toLowerCase();
+  const ip = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0].trim();
+
+  const utmSource = body.utmSource || query.utm_source;
+  const utmMedium = body.utmMedium || query.utm_medium;
+  const utmCampaign = body.utmCampaign || query.utm_campaign;
+
+  let source = (body.signupSource as string) || "";
+  if (!source) {
+    if (utmSource) source = `utm:${utmSource}`;
+    else if (/telegram/i.test(ua) || /telegram/i.test(referer)) source = "telegram_bot";
+    else if (/discord/i.test(ua) || /discord/i.test(referer)) source = "discord_bot";
+    else if (body.fromGuest || body.wasGuest) source = "guest_conversion";
+    else if (body.inviteCode || body.invitedBy) source = "invite";
+    else if (/t\.co\/|weibo|x\.com|twitter/i.test(referer)) source = "social_share";
+    else if (referer) source = "referred_web";
+    else source = "direct";
+  }
+
+  return {
+    signupSource: source.slice(0, 60),
+    referrerUrl: referer ? referer.slice(0, 500) : undefined,
+    utmSource: utmSource ? String(utmSource).slice(0, 100) : undefined,
+    utmMedium: utmMedium ? String(utmMedium).slice(0, 100) : undefined,
+    utmCampaign: utmCampaign ? String(utmCampaign).slice(0, 100) : undefined,
+    signupIp: ip || undefined,
+  };
+}
+
 function getUserId(req: Request): string {
   return (req as any).userId;
 }
@@ -1330,7 +1371,8 @@ Available tools: bazi_analysis, daily_fortune, qiuqian, almanac, dream_interpret
       if (existing) return res.status(409).json({ error: "用户名已存在" });
 
       const publicId = await getUniquePublicId();
-      const user = await storage.createUser({ username, password, nickname });
+      const source = extractSignupSource(req);
+      const user = await storage.createUser({ username, password, nickname }, source);
       // Assign public ID
       await storage.updateUser(user.id, { publicId });
       const updatedUser = await storage.getUser(user.id);
@@ -4986,7 +5028,8 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
       }
 
       // Create new agent user
-      const agentUser = await storage.createAgentUser(username, agentName, description || "");
+      const ipForAgent = (req.headers["x-forwarded-for"] as string || req.socket?.remoteAddress || "").split(",")[0].trim();
+      const agentUser = await storage.createAgentUser(username, agentName, description || "", ipForAgent || undefined);
       const key = `hak_${Array.from({ length: 48 }, () => Math.random().toString(36)[2]).join("")}`;
       await storage.updateUserAgentApiKey(agentUser.id, key);
       // Assign public ID
@@ -5179,6 +5222,98 @@ ${topic ? `主题: ${topic}` : '自由发挥，分享今日感想、生活趣事
   });
 
   // ─── Admin: Trigger bot post (diagnose + kickstart) ────────────────────────
+  // GET /api/admin/signups — signup breakdown by day, source, and type
+  //   Query params: days (default 30), includeAgents (default true)
+  //   Header: X-Admin-Secret
+  app.get("/api/admin/signups", async (req, res) => {
+    try {
+      const secret = req.headers["x-admin-secret"] as string;
+      const expected = process.env.ADMIN_SECRET || "guanxing-bootstrap-2026";
+      if (secret !== expected) return res.status(403).json({ error: "Unauthorized" });
+
+      const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
+      const includeAgents = req.query.includeAgents !== "false";
+      const cutoffIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+      const agentFilter = includeAgents ? sql`true` : sql`${users.isAgent} = false`;
+
+      // Daily breakdown (by date, is_agent)
+      const daily = await db.execute(sql`
+        SELECT
+          COALESCE(SUBSTRING(created_at, 1, 10), SUBSTRING(agent_created_at, 1, 10)) AS day,
+          is_agent,
+          COUNT(*)::int AS count
+        FROM users
+        WHERE (created_at >= ${cutoffIso} OR (created_at IS NULL AND agent_created_at >= ${cutoffIso}))
+          AND ${agentFilter}
+        GROUP BY day, is_agent
+        ORDER BY day DESC
+      `);
+
+      // Source breakdown
+      const bySource = await db.execute(sql`
+        SELECT
+          COALESCE(signup_source, 'unknown') AS source,
+          is_agent,
+          COUNT(*)::int AS count
+        FROM users
+        WHERE (created_at >= ${cutoffIso} OR (created_at IS NULL AND agent_created_at >= ${cutoffIso}))
+          AND ${agentFilter}
+        GROUP BY source, is_agent
+        ORDER BY count DESC
+      `);
+
+      // UTM campaign breakdown
+      const byCampaign = await db.execute(sql`
+        SELECT
+          utm_source,
+          utm_medium,
+          utm_campaign,
+          COUNT(*)::int AS count
+        FROM users
+        WHERE (created_at >= ${cutoffIso} OR (created_at IS NULL AND agent_created_at >= ${cutoffIso}))
+          AND utm_source IS NOT NULL
+          AND ${agentFilter}
+        GROUP BY utm_source, utm_medium, utm_campaign
+        ORDER BY count DESC
+        LIMIT 20
+      `);
+
+      // Totals
+      const [totals] = (await db.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE is_agent = false)::int AS humans,
+          COUNT(*) FILTER (WHERE is_agent = true)::int AS agents,
+          COUNT(*)::int AS total
+        FROM users
+        WHERE created_at >= ${cutoffIso} OR (created_at IS NULL AND agent_created_at >= ${cutoffIso})
+      `)).rows as any[];
+
+      // Recent (for inspection)
+      const recent = await db.execute(sql`
+        SELECT id, username, nickname, is_agent, signup_source, utm_source,
+               referrer_url, created_at, agent_created_at
+        FROM users
+        WHERE (created_at >= ${cutoffIso} OR (created_at IS NULL AND agent_created_at >= ${cutoffIso}))
+          AND ${agentFilter}
+        ORDER BY COALESCE(created_at, agent_created_at) DESC
+        LIMIT 50
+      `);
+
+      res.json({
+        rangeDays: days,
+        totals,
+        daily: daily.rows,
+        bySource: bySource.rows,
+        byCampaign: byCampaign.rows,
+        recent: recent.rows,
+      });
+    } catch (err: any) {
+      console.error("Admin signups error:", err);
+      res.status(500).json({ error: "Failed to load signups", detail: err.message });
+    }
+  });
+
   app.post("/api/admin/trigger-bot", async (req, res) => {
     try {
       const secret = req.headers["x-admin-secret"] as string;
